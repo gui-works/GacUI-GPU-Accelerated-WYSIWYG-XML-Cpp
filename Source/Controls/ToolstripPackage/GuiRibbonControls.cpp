@@ -23,7 +23,7 @@ GuiRibbonTab
 
 			void GuiRibbonTab::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				if (auto bhc = ct->GetBeforeHeadersContainer())
@@ -38,7 +38,7 @@ GuiRibbonTab
 
 			void GuiRibbonTab::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				if (auto bhc = ct->GetBeforeHeadersContainer())
 				{
 					bhc->AddChild(beforeHeaders);
@@ -262,7 +262,7 @@ GuiRibbonGroup
 
 			void GuiRibbonGroup::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				ct->SetCommands(nullptr);
@@ -270,17 +270,42 @@ GuiRibbonGroup
 
 			void GuiRibbonGroup::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
-				ct->SetExpandable(expandable);
-				ct->SetCollapsed(responsiveView->GetCurrentView() == responsiveFixedButton);
-				ct->SetCommands(commandExecutor.Obj());
-				dropdownButton->SetControlTemplate(ct->GetLargeDropdownButtonTemplate());
-				dropdownMenu->SetControlTemplate(ct->GetSubMenuTemplate());
+				{
+					auto ct = TypedControlTemplateObject(true);
+					ct->SetExpandable(expandable);
+					ct->SetCollapsed(responsiveView->GetCurrentView() == responsiveFixedButton);
+					ct->SetCommands(commandExecutor.Obj());
+					dropdownButton->SetControlTemplate(ct->GetLargeDropdownButtonTemplate());
+					dropdownMenu->SetControlTemplate(ct->GetSubMenuTemplate());
+				}
+
+				if (auto ct = dynamic_cast<GuiRibbonGroupMenuTemplate*>(dropdownMenu->TypedControlTemplateObject(true)))
+				{
+					ct->SetExpandable(expandable);
+					ct->SetCommands(commandExecutor.Obj());
+				}
 			}
 
-			void GuiRibbonGroup::OnBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
+			bool GuiRibbonGroup::IsAltAvailable()
 			{
-				dropdownMenu->GetBoundsComposition()->SetPreferredMinSize(Size(0, containerComposition->GetBounds().Height()));
+				return alt != L"";
+			}
+
+			compositions::IGuiAltActionHost* GuiRibbonGroup::GetActivatingAltHost()
+			{
+				if (IsAltAvailable())
+				{
+					return this;
+				}
+				else
+				{
+					return GuiControl::GetActivatingAltHost();
+				}
+			}
+
+			void GuiRibbonGroup::OnCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
+			{
+				dropdownMenu->GetBoundsComposition()->SetPreferredMinSize(Size(0, containerComposition->GetCachedBounds().Height()));
 			}
 
 			void GuiRibbonGroup::OnTextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
@@ -309,7 +334,7 @@ GuiRibbonGroup
 
 			void GuiRibbonGroup::OnBeforeSwitchingView(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments)
 			{
-				if (auto ct = GetControlTemplateObject(false))
+				if (auto ct = TypedControlTemplateObject(false))
 				{
 					ct->SetCollapsed(arguments.itemIndex == 1);
 				}
@@ -333,7 +358,10 @@ GuiRibbonGroup
 				:GuiControl(themeName)
 				, items(this)
 			{
-				commandExecutor = new CommandExecutor(this);
+				SetAltComposition(boundsComposition);
+				SetAltControl(this, false);
+
+				commandExecutor = Ptr(new CommandExecutor(this));
 				{
 					stack = new GuiStackComposition();
 					stack->SetDirection(GuiStackComposition::Horizontal);
@@ -354,7 +382,7 @@ GuiRibbonGroup
 					responsiveFixedButton->SetAlignmentToParent(Margin(0, 0, 0, 0));
 					responsiveFixedButton->AddChild(dropdownButton->GetBoundsComposition());
 
-					dropdownMenu = new GuiRibbonGroupMenu(theme::ThemeName::Menu, dropdownButton);
+					dropdownMenu = new GuiRibbonGroupMenu(theme::ThemeName::RibbonGroupMenu, dropdownButton);
 				}
 
 				responsiveView = new GuiResponsiveViewComposition();
@@ -368,7 +396,7 @@ GuiRibbonGroup
 				LargeImageChanged.SetAssociatedComposition(boundsComposition);
 
 				TextChanged.AttachMethod(this, &GuiRibbonGroup::OnTextChanged);
-				boundsComposition->BoundsChanged.AttachMethod(this, &GuiRibbonGroup::OnBoundsChanged);
+				boundsComposition->CachedBoundsChanged.AttachMethod(this, &GuiRibbonGroup::OnCachedBoundsChanged);
 				responsiveView->BeforeSwitchingView.AttachMethod(this, &GuiRibbonGroup::OnBeforeSwitchingView);
 				dropdownButton->BeforeSubMenuOpening.AttachMethod(this, &GuiRibbonGroup::OnBeforeSubMenuOpening);
 			}
@@ -392,7 +420,11 @@ GuiRibbonGroup
 				if (expandable != value)
 				{
 					expandable = value;
-					GetControlTemplateObject(true)->SetExpandable(expandable);
+					TypedControlTemplateObject(true)->SetExpandable(expandable);
+					if (auto ct = dynamic_cast<GuiRibbonGroupMenuTemplate*>(dropdownMenu->TypedControlTemplateObject(true)))
+					{
+						ct->SetExpandable(expandable);
+					}
 					ExpandableChanged.Execute(GetNotifyEventArguments());
 				}
 			}
@@ -442,7 +474,7 @@ GuiRibbonIconLabel
 
 			void GuiRibbonIconLabel::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				ct->SetImage(image);
 			}
 
@@ -466,7 +498,7 @@ GuiRibbonIconLabel
 				if (image != value)
 				{
 					image = value;
-					GetControlTemplateObject(true)->SetImage(image);
+					TypedControlTemplateObject(true)->SetImage(image);
 					ImageChanged.Execute(GetNotifyEventArguments());
 				}
 			}
@@ -527,7 +559,7 @@ GuiRibbonButtons
 
 			void GuiRibbonButtons::AfterControlTemplateInstalled_(bool initialize)
 			{
-				FOREACH(GuiControl*, button, buttons)
+				for (auto button : buttons)
 				{
 					SetButtonThemeName(responsiveView->GetCurrentView(), button);
 				}
@@ -535,7 +567,7 @@ GuiRibbonButtons
 
 			void GuiRibbonButtons::OnBeforeSwitchingView(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments)
 			{
-				FOREACH(GuiControl*, button, buttons)
+				for (auto button : buttons)
 				{
 					SetButtonThemeName(responsiveView->GetViews()[arguments.itemIndex], button);
 				}
@@ -607,7 +639,7 @@ GuiRibbonButtons
 							}
 						}
 
-						if (auto ct = GetControlTemplateObject(false))
+						if (auto ct = TypedControlTemplateObject(false))
 						{
 							if (fixed == views[(vint)RibbonButtonSize::Large])
 							{
@@ -734,6 +766,7 @@ GuiRibbonToolstripsGroupCollection
 GuiRibbonToolstrips
 ***********************************************************************/
 
+// TODO: (enumerable) foreach
 #define ARRLEN(X) sizeof(X) / sizeof(*X)
 
 			void GuiRibbonToolstrips::BeforeControlTemplateUninstalled_()
@@ -742,7 +775,7 @@ GuiRibbonToolstrips
 
 			void GuiRibbonToolstrips::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				for (vint i = 0; i < ARRLEN(toolbars); i++)
 				{
 					toolbars[i]->SetControlTemplate(ct->GetToolbarTemplate());
@@ -778,6 +811,7 @@ GuiRibbonToolstrips
 				if (groups.Count() <= count)
 				{
 					auto containers = viewIndex == 0 ? longContainers : shortContainers;
+					// TODO: (enumerable) foreach:indexed
 					for (vint i = 0; i < groups.Count(); i++)
 					{
 						containers[i]->GetToolstripItems().Add(groups[i]);
@@ -838,6 +872,7 @@ GuiRibbonToolstrips
 
 					vint minMiddle = firstGroupCount;
 					vint maxMiddle = groups.Count() - lastGroupCount - 1;
+					// TODO: (enumerable) foreach:indexed
 					for (vint j = 0; j < groups.Count(); j++)
 					{
 						shortContainers[
@@ -861,6 +896,7 @@ GuiRibbonToolstrips
 							.Aggregate([](vint a, vint b) {return a + b; });
 						vint delta = abs(count2 - count1);
 
+						// TODO: (enumerable) foreach
 						for (vint i = 0; i < groups.Count(); i++)
 						{
 							auto groupCount = groups[i]->GetToolstripItems().Count();
@@ -880,6 +916,7 @@ GuiRibbonToolstrips
 						}
 					}
 
+					// TODO: (enumerable) foreach:indexed
 					for (vint j = 0; j < groups.Count(); j++)
 					{
 						longContainers[j < firstGroupCount ? 0 : 1]->GetToolstripItems().Add(groups[j]);
@@ -897,6 +934,7 @@ GuiRibbonToolstrips
 				responsiveView->BeforeSwitchingView.AttachMethod(this, &GuiRibbonToolstrips::OnBeforeSwitchingView);
 
 				vint toolbarIndex = 0;
+				// TODO: (enumerable) foreach:indexed
 				for (vint i = 0; i < sizeof(views) / sizeof(*views); i++)
 				{
 					auto containers = i == 0 ? longContainers : shortContainers;
@@ -984,7 +1022,7 @@ GuiRibbonGallery
 
 			void GuiRibbonGallery::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				ct->SetCommands(nullptr);
@@ -992,7 +1030,7 @@ GuiRibbonGallery
 
 			void GuiRibbonGallery::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				ct->SetCommands(commandExecutor.Obj());
 				ct->SetScrollUpEnabled(scrollUpEnabled);
 				ct->SetScrollDownEnabled(scrollDownEnabled);
@@ -1001,7 +1039,7 @@ GuiRibbonGallery
 			GuiRibbonGallery::GuiRibbonGallery(theme::ThemeName themeName)
 				:GuiControl(themeName)
 			{
-				commandExecutor = new CommandExecutor(this);
+				commandExecutor = Ptr(new CommandExecutor(this));
 
 				ScrollUpEnabledChanged.SetAssociatedComposition(boundsComposition);
 				ScrollDownEnabledChanged.SetAssociatedComposition(boundsComposition);
@@ -1024,7 +1062,7 @@ GuiRibbonGallery
 				if (scrollUpEnabled != value)
 				{
 					scrollUpEnabled = value;
-					GetControlTemplateObject(true)->SetScrollUpEnabled(value);
+					TypedControlTemplateObject(true)->SetScrollUpEnabled(value);
 				}
 			}
 
@@ -1038,7 +1076,7 @@ GuiRibbonGallery
 				if (scrollDownEnabled != value)
 				{
 					scrollDownEnabled = value;
-					GetControlTemplateObject(true)->SetScrollDownEnabled(value);
+					TypedControlTemplateObject(true)->SetScrollDownEnabled(value);
 				}
 			}
 
@@ -1048,7 +1086,7 @@ GuiRibbonToolstripMenu
 
 			void GuiRibbonToolstripMenu::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				if (auto cc = ct->GetContentComposition())
@@ -1059,7 +1097,7 @@ GuiRibbonToolstripMenu
 
 			void GuiRibbonToolstripMenu::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				if (auto cc = ct->GetContentComposition())
 				{
 					cc->AddChild(contentComposition);

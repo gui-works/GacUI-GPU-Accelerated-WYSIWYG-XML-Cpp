@@ -1,7 +1,8 @@
 #include "GuiInstanceLoader.h"
 #include "WorkflowCodegen/GuiInstanceLoader_WorkflowCodegen.h"
-#include "../Controls/GuiApplication.h"
+#include "../Application/Controls/GuiApplication.h"
 #include "../Resources/GuiParserManager.h"
+#include "InstanceQuery/Generated/GuiInstanceQueryParser.h"
 
 namespace vl
 {
@@ -9,10 +10,10 @@ namespace vl
 	{
 		using namespace collections;
 		using namespace reflection::description;
-		using namespace parsing;
 		using namespace workflow;
 		using namespace workflow::analyzer;
 		using namespace workflow::runtime;
+		using namespace instancequery;
 		using namespace controls;
 		using namespace stream;
 
@@ -106,7 +107,7 @@ GuiReferenceInstanceBinder (ref)
 			
 			Ptr<workflow::WfStatement> GenerateInstallStatement(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, GlobalStringKey variableName, description::IPropertyInfo* propertyInfo, IGuiInstanceLoader* loader, const IGuiInstanceLoader::PropertyInfo& prop, Ptr<GuiInstancePropertyInfo> propInfo, const WString& code, GuiResourceTextPos position, GuiResourceError::List& errors)override
 			{
-				auto expression = MakePtr<WfReferenceExpression>();
+				auto expression = Ptr(new WfReferenceExpression);
 				expression->name.value = code;
 				return Workflow_InstallEvalProperty(precompileContext, resolvingResult, variableName, loader, prop, propInfo, expression, position, errors);
 			}
@@ -180,11 +181,11 @@ GuiBindInstanceBinder (bind)
 			{
 				if(auto expression = Workflow_ParseExpression(precompileContext, { resolvingResult.resource }, code, position, errors))
 				{
-					auto inferExpr = MakePtr<WfInferExpression>();
+					auto inferExpr = Ptr(new WfInferExpression);
 					inferExpr->expression = expression;
 					inferExpr->type = GetTypeFromTypeInfo(propertyInfo->GetReturn());
 
-					auto bindExpr = MakePtr<WfBindExpression>();
+					auto bindExpr = Ptr(new WfBindExpression);
 					bindExpr->expression = inferExpr;
 
 					return Workflow_InstallBindProperty(precompileContext, resolvingResult, variableName, propertyInfo, bindExpr);
@@ -275,16 +276,16 @@ GuiLocalizedStringInstanceBinder (str)
 
 							if (defaultLs)
 							{
-								auto thisExpr = MakePtr<WfReferenceExpression>();
+								auto thisExpr = Ptr(new WfReferenceExpression);
 								thisExpr->name.value = L"<this>";
 								thisExpr->codeRange = refExpr->codeRange;
 
-								auto thisMember = MakePtr<WfMemberExpression>();
+								auto thisMember = Ptr(new WfMemberExpression);
 								thisMember->parent = thisExpr;
 								thisMember->name.value = defaultLs->name.ToString();
 								thisMember->codeRange = refExpr->codeRange;
 
-								auto refMember = MakePtr<WfMemberExpression>();
+								auto refMember = Ptr(new WfMemberExpression);
 								refMember->parent = thisMember;
 								refMember->name.value = refExpr->name.value;
 								refMember->codeRange = refExpr->codeRange;
@@ -301,11 +302,11 @@ GuiLocalizedStringInstanceBinder (str)
 						{
 							if (auto refStrings = memberExpr->parent.Cast<WfReferenceExpression>())
 							{
-								auto thisExpr = MakePtr<WfReferenceExpression>();
+								auto thisExpr = Ptr(new WfReferenceExpression);
 								thisExpr->name.value = L"<this>";
 								thisExpr->codeRange = refStrings->codeRange;
 
-								auto thisMember = MakePtr<WfMemberExpression>();
+								auto thisMember = Ptr(new WfMemberExpression);
 								thisMember->parent = thisExpr;
 								thisMember->name.value = refStrings->name.value;
 								thisMember->codeRange = refStrings->codeRange;
@@ -325,7 +326,7 @@ GuiLocalizedStringInstanceBinder (str)
 
 					if (errorCount == errors.Count())
 					{
-						auto bindExpr = MakePtr<WfBindExpression>();
+						auto bindExpr = Ptr(new WfBindExpression);
 						bindExpr->expression = expression;
 						bindExpr->codeRange = expression->codeRange;
 
@@ -384,6 +385,141 @@ GuiEvalInstanceEventBinder (eval)
 GuiPredefinedInstanceBindersPlugin
 ***********************************************************************/
 
+		class GuiParser_WorkflowType : public IGuiParser<WfType>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowType(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfType> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseType(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_WorkflowExpression : public IGuiParser<WfExpression>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowExpression(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfExpression> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseExpression(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_WorkflowStatement : public IGuiParser<WfStatement>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowStatement(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfStatement> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseStatement(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_WorkflowCoProviderStatement : public IGuiParser<WfStatement>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowCoProviderStatement(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfStatement> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseCoProviderStatement(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_WorkflowDeclaration : public IGuiParser<WfDeclaration>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowDeclaration(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfDeclaration> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseDeclaration(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_WorkflowModule : public IGuiParser<WfModule>
+		{
+		protected:
+			Ptr<workflow::Parser>						parser;
+
+		public:
+			GuiParser_WorkflowModule(Ptr<workflow::Parser> _parser)
+				:parser(_parser)
+			{
+			}
+
+			Ptr<WfModule> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(*parser.Obj(), errors);
+				auto ast = ParseModule(text, *parser.Obj());
+				parser->OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_InstanceQuery : public IGuiParser<GuiIqQuery>
+		{
+		protected:
+			instancequery::Parser						parser;
+
+		public:
+			Ptr<GuiIqQuery> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(parser, errors);
+				auto ast = parser.ParseQueryRoot(text);
+				parser.OnError.Remove(handler);
+				return ast;
+			}
+		};
+
 		class GuiPredefinedInstanceBindersPlugin : public Object, public IGuiPlugin
 		{
 		public:
@@ -396,36 +532,39 @@ GuiPredefinedInstanceBindersPlugin
 				GUI_PLUGIN_DEPEND(GacUI_Instance_Reflection);
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				WfLoadTypes();
-				GuiIqLoadTypes();
+				if (controllerUnrelatedPlugins)
 				{
-					IGuiParserManager* manager = GetParserManager();
-					manager->SetParsingTable(L"WORKFLOW", &WfLoadTable);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-TYPE", &WfParseType);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-EXPRESSION", &WfParseExpression);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-STATEMENT", &WfParseStatement);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-COPROVIDER-STATEMENT", &WfParseCoProviderStatement);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-DECLARATION", &WfParseDeclaration);
-					manager->SetTableParser(L"WORKFLOW", L"WORKFLOW-MODULE", &WfParseModule);
-					manager->SetParsingTable(L"INSTANCE-QUERY", &GuiIqLoadTable);
-					manager->SetTableParser(L"INSTANCE-QUERY", L"INSTANCE-QUERY", &GuiIqParse);
-				}
-				{
-					IGuiInstanceLoaderManager* manager=GetInstanceLoaderManager();
+					WorkflowAstLoadTypes();
+					GuiInstanceQueryAstLoadTypes();
+					{
+						auto workflowParser = Ptr(new workflow::Parser);
 
-					manager->AddInstanceBinder(new GuiResourceInstanceBinder);
-					manager->AddInstanceBinder(new GuiReferenceInstanceBinder);
-					manager->AddInstanceBinder(new GuiEvalInstanceBinder);
-					manager->AddInstanceBinder(new GuiBindInstanceBinder);
-					manager->AddInstanceBinder(new GuiFormatInstanceBinder);
-					manager->AddInstanceBinder(new GuiLocalizedStringInstanceBinder);
-					manager->AddInstanceEventBinder(new GuiEvalInstanceEventBinder);
+						IGuiParserManager* manager = GetParserManager();
+						manager->SetParser(L"WORKFLOW-TYPE", Ptr(new GuiParser_WorkflowType(workflowParser)));
+						manager->SetParser(L"WORKFLOW-EXPRESSION", Ptr(new GuiParser_WorkflowExpression(workflowParser)));
+						manager->SetParser(L"WORKFLOW-STATEMENT", Ptr(new GuiParser_WorkflowStatement(workflowParser)));
+						manager->SetParser(L"WORKFLOW-COPROVIDER-STATEMENT", Ptr(new GuiParser_WorkflowCoProviderStatement(workflowParser)));
+						manager->SetParser(L"WORKFLOW-DECLARATION", Ptr(new GuiParser_WorkflowDeclaration(workflowParser)));
+						manager->SetParser(L"WORKFLOW-MODULE", Ptr(new GuiParser_WorkflowModule(workflowParser)));
+						manager->SetParser(L"INSTANCE-QUERY", Ptr(new GuiParser_InstanceQuery));
+					}
+					{
+						IGuiInstanceLoaderManager* manager = GetInstanceLoaderManager();
+
+						manager->AddInstanceBinder(Ptr(new GuiResourceInstanceBinder));
+						manager->AddInstanceBinder(Ptr(new GuiReferenceInstanceBinder));
+						manager->AddInstanceBinder(Ptr(new GuiEvalInstanceBinder));
+						manager->AddInstanceBinder(Ptr(new GuiBindInstanceBinder));
+						manager->AddInstanceBinder(Ptr(new GuiFormatInstanceBinder));
+						manager->AddInstanceBinder(Ptr(new GuiLocalizedStringInstanceBinder));
+						manager->AddInstanceEventBinder(Ptr(new GuiEvalInstanceEventBinder));
+					}
 				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
 			}
 		};

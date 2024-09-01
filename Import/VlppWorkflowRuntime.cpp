@@ -8,6 +8,8 @@ DEVELOPER: Zihan Chen(vczh)
 .\WFRUNTIME.CPP
 ***********************************************************************/
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+
 namespace vl
 {
 	using namespace reflection;
@@ -27,7 +29,7 @@ WfRuntimeGlobalContext
 			WfRuntimeGlobalContext::WfRuntimeGlobalContext(Ptr<WfAssembly> _assembly)
 				:assembly(_assembly)
 			{
-				globalVariables = new WfRuntimeVariableContext;
+				globalVariables = Ptr(new WfRuntimeVariableContext);
 				globalVariables->variables.Resize(assembly->variableNames.Count());
 				if (assembly->typeImpl)
 				{
@@ -54,7 +56,7 @@ WfRuntimeCallStackInfo
 					if (!context)
 					{
 						Dictionary<WString, Value> map;
-						FOREACH_INDEXER(WString, name, index, names)
+						for (auto [name, index] : indexed(names))
 						{
 							map.Add(name, context->variables[index]);
 						}
@@ -95,7 +97,7 @@ WfRuntimeCallStackInfo
 
 				if (function->argumentNames.Count() > 0)
 				{
-					arguments = new WfRuntimeVariableContext;
+					arguments = Ptr(new WfRuntimeVariableContext);
 					arguments->variables.Resize(function->argumentNames.Count());
 					for (vint i = 0; i < arguments->variables.Count(); i++)
 					{
@@ -105,7 +107,7 @@ WfRuntimeCallStackInfo
 
 				if (function->localVariableNames.Count()>0)
 				{
-					localVariables = new WfRuntimeVariableContext;
+					localVariables = Ptr(new WfRuntimeVariableContext);
 					localVariables->variables.Resize(function->localVariableNames.Count());
 					for (vint i = 0; i < localVariables->variables.Count(); i++)
 					{
@@ -247,15 +249,11 @@ WfRuntimeThreadContext
 			WfRuntimeThreadContext::WfRuntimeThreadContext(Ptr<WfRuntimeGlobalContext> _context)
 				:globalContext(_context)
 			{
-				stack.SetLessMemoryMode(false);
-				stackFrames.SetLessMemoryMode(false);
 			}
 
 			WfRuntimeThreadContext::WfRuntimeThreadContext(Ptr<WfAssembly> _assembly)
 				:globalContext(new WfRuntimeGlobalContext(_assembly))
 			{
-				stack.SetLessMemoryMode(false);
-				stackFrames.SetLessMemoryMode(false);
 			}
 
 			WfRuntimeStackFrame& WfRuntimeThreadContext::GetCurrentStackFrame()
@@ -381,6 +379,55 @@ WfRuntimeThreadContext
 				return WfRuntimeThreadContextError::Success;
 			}
 
+			WfRuntimeThreadContextError WfRuntimeThreadContext::PushRuntimeValue(const WfRuntimeValue& value)
+			{
+				if (value.typeDescriptor)
+				{
+					switch (value.type)
+					{
+					case WfInsType::Unknown:
+						return PushValue(BoxValue(value.typeDescriptor));
+					case WfInsType::U8:
+						CHECK_ERROR(value.typeDescriptor->GetEnumType(), L"WfRuntimeThreadContext::PushValue(const WfRuntimeValue&)#Missing typeDescriptor in WfRuntimeValue!");
+						return PushValue(value.typeDescriptor->GetEnumType()->ToEnum(value.u8Value));
+					default:
+						CHECK_FAIL(L"WfRuntimeThreadContext::PushValue(const WfRuntimeValue&)#Unexpected type in WfRuntimeValue with typeDescriptor!");
+					}
+				}
+				else
+				{
+					switch (value.type)
+					{
+					case WfInsType::Bool:
+						return PushValue(BoxValue(value.boolValue));
+					case WfInsType::I1:
+						return PushValue(BoxValue(value.i1Value));
+					case WfInsType::I2:
+						return PushValue(BoxValue(value.i2Value));
+					case WfInsType::I4:
+						return PushValue(BoxValue(value.i4Value));
+					case WfInsType::I8:
+						return PushValue(BoxValue(value.i8Value));
+					case WfInsType::U1:
+						return PushValue(BoxValue(value.u1Value));
+					case WfInsType::U2:
+						return PushValue(BoxValue(value.u2Value));
+					case WfInsType::U4:
+						return PushValue(BoxValue(value.u4Value));
+					case WfInsType::U8:
+						return PushValue(BoxValue(value.u8Value));
+					case WfInsType::F4:
+						return PushValue(BoxValue(value.f4Value));
+					case WfInsType::F8:
+						return PushValue(BoxValue(value.f8Value));
+					case WfInsType::String:
+						return PushValue(BoxValue(value.stringValue));
+					default:
+						return PushValue(Value());
+					}
+				}
+			}
+
 			WfRuntimeThreadContextError WfRuntimeThreadContext::PushValue(const reflection::description::Value& value)
 			{
 				stack.Add(value);
@@ -405,7 +452,7 @@ WfRuntimeThreadContext
 
 			WfRuntimeThreadContextError WfRuntimeThreadContext::RaiseException(const WString& exception, bool fatalError, bool skipDebugger)
 			{
-				auto info = MakePtr<WfRuntimeExceptionInfo>(exception, fatalError);
+				auto info = Ptr(new WfRuntimeExceptionInfo(exception, fatalError));
 				return RaiseException(info, skipDebugger);
 			}
 
@@ -426,12 +473,12 @@ WfRuntimeThreadContext
 							for (vint j = stackCount - 1; j >= 0; j--)
 							{
 								const auto& stackFrame = context->stackFrames[j];
-								info->callStack.Add(new WfRuntimeCallStackInfo(context, stackFrame));
+								info->callStack.Add(Ptr(new WfRuntimeCallStackInfo(context, stackFrame)));
 							}
 
 							if (i > 0)
 							{
-								info->callStack.Add(new WfRuntimeCallStackInfo);
+								info->callStack.Add(Ptr(new WfRuntimeCallStackInfo));
 							}
 						}
 
@@ -558,6 +605,8 @@ WfRuntimeThreadContext
 	}
 }
 
+#endif
+
 /***********************************************************************
 .\WFRUNTIMEASSEMBLY.CPP
 ***********************************************************************/
@@ -608,19 +657,19 @@ namespace vl
 
 				void Initialize(WfWriterContextPrepare& prepare)
 				{
-					FOREACH_INDEXER(ITypeDescriptor*, td, index, prepare.tds)
+					for (auto [td, index] : indexed(prepare.tds))
 					{
 						tdIndex.Add(td, index);
 					}
-					FOREACH_INDEXER(IMethodInfo*, mi, index, prepare.mis)
+					for (auto [mi, index] : indexed(prepare.mis))
 					{
 						miIndex.Add(mi, index);
 					}
-					FOREACH_INDEXER(IPropertyInfo*, pi, index, prepare.pis)
+					for (auto [pi, index] : indexed(prepare.pis))
 					{
 						piIndex.Add(pi, index);
 					}
-					FOREACH_INDEXER(IEventInfo*, ei, index, prepare.eis)
+					for (auto [ei, index] : indexed(prepare.eis))
 					{
 						eiIndex.Add(ei, index);
 					}
@@ -754,19 +803,19 @@ Serialization (CollectMetadata)
 
 			static void CollectMetadata(WfTypeImpl* typeImpl, WfWriterContextPrepare& prepare)
 			{
-				FOREACH(Ptr<WfClass>, td, typeImpl->classes)
+				for (auto td : typeImpl->classes)
 				{
 					CollectTd(td.Obj(), prepare);
 				}
-				FOREACH(Ptr<WfInterface>, td, typeImpl->interfaces)
+				for (auto td : typeImpl->interfaces)
 				{
 					CollectTd(td.Obj(), prepare);
 				}
-				FOREACH(Ptr<WfStruct>, td, typeImpl->structs)
+				for (auto td : typeImpl->structs)
 				{
 					CollectTd(td.Obj(), prepare);
 				}
-				FOREACH(Ptr<WfEnum>, td, typeImpl->enums)
+				for (auto td : typeImpl->enums)
 				{
 					CollectTd(td.Obj(), prepare);
 				}
@@ -779,7 +828,7 @@ Serialization (CollectMetadata)
 #define PI(X)										do{ if (!prepare.pis.Contains(X)) prepare.pis.Add(X); }while(0)
 #define EI(X)										do{ if (!prepare.eis.Contains(X)) prepare.eis.Add(X); }while(0)
 #define COLLECTMETADATA(NAME)						case WfInsCode::NAME: break;
-#define COLLECTMETADATA_VALUE(NAME)					case WfInsCode::NAME: if (auto td = ins.valueParameter.GetTypeDescriptor()) TD(td); break;
+#define COLLECTMETADATA_VALUE(NAME)					case WfInsCode::NAME: if (auto td = ins.valueParameter.typeDescriptor) TD(td); break;
 #define COLLECTMETADATA_FUNCTION(NAME)				case WfInsCode::NAME: break;
 #define COLLECTMETADATA_FUNCTION_COUNT(NAME)		case WfInsCode::NAME: break;
 #define COLLECTMETADATA_VARIABLE(NAME)				case WfInsCode::NAME: break;
@@ -817,15 +866,15 @@ Serialization (CollectMetadata)
 					}
 				}
 
-				FOREACH(IMethodInfo*, mi, prepare.mis)
+				for (auto mi : prepare.mis)
 				{
 					CollectTd(mi, prepare);
 				}
-				FOREACH(IPropertyInfo*, pi, prepare.pis)
+				for (auto pi : prepare.pis)
 				{
 					CollectTd(pi, prepare);
 				}
-				FOREACH(IEventInfo*, ei, prepare.eis)
+				for (auto ei : prepare.eis)
 				{
 					CollectTd(ei, prepare);
 				}
@@ -854,6 +903,18 @@ Serialization (CollectMetadata)
 Serizliation (Data Structures)
 ***********************************************************************/
 
+			BEGIN_SERIALIZATION(glr::ParsingTextPos)
+				SERIALIZE(index)
+				SERIALIZE(row)
+				SERIALIZE(column)
+			END_SERIALIZATION
+
+			BEGIN_SERIALIZATION(glr::ParsingTextRange)
+				SERIALIZE(start)
+				SERIALIZE(end)
+				SERIALIZE(codeIndex)
+			END_SERIALIZATION
+
 			BEGIN_SERIALIZATION(WfInstructionDebugInfo)
 				SERIALIZE(moduleCodes)
 				SERIALIZE(instructionCodeMapping)
@@ -867,10 +928,6 @@ Serizliation (Data Structures)
 				SERIALIZE(firstInstruction)
 				SERIALIZE(lastInstruction)
 			END_SERIALIZATION
-
-			SERIALIZE_ENUM(WfInsCode)
-			SERIALIZE_ENUM(WfInsType)
-			SERIALIZE_ENUM(Value::ValueType)
 
 /***********************************************************************
 Serizliation (ITypeDescriptor)
@@ -914,28 +971,28 @@ Serizliation (ITypeInfo)
 						{
 							Ptr<ITypeInfo> elementType;
 							IOType(reader, elementType);
-							typeInfo = MakePtr<RawPtrTypeInfo>(elementType);
+							typeInfo = Ptr(new RawPtrTypeInfo(elementType));
 						}
 						break;
 					case ITypeInfo::SharedPtr:
 						{
 							Ptr<ITypeInfo> elementType;
 							IOType(reader, elementType);
-							typeInfo = MakePtr<SharedPtrTypeInfo>(elementType);
+							typeInfo = Ptr(new SharedPtrTypeInfo(elementType));
 						}
 						break;
 					case ITypeInfo::Nullable:
 						{
 							Ptr<ITypeInfo> elementType;
 							IOType(reader, elementType);
-							typeInfo = MakePtr<NullableTypeInfo>(elementType);
+							typeInfo = Ptr(new NullableTypeInfo(elementType));
 						}
 						break;
 					case ITypeInfo::Generic:
 						{
 							Ptr<ITypeInfo> elementType;
 							IOType(reader, elementType);
-							auto genericType = MakePtr<GenericTypeInfo>(elementType);
+							auto genericType = Ptr(new GenericTypeInfo(elementType));
 							typeInfo = genericType;
 
 							vint count = 0;
@@ -955,7 +1012,7 @@ Serizliation (ITypeInfo)
 
 							vint index;
 							reader << index;
-							typeInfo = MakePtr<TypeDescriptorTypeInfo>(reader.context->tdIndex[index], static_cast<TypeInfoHint>(hint));
+							typeInfo = Ptr(new TypeDescriptorTypeInfo(reader.context->tdIndex[index], static_cast<TypeInfoHint>(hint)));
 						}
 						break;
 					}
@@ -1286,126 +1343,56 @@ Serizliation (Metadata)
 			};
 
 			template<>
-			struct Serialization<Value>
+			struct Serialization<WfRuntimeValue>
 			{
-				static void IO(WfReader& reader, Value& value)
+				static void IO(WfReader& reader, WfRuntimeValue& value)
 				{
-					vint typeFlag = -1;
-					reader << typeFlag;
-					CHECK_ERROR(0 <= typeFlag && typeFlag <= 2, L"Failed to load value.");
-					if (typeFlag == 0)
-					{
-						value = Value();
-						return;
-					}
-
 					vint typeIndex = -1;
 					reader << typeIndex;
-					auto type = reader.context->tdIndex[typeIndex];
+					value.typeDescriptor = typeIndex == -1 ? nullptr : reader.context->tdIndex[typeIndex];
+					reader << value.type;
+					value.stringValue = WString();
 
-					if (typeFlag == 1)
+					switch (value.type)
 					{
-						value = Value::From(type);
-						return;
-					}
-
-					if (auto st = type->GetSerializableType())
-					{
-						WString text;
-						reader << text;
-						st->Deserialize(text, value);
-					}
-					else
-					{
-						switch (type->GetTypeDescriptorFlags())
-						{
-						case TypeDescriptorFlags::FlagEnum:
-						case TypeDescriptorFlags::NormalEnum:
-							{
-								vint64_t intValue;
-								reader << intValue;
-								value = type->GetEnumType()->ToEnum((vuint64_t)intValue);
-							}
-							break;
-						case TypeDescriptorFlags::Struct:
-							{
-								value = type->GetValueType()->CreateDefault();
-								vint count = 0;
-								reader << count;
-
-								for (vint i = 0; i < count; i++)
-								{
-									vint propName = 0;
-									Value propValue;
-									reader << propName << propValue;
-									reader.context->piIndex[propName]->SetValue(value, propValue);
-								}
-							}
-							break;
-						default:;
-						}
+					case WfInsType::Bool:			reader << value.boolValue; break;
+					case WfInsType::I1:				{ vint64_t intValue = 0; reader << intValue; value.i1Value = (vint8_t)intValue; break; }
+					case WfInsType::I2:				{ vint64_t intValue = 0; reader << intValue; value.i2Value = (vint16_t)intValue; break; }
+					case WfInsType::I4:				{ vint64_t intValue = 0; reader << intValue; value.i4Value = (vint32_t)intValue; break; }
+					case WfInsType::I8:				{ vint64_t intValue = 0; reader << intValue; value.i8Value = (vint64_t)intValue; break; }
+					case WfInsType::U1:				{ vuint64_t intValue = 0; reader << intValue; value.u1Value = (vuint8_t)intValue; break; }
+					case WfInsType::U2:				{ vuint64_t intValue = 0; reader << intValue; value.u2Value = (vuint16_t)intValue; break; }
+					case WfInsType::U4:				{ vuint64_t intValue = 0; reader << intValue; value.u4Value = (vuint32_t)intValue; break; }
+					case WfInsType::U8:				{ vuint64_t intValue = 0; reader << intValue; value.u8Value = (vuint64_t)intValue; break; }
+					case WfInsType::F4:				reader << value.f4Value; break;
+					case WfInsType::F8:				reader << value.f8Value; break;
+					case WfInsType::String:			reader << value.stringValue; break;
+					default:;
 					}
 				}
 					
-				static void IO(WfWriter& writer, Value& value)
+				static void IO(WfWriter& writer, WfRuntimeValue& value)
 				{
-					vint typeFlag = 0;
-					if (value.IsNull())
-					{
-						writer << typeFlag;
-					}
-					else
-					{
-						auto type = value.GetTypeDescriptor();
-						if (type == GetTypeDescriptor<ITypeDescriptor>())
-						{
-							typeFlag = 1;
-							type = UnboxValue<ITypeDescriptor*>(value);
-						}
-						else
-						{
-							typeFlag = 2;
-						}
-						vint typeIndex = writer.context->tdIndex[type];
-						writer << typeFlag << typeIndex;
+					vint typeIndex = -1;
+					if (value.typeDescriptor) typeIndex = writer.context->tdIndex[value.typeDescriptor];
+					writer << typeIndex;
+					writer << value.type;
 
-						if (typeFlag == 2)
-						{
-							if (auto st = type->GetSerializableType())
-							{
-								WString text;
-								st->Serialize(value, text);
-								writer << text;
-							}
-							else
-							{
-								switch (type->GetTypeDescriptorFlags())
-								{
-								case TypeDescriptorFlags::FlagEnum:
-								case TypeDescriptorFlags::NormalEnum:
-									{
-										vint64_t intValue = (vint64_t)type->GetEnumType()->FromEnum(value);
-										writer << intValue;
-									}
-									break;
-								case TypeDescriptorFlags::Struct:
-									{
-										vint count = type->GetPropertyCount();
-										writer << count;
-
-										for (vint i = 0; i < count; i++)
-										{
-											auto prop = type->GetProperty(i);
-											vint propName = writer.context->piIndex[prop];
-											Value propValue = prop->GetValue(value);
-											writer << propName << propValue;
-										}
-									}
-									break;
-								default:;
-								}
-							}
-						}
+					switch (value.type)
+					{
+					case WfInsType::Bool:			writer << value.boolValue; break;
+					case WfInsType::I1:				{ vint64_t intValue = value.i1Value; writer << intValue; break; }
+					case WfInsType::I2:				{ vint64_t intValue = value.i2Value; writer << intValue; break; }
+					case WfInsType::I4:				{ vint64_t intValue = value.i4Value; writer << intValue; break; }
+					case WfInsType::I8:				{ vint64_t intValue = value.i8Value; writer << intValue; break; }
+					case WfInsType::U1:				{ vuint64_t intValue = value.u1Value; writer << intValue; break; }
+					case WfInsType::U2:				{ vuint64_t intValue = value.u2Value; writer << intValue; break; }
+					case WfInsType::U4:				{ vuint64_t intValue = value.u4Value; writer << intValue; break; }
+					case WfInsType::U8:				{ vuint64_t intValue = value.u8Value; writer << intValue; break; }
+					case WfInsType::F4:				writer << value.f4Value; break;
+					case WfInsType::F8:				writer << value.f8Value; break;
+					case WfInsType::String:			writer << value.stringValue; break;
+					default:;
 					}
 				}
 			};
@@ -1442,7 +1429,7 @@ Serialization (TypeImpl)
 						WString name;
 						IOType(reader, type);
 						reader << name;
-						info->AddParameter(new ParameterInfoImpl(info, name, type));
+						info->AddParameter(Ptr(new ParameterInfoImpl(info, name, type)));
 					}
 				}
 					
@@ -1494,7 +1481,7 @@ Serialization (TypeImpl)
 
 				static void IOClassConstructor(WfReader& reader, Ptr<WfClassConstructor>& info)
 				{
-					info = new WfClassConstructor(nullptr);
+					info = Ptr(new WfClassConstructor(nullptr));
 					reader << info->functionIndex;
 					IOMethodBase(reader, info.Obj());
 				}
@@ -1511,7 +1498,7 @@ Serialization (TypeImpl)
 				{
 					Ptr<ITypeInfo> type;
 					IOType(reader, type);
-					info = new WfInterfaceConstructor(type);
+					info = Ptr(new WfInterfaceConstructor(type));
 				}
 
 				static void IOInterfaceConstructor(WfWriter& writer, WfInterfaceConstructor* info)
@@ -1583,19 +1570,19 @@ Serialization (TypeImpl)
 
 							if (isStaticMethod)
 							{
-								auto info = MakePtr<WfStaticMethod>();
+								auto info = Ptr(new WfStaticMethod);
 								td->AddMember(methodName, info);
 								IOStaticMethod(reader, info.Obj());
 							}
 							else if (isClass)
 							{
-								auto info = MakePtr<WfClassMethod>();
+								auto info = Ptr(new WfClassMethod);
 								td->AddMember(methodName, info);
 								IOClassMethod(reader, info.Obj());
 							}
 							else
 							{
-								auto info = MakePtr<WfInterfaceMethod>();
+								auto info = Ptr(new WfInterfaceMethod);
 								td->AddMember(methodName, info);
 								IOInterfaceMethod(reader, info.Obj());
 							}
@@ -1613,7 +1600,7 @@ Serialization (TypeImpl)
 						Ptr<ITypeInfo> eventType;
 						IOType(reader, eventType);
 
-						auto info = MakePtr<WfEvent>(td, eventName);
+						auto info = Ptr(new WfEvent(td, eventName));
 						info->SetHandlerType(eventType);
 						td->AddMember(info);
 					}
@@ -1629,7 +1616,7 @@ Serialization (TypeImpl)
 
 						if (isProperty)
 						{
-							auto info = MakePtr<WfProperty>(td, propName);
+							auto info = Ptr(new WfProperty(td, propName));
 
 							WString getterName, setterName, eventName;
 							reader << getterName << setterName << eventName;
@@ -1654,7 +1641,7 @@ Serialization (TypeImpl)
 							Ptr<ITypeInfo> fieldType;
 							IOType(reader, fieldType);
 
-							auto info = MakePtr<WfField>(td, propName);
+							auto info = Ptr(new WfField(td, propName));
 							info->SetReturn(fieldType);
 							td->AddMember(info);
 						}
@@ -1816,7 +1803,7 @@ Serialization (TypeImpl)
 						Ptr<ITypeInfo> typeInfo;
 						IOType(reader, typeInfo);
 
-						auto field = MakePtr<WfStructField>(td, name);
+						auto field = Ptr(new WfStructField(td, name));
 						field->SetReturn(typeInfo);
 						td->AddMember(field);
 					}
@@ -1876,19 +1863,19 @@ Serialization (TypeImpl)
 				static void IO(WfReader& reader, WfTypeImpl& value)
 				{
 					// fill types
-					FOREACH(Ptr<WfClass>, td, value.classes)
+					for (auto td : value.classes)
 					{
 						IOClass(reader, td.Obj());
 					}
-					FOREACH(Ptr<WfInterface>, td, value.interfaces)
+					for (auto td : value.interfaces)
 					{
 						IOInterface(reader, td.Obj());
 					}
-					FOREACH(Ptr<WfStruct>, td, value.structs)
+					for (auto td : value.structs)
 					{
 						IOStruct(reader, td.Obj());
 					}
-					FOREACH(Ptr<WfEnum>, td, value.enums)
+					for (auto td : value.enums)
 					{
 						IOEnum(reader, td.Obj());
 					}
@@ -1897,19 +1884,19 @@ Serialization (TypeImpl)
 				static void IO(WfWriter& writer, WfTypeImpl& value)
 				{
 					// fill types
-					FOREACH(Ptr<WfClass>, td, value.classes)
+					for (auto td : value.classes)
 					{
 						IOClass(writer, td.Obj());
 					}
-					FOREACH(Ptr<WfInterface>, td, value.interfaces)
+					for (auto td : value.interfaces)
 					{
 						IOInterface(writer, td.Obj());
 					}
-					FOREACH(Ptr<WfStruct>, td, value.structs)
+					for (auto td : value.structs)
 					{
 						IOStruct(writer, td.Obj());
 					}
-					FOREACH(Ptr<WfEnum>, td, value.enums)
+					for (auto td : value.enums)
 					{
 						IOEnum(writer, td.Obj());
 					}
@@ -2068,7 +2055,7 @@ Serialization (Assembly)
 						reader.context->errors.duplicatedTypes.Add(typeName);
 					}
 					reader << isFlags << typeName;
-					type = MakePtr<WfEnum>(isFlags, typeName);
+					type = Ptr(new WfEnum(isFlags, typeName));
 				}
 
 				static void IOCustomType(WfWriter& writer, Ptr<WfEnum>& type)
@@ -2087,7 +2074,7 @@ Serialization (Assembly)
 					{
 						reader.context->errors.duplicatedTypes.Add(typeName);
 					}
-					type = MakePtr<TType>(typeName);
+					type = Ptr(new TType(typeName));
 				}
 
 				template<typename TType>
@@ -2140,12 +2127,12 @@ Serialization (Assembly)
 
 				static void IOPrepare(WfReader& reader, WfAssembly& value, WfAssemblyLoadErrors& errors)
 				{
-					reader.context = new WfReaderContext(errors);
+					reader.context = Ptr(new WfReaderContext(errors));
 					bool hasTypeImpl = false;
 					reader << hasTypeImpl;
 					if (hasTypeImpl)
 					{
-						value.typeImpl = new WfTypeImpl;
+						value.typeImpl = Ptr(new WfTypeImpl);
 						IOCustomTypeList(reader, value.typeImpl->classes);
 						IOCustomTypeList(reader, value.typeImpl->interfaces);
 						IOCustomTypeList(reader, value.typeImpl->structs);
@@ -2202,7 +2189,7 @@ Serialization (Assembly)
 
 				static void IOPrepare(WfWriter& writer, WfAssembly& value, WfAssemblyLoadErrors&)
 				{
-					writer.context = new WfWriterContext;
+					writer.context = Ptr(new WfWriterContext);
 					bool hasTypeImpl = value.typeImpl != nullptr;
 					writer << hasTypeImpl;
 					if (hasTypeImpl)
@@ -2233,7 +2220,7 @@ Serialization (Assembly)
 					vint piCount = prepare.pis.Count();
 					vint eiCount = prepare.eis.Count();
 					writer << tdCount << miCount << piCount << eiCount;
-					FOREACH(ITypeDescriptor*, td, prepare.tds)
+					for (auto td : prepare.tds)
 					{
 						writer << td;
 					}
@@ -2244,15 +2231,15 @@ Serialization (Assembly)
 						GetGlobalTypeManager()->AddTypeLoader(value.typeImpl);
 					}
 
-					FOREACH(IMethodInfo*, mi, prepare.mis)
+					for (auto mi : prepare.mis)
 					{
 						writer << mi;
 					}
-					FOREACH(IPropertyInfo*, pi, prepare.pis)
+					for (auto pi : prepare.pis)
 					{
 						writer << pi;
 					}
-					FOREACH(IEventInfo*, ei, prepare.eis)
+					for (auto ei : prepare.eis)
 					{
 						writer << ei;
 					}
@@ -2319,7 +2306,7 @@ WfAssembly
 			{
 				try
 				{
-					auto assembly = MakePtr<WfAssembly>();
+					auto assembly = Ptr(new WfAssembly);
 					stream::internal::WfReader reader(input);
 					stream::internal::Serialization<WfAssembly>::IO(reader, *assembly.Obj(), errors);
 					assembly->Initialize();
@@ -2346,6 +2333,8 @@ WfAssembly
 .\WFRUNTIMECONSTRUCTIONS.CPP
 ***********************************************************************/
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+
 namespace vl
 {
 	namespace workflow
@@ -2359,18 +2348,18 @@ WfRuntimeLambda
 ***********************************************************************/
 
 			WfRuntimeLambda::WfRuntimeLambda(Ptr<WfRuntimeGlobalContext> _globalContext, Ptr<WfRuntimeVariableContext> _capturedVariables, vint _functionIndex)
-				:globalContext(_globalContext)
+				:globalContext(_globalContext.Obj())
 				, capturedVariables(_capturedVariables)
 				, functionIndex(_functionIndex)
 			{
 			}
 
-			Value WfRuntimeLambda::Invoke(Ptr<reflection::description::IValueList> arguments)
+			Value WfRuntimeLambda::Invoke(Ptr<reflection::description::IValueReadonlyList> arguments)
 			{
-				return Invoke(globalContext, capturedVariables, functionIndex, arguments);
+				return Invoke(Ptr(globalContext), capturedVariables, functionIndex, arguments);
 			}
 
-			Value WfRuntimeLambda::Invoke(Ptr<WfRuntimeGlobalContext> globalContext, Ptr<WfRuntimeVariableContext> capturedVariables, vint functionIndex, Ptr<reflection::description::IValueList> arguments)
+			Value WfRuntimeLambda::Invoke(Ptr<WfRuntimeGlobalContext> globalContext, Ptr<WfRuntimeVariableContext> capturedVariables, vint functionIndex, Ptr<reflection::description::IValueReadonlyList> arguments)
 			{
 				WfRuntimeThreadContext context(globalContext);
 				vint count = arguments->GetCount();
@@ -2404,7 +2393,7 @@ WfRuntimeLambda
 WfRuntimeInterfaceInstance
 ***********************************************************************/
 
-			Value WfRuntimeInterfaceInstance::Invoke(IMethodInfo* methodInfo, Ptr<IValueList> arguments)
+			Value WfRuntimeInterfaceInstance::Invoke(IMethodInfo* methodInfo, Ptr<IValueReadonlyList> arguments)
 			{
 				vint index = functions.Keys().IndexOf(methodInfo);
 				if (index == -1)
@@ -2419,17 +2408,21 @@ WfRuntimeInterfaceInstance
 				else
 				{
 					vint functionIndex = functions.Values()[index];
-					return WfRuntimeLambda::Invoke(globalContext, capturedVariables, functionIndex, arguments);
+					return WfRuntimeLambda::Invoke(Ptr(globalContext), capturedVariables, functionIndex, arguments);
 				}
 			}
 		}
 	}
 }
 
+#endif
+
 /***********************************************************************
 .\WFRUNTIMEDEBUGGER.CPP
 ***********************************************************************/
 #include <math.h>
+
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 namespace vl
 {
@@ -2571,7 +2564,7 @@ InstructionLocation
 			}
 
 /***********************************************************************
-WfDebugger
+WfDebugger Callback Handlers
 ***********************************************************************/
 
 			void WfDebugger::OnBlockExecution()
@@ -2617,7 +2610,7 @@ WfDebugger
 						if (breakPoint.action)
 						{
 							activated = breakPoint.action->EvaluateCondition(this);
-							breakPoint.action->PostAction(this);
+							breakPoint.action->PostAction(this, activated);
 						}
 						else
 						{
@@ -2792,7 +2785,7 @@ WfDebugger
 			}
 
 /***********************************************************************
-WfDebugger
+WfDebugger BreakPoints
 ***********************************************************************/
 
 #define TEST(AVAILABLE, KEY, MAP) if (AVAILABLE && available == MAP.Keys().Contains(KEY)) return false;
@@ -2829,9 +2822,9 @@ WfDebugger
 						PropertyKey key1(breakPoint.thisObject, breakPoint.propertyInfo);
 						MethodKey key2(breakPoint.thisObject, breakPoint.propertyInfo->GetGetter());
 						TEST(true, key1, getPropertyBreakPoints);
-						TEST(key2.f1, key2, invokeMethodBreakPoints);
+						TEST(key2.get<1>(), key2, invokeMethodBreakPoints);
 						SET(key1, getPropertyBreakPoints);
-						SETC(key2.f1, key2, invokeMethodBreakPoints);
+						SETC(key2.get<1>(), key2, invokeMethodBreakPoints);
 					}
 					break;
 				case WfBreakPoint::SetProperty:
@@ -2839,9 +2832,9 @@ WfDebugger
 						PropertyKey key1(breakPoint.thisObject, breakPoint.propertyInfo);
 						MethodKey key2(breakPoint.thisObject, breakPoint.propertyInfo->GetSetter());
 						TEST(true, key1, setPropertyBreakPoints);
-						TEST(key2.f1, key2, invokeMethodBreakPoints);
+						TEST(key2.get<1>(), key2, invokeMethodBreakPoints);
 						SET(key1, setPropertyBreakPoints);
-						SETC(key2.f1, key2, invokeMethodBreakPoints);
+						SETC(key2.get<1>(), key2, invokeMethodBreakPoints);
 					}
 					break;
 				case WfBreakPoint::AttachEvent:
@@ -2937,6 +2930,7 @@ WfDebugger
 				breakPoints[index].id = index;
 				breakPoints[index].available = true;
 				breakPoints[index].enabled = true;
+				breakPoints[index].action = nullptr;
 				return index;
 			}
 
@@ -2952,6 +2946,11 @@ WfDebugger
 
 				vint ins = codeInsMap.GetByIndex(index)[0];
 				return AddBreakPoint(WfBreakPoint::Ins(assembly, ins));
+			}
+
+			bool WfDebugger::IsBreakPointAvailable(vint index)
+			{
+				return 0 <= index && index < breakPoints.Count() && !freeBreakPointIndices.Contains(index);
 			}
 
 			vint WfDebugger::GetBreakPointCount()
@@ -3005,6 +3004,10 @@ WfDebugger
 			{
 				breakException = value;
 			}
+
+/***********************************************************************
+WfDebugger Operations
+***********************************************************************/
 
 			bool WfDebugger::Run()
 			{
@@ -3070,6 +3073,10 @@ WfDebugger
 				return true;
 			}
 
+/***********************************************************************
+WfDebugger
+***********************************************************************/
+
 			WfDebugger::State WfDebugger::GetState()
 			{
 				return state;
@@ -3099,7 +3106,7 @@ WfDebugger
 				return threadContexts[threadContexts.Count() - 1];
 			}
 
-			const parsing::ParsingTextRange& WfDebugger::GetCurrentPosition(bool beforeCodegen, WfRuntimeThreadContext* context, vint callStackIndex)
+			const glr::ParsingTextRange& WfDebugger::GetCurrentPosition(bool beforeCodegen, WfRuntimeThreadContext* context, vint callStackIndex)
 			{
 				if (!context)
 				{
@@ -3186,9 +3193,13 @@ Helper Functions
 	}
 }
 
+#endif
+
 /***********************************************************************
 .\WFRUNTIMEEXECUTION.CPP
 ***********************************************************************/
+
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 namespace vl
 {
@@ -3276,6 +3287,8 @@ WfRuntimeThreadContext (Operators)
 				CONTEXT_ACTION(PushValue(BoxValue(value)), L"failed to push a value to the stack.");
 				return WfRuntimeExecutionAction::ExecuteInstruction;
 			}
+
+			//-------------------------------------------------------------------------------
 			
 			template<typename T>
 			WfRuntimeExecutionAction OPERATOR_OpCompare(WfRuntimeThreadContext& context)
@@ -3321,6 +3334,43 @@ WfRuntimeThreadContext (Operators)
 						}
 					}
 				}
+				return WfRuntimeExecutionAction::ExecuteInstruction;
+			}
+
+			//-------------------------------------------------------------------------------
+
+			WfRuntimeExecutionAction OPERATOR_OpCompareReference(WfRuntimeThreadContext& context)
+			{
+				Value first, second;
+				CONTEXT_ACTION(PopValue(second), L"failed to pop a value from the stack.");
+				CONTEXT_ACTION(PopValue(first), L"failed to pop a value from the stack.");
+
+				bool result = false;
+				if (first.GetValueType() == Value::Null || second.GetValueType() == Value::Null)
+				{
+					result = first.GetValueType() == Value::Null && second.GetValueType() == Value::Null;
+				}
+				else if (first.GetValueType() == Value::BoxedValue || second.GetValueType() == Value::BoxedValue)
+				{
+					INTERNAL_ERROR(L"CompareReference instruction can only apply on null or pointers.");
+				}
+				else
+				{
+					result = first.GetRawPtr() == second.GetRawPtr();
+				}
+				CONTEXT_ACTION(PushValue(BoxValue(result)), L"failed to push a value to the stack.");
+				return WfRuntimeExecutionAction::ExecuteInstruction;
+			}
+
+			//-------------------------------------------------------------------------------
+
+			WfRuntimeExecutionAction OPERATOR_OpCompareValue(WfRuntimeThreadContext& context)
+			{
+				Value first, second;
+				CONTEXT_ACTION(PopValue(second), L"failed to pop a value from the stack.");
+				CONTEXT_ACTION(PopValue(first), L"failed to pop a value from the stack.");
+				bool result = first == second;
+				CONTEXT_ACTION(PushValue(BoxValue(result)), L"failed to push a value to the stack.");
 				return WfRuntimeExecutionAction::ExecuteInstruction;
 			}
 			
@@ -3444,7 +3494,7 @@ WfRuntimeThreadContext (Range)
 				CONTEXT_ACTION(PopValue(first), L"failed to pop a value from the stack.");
 				T firstValue = UnboxValue<T>(first);
 				T secondValue = UnboxValue<T>(second);
-				auto enumerable = MakePtr<WfRuntimeRange<T>>(firstValue, secondValue);
+				auto enumerable = Ptr(new WfRuntimeRange<T>(firstValue, secondValue));
 				CONTEXT_ACTION(PushValue(Value::From(enumerable)), L"failed to push a value to the stack.");
 				return WfRuntimeExecutionAction::ExecuteInstruction;
 			}
@@ -3463,7 +3513,7 @@ Helper Functions
 				const auto& names = context->assembly->functionByName[name];
 				CHECK_ERROR(names.Count() == 1, L"vl::workflow::runtime::LoadFunction(Ptr<WfRUntimeGlobalContext>, const WString&)#Multiple functions are found.");
 				vint functionIndex = names[0];
-				auto lambda = MakePtr<WfRuntimeLambda>(context, nullptr, functionIndex);
+				auto lambda = Ptr(new WfRuntimeLambda(context, nullptr, functionIndex));
 				return lambda;
 			}
 
@@ -3520,7 +3570,7 @@ WfRuntimeThreadContext
 				switch (ins.code)
 				{
 				case WfInsCode::LoadValue:
-					CONTEXT_ACTION(PushValue(ins.valueParameter), L"failed to push a value to the stack.");
+					CONTEXT_ACTION(PushRuntimeValue(ins.valueParameter), L"failed to push a value to the stack.");
 					return WfRuntimeExecutionAction::ExecuteInstruction;
 				case WfInsCode::LoadFunction:
 					{
@@ -3621,7 +3671,23 @@ WfRuntimeThreadContext
 						}
 						return WfRuntimeExecutionAction::ExitStackFrame;
 					}
-				case WfInsCode::CreateArray:
+				case WfInsCode::NewArray:
+					{
+						auto list = IValueArray::Create();
+						if (ins.countParameter > 0)
+						{
+							list->Resize(ins.countParameter);
+							Value operand;
+							for (vint i = 0; i < ins.countParameter; i++)
+							{
+								CONTEXT_ACTION(PopValue(operand), L"failed to pop a value from the stack.");
+								list->Set(i, operand);
+							}
+						}
+						CONTEXT_ACTION(PushValue(Value::From(list)), L"failed to push a value to the stack.");
+						return WfRuntimeExecutionAction::ExecuteInstruction;
+					}
+				case WfInsCode::NewList:
 					{
 						auto list = IValueList::Create();
 						Value operand;
@@ -3633,19 +3699,19 @@ WfRuntimeThreadContext
 						CONTEXT_ACTION(PushValue(Value::From(list)), L"failed to push a value to the stack.");
 						return WfRuntimeExecutionAction::ExecuteInstruction;
 					}
-				case WfInsCode::CreateObservableList:
-				{
-					auto list = IValueObservableList::Create();
-					Value operand;
-					for (vint i = 0; i < ins.countParameter; i++)
+				case WfInsCode::NewObservableList:
 					{
-						CONTEXT_ACTION(PopValue(operand), L"failed to pop a value from the stack.");
-						list->Add(operand);
+						auto list = IValueObservableList::Create();
+						Value operand;
+						for (vint i = 0; i < ins.countParameter; i++)
+						{
+							CONTEXT_ACTION(PopValue(operand), L"failed to pop a value from the stack.");
+							list->Add(operand);
+						}
+						CONTEXT_ACTION(PushValue(Value::From(list)), L"failed to push a value to the stack.");
+						return WfRuntimeExecutionAction::ExecuteInstruction;
 					}
-					CONTEXT_ACTION(PushValue(Value::From(list)), L"failed to push a value to the stack.");
-					return WfRuntimeExecutionAction::ExecuteInstruction;
-				}
-				case WfInsCode::CreateMap:
+				case WfInsCode::NewDictionary:
 					{
 						auto map = IValueDictionary::Create();
 						Value key, value;
@@ -3663,7 +3729,7 @@ WfRuntimeThreadContext
 						Ptr<WfRuntimeVariableContext> capturedVariables;
 						if (ins.countParameter > 0)
 						{
-							capturedVariables = new WfRuntimeVariableContext;
+							capturedVariables = Ptr(new WfRuntimeVariableContext);
 							capturedVariables->variables.Resize(ins.countParameter);
 							Value operand;
 							for (vint i = 0; i < ins.countParameter; i++)
@@ -3684,13 +3750,13 @@ WfRuntimeThreadContext
 						auto capturedVariables = context.GetSharedPtr().Cast<WfRuntimeVariableContext>();
 						auto functionIndex = UnboxValue<vint>(function);
 
-						auto lambda = MakePtr<WfRuntimeLambda>(globalContext, capturedVariables, functionIndex);
+						auto lambda = Ptr(new WfRuntimeLambda(globalContext, capturedVariables, functionIndex));
 						CONTEXT_ACTION(PushValue(Value::From(lambda)), L"failed to push a value to the stack.");
 						return WfRuntimeExecutionAction::ExecuteInstruction;
 					}
 				case WfInsCode::CreateInterface:
 					{
-						auto proxy = MakePtr<WfRuntimeInterfaceInstance>();
+						auto proxy = Ptr(new WfRuntimeInterfaceInstance);
 						Value key, value, operand;
 						for (vint i = 0; i < ins.countParameter; i+=2)
 						{
@@ -3704,7 +3770,7 @@ WfRuntimeThreadContext
 						CONTEXT_ACTION(PopValue(operand), L"failed to pop a value from the stack.");
 						auto capturedVariables = operand.GetSharedPtr().Cast<WfRuntimeVariableContext>();
 						proxy->capturedVariables = capturedVariables;
-						proxy->globalContext = globalContext;
+						proxy->globalContext = globalContext.Obj();
 
 						Array<Value> arguments(1);
 						arguments[0] = Value::From(proxy);
@@ -3891,7 +3957,7 @@ WfRuntimeThreadContext
 							arguments.Insert(0, argument);
 						}
 
-						Ptr<IValueList> list = new ValueListWrapper<List<Value>*>(&arguments);
+						Ptr<IValueList> list = Ptr(new ValueListWrapper<List<Value>*>(&arguments));
 						Value result = proxy->Invoke(list);
 						CONTEXT_ACTION(PushValue(result), L"failed to push a value to the stack.");
 						return WfRuntimeExecutionAction::ExecuteInstruction;
@@ -3915,7 +3981,7 @@ WfRuntimeThreadContext
 						{
 							if (classMethod->GetGlobalContext() == globalContext.Obj())
 							{
-								auto capturedVariable = MakePtr<WfRuntimeVariableContext>();
+								auto capturedVariable = Ptr(new WfRuntimeVariableContext);
 								capturedVariable->variables.Resize(1);
 								capturedVariable->variables[0] = Value::From(thisValue.GetRawPtr());
 
@@ -3964,7 +4030,7 @@ WfRuntimeThreadContext
 						{
 							if (ctor->GetGlobalContext() == globalContext.Obj())
 							{
-								auto capturedVariable = MakePtr<WfRuntimeVariableContext>();
+								auto capturedVariable = Ptr(new WfRuntimeVariableContext);
 								capturedVariable->variables.Resize(1);
 								capturedVariable->variables[0] = Value::From(thisValue.GetRawPtr());
 
@@ -4094,21 +4160,11 @@ WfRuntimeThreadContext
 					END_TYPE
 				case WfInsCode::CompareReference:
 					{
-						Value first, second;
-						CONTEXT_ACTION(PopValue(second), L"failed to pop a value from the stack.");
-						CONTEXT_ACTION(PopValue(first), L"failed to pop a value from the stack.");
-						bool result = first.GetValueType() != Value::BoxedValue && second.GetValueType() != Value::BoxedValue && first.GetRawPtr() == second.GetRawPtr();
-						CONTEXT_ACTION(PushValue(BoxValue(result)), L"failed to push a value to the stack.");
-						return WfRuntimeExecutionAction::ExecuteInstruction;
+						return OPERATOR_OpCompareReference(*this);
 					}
 				case WfInsCode::CompareValue:
 					{
-						Value first, second;
-						CONTEXT_ACTION(PopValue(second), L"failed to pop a value from the stack.");
-						CONTEXT_ACTION(PopValue(first), L"failed to pop a value from the stack.");
-						bool result = first == second;
-						CONTEXT_ACTION(PushValue(BoxValue(result)), L"failed to push a value to the stack.");
-						return WfRuntimeExecutionAction::ExecuteInstruction;
+						return OPERATOR_OpCompareValue(*this);
 					}
 				case WfInsCode::OpNot:
 					BEGIN_TYPE
@@ -4432,6 +4488,8 @@ WfRuntimeThreadContext
 	}
 }
 
+#endif
+
 /***********************************************************************
 .\WFRUNTIMEINSTRUCTION.CPP
 ***********************************************************************/
@@ -4464,7 +4522,7 @@ WfInstruction
 			}\
 
 #define CTOR_VALUE(NAME)\
-			WfInstruction WfInstruction::NAME(const reflection::description::Value& value)\
+			WfInstruction WfInstruction::NAME(const WfRuntimeValue& value)\
 			{\
 				WfInstruction ins; \
 				ins.code = WfInsCode::NAME; \
@@ -4655,11 +4713,13 @@ WfMethodProxy
 			{
 			}
 				
-			Value WfMethodProxy::Invoke(Ptr<IValueList> arguments)
+			Value WfMethodProxy::Invoke(Ptr<IValueReadonlyList> arguments)
 			{
-				Array<Value> values;
-				UnboxParameter(Value::From(arguments), values);
-				return methodInfo->Invoke(thisObject, values);
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				return methodInfo->Invoke(thisObject, UnboxParameter<Array<Value>>(Value::From(arguments)).Ref());
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 /***********************************************************************
@@ -4668,7 +4728,11 @@ WfMethodBase
 
 			Value WfMethodBase::CreateFunctionProxyInternal(const Value& thisObject)
 			{
-				return Value::From(MakePtr<WfMethodProxy>(thisObject, this));
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				return Value::From(Ptr(new WfMethodProxy(thisObject, this)));
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			void WfMethodBase::SetGlobalContext(runtime::WfRuntimeGlobalContext* _globalContext)
@@ -4706,8 +4770,12 @@ WfStaticMethod
 
 			Value WfStaticMethod::InvokeInternal(const Value& thisObject, collections::Array<Value>& arguments)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto argumentArray = IValueList::Create(arguments);
-				return WfRuntimeLambda::Invoke(globalContext, nullptr, functionIndex, argumentArray);
+				return WfRuntimeLambda::Invoke(Ptr(globalContext), nullptr, functionIndex, argumentArray);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfStaticMethod::WfStaticMethod()
@@ -4721,7 +4789,8 @@ WfClassConstructor
 
 			Value WfClassConstructor::InvokeInternal(const Value& thisObject, collections::Array<Value>& arguments)
 			{
-				auto instance = MakePtr<WfClassInstance>(GetOwnerTypeDescriptor());
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto instance = Ptr(new WfClassInstance(GetOwnerTypeDescriptor()));
 				{
 					InvokeBaseCtor(Value::From(instance.Obj()), arguments);
 				}
@@ -4734,6 +4803,9 @@ WfClassConstructor
 				{
 					return Value::From(instance.Detach());
 				}
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfClassConstructor::WfClassConstructor(Ptr<ITypeInfo> type)
@@ -4744,12 +4816,16 @@ WfClassConstructor
 
 			void WfClassConstructor::InvokeBaseCtor(const Value& thisObject, collections::Array<Value>& arguments)
 			{
-				auto capturedVariables = MakePtr<WfRuntimeVariableContext>();
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto capturedVariables = Ptr(new WfRuntimeVariableContext);
 				capturedVariables->variables.Resize(1);
 				capturedVariables->variables[0] = Value::From(thisObject.GetRawPtr());
 					
 				auto argumentArray = IValueList::Create(arguments);
-				WfRuntimeLambda::Invoke(globalContext, capturedVariables, functionIndex, argumentArray);
+				WfRuntimeLambda::Invoke(Ptr(globalContext), capturedVariables, functionIndex, argumentArray);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 /***********************************************************************
@@ -4758,12 +4834,16 @@ WfClassMethod
 
 			Value WfClassMethod::InvokeInternal(const Value& thisObject, collections::Array<Value>& arguments)
 			{
-				auto capturedVariables = MakePtr<WfRuntimeVariableContext>();
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto capturedVariables = Ptr(new WfRuntimeVariableContext);
 				capturedVariables->variables.Resize(1);
 				capturedVariables->variables[0] = Value::From(thisObject.GetRawPtr());
 
 				auto argumentArray = IValueList::Create(arguments);
-				return WfRuntimeLambda::Invoke(globalContext, capturedVariables, functionIndex, argumentArray);
+				return WfRuntimeLambda::Invoke(Ptr(globalContext), capturedVariables, functionIndex, argumentArray);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfClassMethod::WfClassMethod()
@@ -4777,6 +4857,7 @@ WfInterfaceConstructor
 
 			Value WfInterfaceConstructor::InvokeInternal(const Value& thisObject, collections::Array<Value>& arguments)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				if (arguments.Count() != 1)
 				{
 					throw ArgumentCountMismtatchException(GetOwnerMethodGroup());
@@ -4828,7 +4909,7 @@ WfInterfaceConstructor
 					}
 				}
 
-				Ptr<WfInterfaceInstance> instance = new WfInterfaceInstance(GetOwnerTypeDescriptor(), proxy, baseCtors);
+				auto instance = Ptr(new WfInterfaceInstance(GetOwnerTypeDescriptor(), proxy, baseCtors));
 
 				if (returnInfo->GetDecorator() == ITypeInfo::SharedPtr)
 				{
@@ -4838,13 +4919,16 @@ WfInterfaceConstructor
 				{
 					return Value::From(instance.Detach());
 				}
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfInterfaceConstructor::WfInterfaceConstructor(Ptr<ITypeInfo> type)
 				:WfMethodBase(true)
 			{
 				auto argumentType = TypeInfoRetriver<Ptr<IValueInterfaceProxy>>::CreateTypeInfo();
-				auto parameter = MakePtr<ParameterInfoImpl>(this, L"proxy", argumentType);
+				auto parameter = Ptr(new ParameterInfoImpl(this, L"proxy", argumentType));
 				AddParameter(parameter);
 				SetReturn(type);
 			}
@@ -4855,8 +4939,12 @@ WfInterfaceMethod
 
 			Value WfInterfaceMethod::InvokeInternal(const Value& thisObject, collections::Array<Value>& arguments)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto instance = thisObject.GetRawPtr()->SafeAggregationCast<WfInterfaceInstance>();
 				return instance->GetProxy()->Invoke(this, IValueList::Create(From(arguments)));
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfInterfaceMethod::WfInterfaceMethod()
@@ -4868,6 +4956,7 @@ WfInterfaceMethod
 GetInfoRecord
 ***********************************************************************/
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 			template<typename TRecord, typename TInfo>
 			Ptr<TRecord> GetInfoRecord(TInfo* target, DescriptableObject* thisObject, const WString& key, bool createIfNotExist)
 			{
@@ -4886,11 +4975,12 @@ GetInfoRecord
 				}
 				else if(createIfNotExist)
 				{
-					typedValue = new TRecord;
+					typedValue = Ptr(new TRecord);
 					thisObject->SetInternalProperty(key, typedValue);
 				}
 				return typedValue;
 			}
+#endif
 
 /***********************************************************************
 WfEvent
@@ -4900,19 +4990,28 @@ WfEvent
 
 			Ptr<WfEvent::EventRecord> WfEvent::GetEventRecord(DescriptableObject* thisObject, bool createIfNotExist)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				return GetInfoRecord<EventRecord>(this, thisObject, EventRecordInternalPropertyName, createIfNotExist);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			Ptr<IEventHandler> WfEvent::AttachInternal(DescriptableObject* thisObject, Ptr<IValueFunctionProxy> handler)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto record = GetEventRecord(thisObject, true);
-				auto result = MakePtr<EventHandlerImpl>(handler);
+				auto result = Ptr(new EventHandlerImpl(handler));
 				record->handlers.Add(this, result);
 				return result;
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			bool WfEvent::DetachInternal(DescriptableObject* thisObject, Ptr<IEventHandler> handler)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto impl = handler.Cast<EventHandlerImpl>();
 				if (!impl)return false;
 				auto record = GetEventRecord(thisObject, true);
@@ -4922,10 +5021,14 @@ WfEvent
 					return true;
 				}
 				return false;
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
-			void WfEvent::InvokeInternal(DescriptableObject* thisObject, Ptr<IValueList> arguments)
+			void WfEvent::InvokeInternal(DescriptableObject* thisObject, Ptr<IValueReadonlyList> arguments)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto record = GetEventRecord(thisObject, false);
 				if (record)
 				{
@@ -4933,12 +5036,15 @@ WfEvent
 					if (index != -1)
 					{
 						auto& values = record->handlers.GetByIndex(index);
-						FOREACH(Ptr<EventHandlerImpl>, handler, values)
+						for (auto handler : values)
 						{
 							handler->proxy->Invoke(arguments);
 						}
 					}
 				}
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			Ptr<ITypeInfo> WfEvent::GetHandlerTypeInternal()
@@ -4973,19 +5079,31 @@ WfField
 
 			Ptr<WfField::FieldRecord> WfField::GetFieldRecord(DescriptableObject* thisObject, bool createIfNotExist)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				return GetInfoRecord<FieldRecord>(this, thisObject, FieldRecordInternalPropertyName, createIfNotExist);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			Value WfField::GetValueInternal(const Value& thisObject)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto record = GetFieldRecord(thisObject.GetRawPtr(), true);
 				return record->values.Get(this);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			void WfField::SetValueInternal(Value& thisObject, const Value& newValue)
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				auto record = GetFieldRecord(thisObject.GetRawPtr(), true);
 				record->values.Set(this, newValue);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfField::WfField(ITypeDescriptor* ownerTypeDescriptor, const WString& name)
@@ -5013,30 +5131,38 @@ WfStructField
 
 			Value WfStructField::GetValueInternal(const Value& thisObject)
 			{
-				auto structValue = thisObject.GetBoxedValue().Cast<IValueType::TypedBox<WfStructInstance>>();
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto structValue = thisObject.GetBoxedValue().Cast<WfStructInstance>();
 				if (!structValue)
 				{
 					throw ArgumentTypeMismtatchException(L"thisObject", GetOwnerTypeDescriptor(), Value::BoxedValue, thisObject);
 				}
-				vint index = structValue->value.fieldValues.Keys().IndexOf(this);
+				vint index = structValue->fieldValues.Keys().IndexOf(this);
 				if (index == -1)
 				{
 					return returnInfo->GetTypeDescriptor()->GetValueType()->CreateDefault();
 				}
 				else
 				{
-					return structValue->value.fieldValues.Values()[index];
+					return structValue->fieldValues.Values()[index];
 				}
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			void WfStructField::SetValueInternal(Value& thisObject, const Value& newValue)
 			{
-				auto structValue = thisObject.GetBoxedValue().Cast<IValueType::TypedBox<WfStructInstance>>();
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto structValue = thisObject.GetBoxedValue().Cast<WfStructInstance>();
 				if (!structValue)
 				{
 					throw ArgumentTypeMismtatchException(L"thisObject", GetOwnerTypeDescriptor(), Value::BoxedValue, thisObject);
 				}
-				structValue->value.fieldValues.Set(this, newValue);
+				structValue->fieldValues.Set(this, newValue);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfStructField::WfStructField(ITypeDescriptor* ownerTypeDescriptor, const WString& name)
@@ -5251,18 +5377,17 @@ WfStruct
 
 			Value WfStruct::WfValueType::CreateDefault()
 			{
-				return Value::From(new IValueType::TypedBox<WfStructInstance>, owner);
-			}
-
-			IBoxedValue::CompareResult WfStruct::WfValueType::Compare(const Value& a, const Value& b)
-			{
-				return IBoxedValue::NotComparable;
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				return Value::From(Ptr(new WfStructInstance(owner)), owner);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfStruct::WfStruct(const WString& typeName)
 				:WfCustomTypeBase<reflection::description::ValueTypeDescriptorBase>(TypeDescriptorFlags::Struct, typeName)
 			{
-				this->valueType = new WfValueType(this);
+				this->valueType = Ptr(new WfValueType(this));
 			}
 
 			WfStruct::~WfStruct()
@@ -5348,19 +5473,27 @@ WfEnum::WfEnumType
 
 			Value WfEnum::WfEnumType::ToEnum(vuint64_t value)
 			{
-				auto boxedValue = MakePtr<IValueType::TypedBox<WfEnumInstance>>();
-				boxedValue->value.value = value;
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto boxedValue = Ptr(new WfEnumInstance(owner));
+				boxedValue->value = value;
 				return Value::From(boxedValue, owner);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			vuint64_t WfEnum::WfEnumType::FromEnum(const Value& value)
 			{
-				auto enumValue = value.GetBoxedValue().Cast<IValueType::TypedBox<WfEnumInstance>>();
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				auto enumValue = value.GetBoxedValue().Cast<WfEnumInstance>();
 				if (!enumValue)
 				{
 					throw ArgumentTypeMismtatchException(L"enumValue", owner, Value::BoxedValue, value);
 				}
-				return enumValue->value.value;
+				return enumValue->value;
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 /***********************************************************************
@@ -5374,33 +5507,18 @@ WfEnum
 
 			Value WfEnum::WfValueType::CreateDefault()
 			{
-				return Value::From(new IValueType::TypedBox<WfEnumInstance>, owner);
-			}
-
-			IBoxedValue::CompareResult WfEnum::WfValueType::Compare(const Value& a, const Value& b)
-			{
-				auto ea = a.GetBoxedValue().Cast<IValueType::TypedBox<WfEnumInstance>>();
-				if (!ea)
-				{
-					throw ArgumentTypeMismtatchException(L"ea", owner, Value::BoxedValue, a);
-				}
-
-				auto eb = b.GetBoxedValue().Cast<IValueType::TypedBox<WfEnumInstance>>();
-				if (!eb)
-				{
-					throw ArgumentTypeMismtatchException(L"eb", owner, Value::BoxedValue, b);
-				}
-
-				if (ea->value.value < eb->value.value) return IBoxedValue::Smaller;
-				if (ea->value.value > eb->value.value)return IBoxedValue::Greater;
-				return IBoxedValue::Equal;
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				return Value::From(Ptr(new WfEnumInstance(owner)), owner);
+#else
+				CHECK_FAIL(L"Not Implemented under VCZH_DEBUG_METAONLY_REFLECTION!");
+#endif
 			}
 
 			WfEnum::WfEnum(bool isFlags, const WString& typeName)
 				:WfCustomTypeBase<reflection::description::ValueTypeDescriptorBase>((isFlags ? TypeDescriptorFlags::FlagEnum : TypeDescriptorFlags::NormalEnum), typeName)
 			{
-				this->valueType = new WfValueType(this);
-				this->enumType = new WfEnumType(this);
+				this->valueType = Ptr(new WfValueType(this));
+				this->enumType = Ptr(new WfEnumType(this));
 			}
 
 			WfEnum::~WfEnum()
@@ -5417,23 +5535,29 @@ WfClassInstance
 ***********************************************************************/
 
 			WfClassInstance::WfClassInstance(ITypeDescriptor* _typeDescriptor)
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				:Description<WfClassInstance>(_typeDescriptor)
+#endif
 			{
 				classType = dynamic_cast<WfClass*>(_typeDescriptor);
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				InitializeAggregation(classType->GetExpandedBaseTypes().Count());
+#endif
 			}
 
 			WfClassInstance::~WfClassInstance()
 			{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				if (classType->destructorFunctionIndex != -1)
 				{
-					auto capturedVariables = MakePtr<WfRuntimeVariableContext>();
+					auto capturedVariables = Ptr(new WfRuntimeVariableContext);
 					capturedVariables->variables.Resize(1);
 					capturedVariables->variables[0] = Value::From(this);
 
 					auto argumentArray = IValueList::Create();
-					WfRuntimeLambda::Invoke(classType->GetGlobalContext(), capturedVariables, classType->destructorFunctionIndex, argumentArray);
+					WfRuntimeLambda::Invoke(Ptr(classType->GetGlobalContext()), capturedVariables, classType->destructorFunctionIndex, argumentArray);
 				}
+#endif
 			}
 
 			void WfClassInstance::InstallBaseObject(ITypeDescriptor* td, Value& value)
@@ -5442,13 +5566,14 @@ WfClassInstance
 				{
 					if (!(ptr = value.GetSharedPtr()))
 					{
-						ptr = value.GetRawPtr();
+						ptr = Ptr(value.GetRawPtr());
 					}
 					value = Value();
 				}
-				
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				vint index = classType->GetExpandedBaseTypes().IndexOf(td);
 				SetAggregationParent(index, ptr);
+#endif
 			}
 
 /***********************************************************************
@@ -5456,26 +5581,29 @@ WfInterfaceInstance
 ***********************************************************************/
 
 			WfInterfaceInstance::WfInterfaceInstance(ITypeDescriptor* _typeDescriptor, Ptr<IValueInterfaceProxy> _proxy, collections::List<IMethodInfo*>& baseCtors)
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				:Description<WfInterfaceInstance>(_typeDescriptor)
 				, proxy(_proxy)
+#endif
 			{
 				Array<Value> arguments(1);
 				arguments[0] = Value::From(_proxy);
-
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				InitializeAggregation(baseCtors.Count());
-				FOREACH_INDEXER(IMethodInfo*, ctor, index, baseCtors)
+				for (auto [ctor, index] : indexed(baseCtors))
 				{
 					Ptr<DescriptableObject> ptr;
 					{
 						auto value = ctor->Invoke(Value(), arguments);
 						if (!(ptr = value.GetSharedPtr()))
 						{
-							ptr = value.GetRawPtr();
+							ptr = Ptr(value.GetRawPtr());
 						}
 					}
 
 					SetAggregationParent(index, ptr);
 				}
+#endif
 			}
 
 			WfInterfaceInstance::~WfInterfaceInstance()
@@ -5485,6 +5613,115 @@ WfInterfaceInstance
 			Ptr<IValueInterfaceProxy> WfInterfaceInstance::GetProxy()
 			{
 				return proxy;
+			}
+
+/***********************************************************************
+WfStructInstance
+***********************************************************************/
+
+			WfStructInstance::WfStructInstance(reflection::description::ITypeDescriptor* _typeDescriptor)
+				: typeDescriptor(_typeDescriptor)
+			{
+			}
+
+			PredefinedBoxableType WfStructInstance::GetBoxableType()
+			{
+				return PredefinedBoxableType::PBT_Unknown;
+			}
+
+			Ptr<IBoxedValue> WfStructInstance::Copy()
+			{
+				auto instance = Ptr(new WfStructInstance(typeDescriptor));
+				CopyFrom(instance->fieldValues, fieldValues);
+				return instance;
+			}
+
+			IBoxedValue::CompareResult WfStructInstance::ComparePrimitive(Ptr<IBoxedValue> boxedValue)
+			{
+				auto instance = boxedValue.Cast<WfStructInstance>();
+				if (!instance) return IBoxedValue::NotComparable;
+				if (typeDescriptor != instance->typeDescriptor) return IBoxedValue::NotComparable;
+				
+				auto&& as = fieldValues;
+				auto&& bs = instance->fieldValues;
+				if (as.Count() == 0 && bs.Count() == 0) return IBoxedValue::Equal;
+
+				vint ai = 0;
+				vint bi = 0;
+				while (ai < as.Count() || bi < bs.Count())
+				{
+					Value af, bf;
+					auto ap = ai < as.Count() ? as.Keys()[ai] : nullptr;
+					auto bp = bi < bs.Count() ? bs.Keys()[bi] : nullptr;
+					auto p =
+						ap == nullptr ? bp :
+						bp == nullptr ? ap :
+						ap < bp ? ap : bp;
+
+					if (p == ap)
+					{
+						af = as.Values()[ai];
+					}
+					else if (p->GetReturn()->GetDecorator() == ITypeInfo::TypeDescriptor)
+					{
+						af = p->GetReturn()->GetTypeDescriptor()->GetValueType()->CreateDefault();
+					}
+
+					if (p == bp)
+					{
+						bf = bs.Values()[bi];
+					}
+					else if (p->GetReturn()->GetDecorator() == ITypeInfo::TypeDescriptor)
+					{
+						bf = p->GetReturn()->GetTypeDescriptor()->GetValueType()->CreateDefault();
+					}
+
+					auto result = af <=> bf;
+					if constexpr (std::is_same_v<decltype(result), std::partial_ordering>)
+					{
+						if (result == std::partial_ordering::unordered) return IBoxedValue::NotComparable;
+					}
+					if (result < 0) return IBoxedValue::Smaller;
+					if (result > 0) return IBoxedValue::Greater;
+
+					if (p == ap) ai++;
+					if (p == bp) bi++;
+				}
+
+				return IBoxedValue::Equal;
+			}
+
+/***********************************************************************
+WfEnumInstance
+***********************************************************************/
+
+			WfEnumInstance::WfEnumInstance(reflection::description::ITypeDescriptor* _typeDescriptor)
+				: typeDescriptor(_typeDescriptor)
+			{
+			}
+
+			PredefinedBoxableType WfEnumInstance::GetBoxableType()
+			{
+				return PredefinedBoxableType::PBT_Unknown;
+			}
+
+			Ptr<IBoxedValue> WfEnumInstance::Copy()
+			{
+				auto instance = Ptr(new WfEnumInstance(typeDescriptor));
+				instance->value = value;
+				return instance;
+			}
+
+			IBoxedValue::CompareResult WfEnumInstance::ComparePrimitive(Ptr<IBoxedValue> boxedValue)
+			{
+				auto instance = boxedValue.Cast<WfEnumInstance>();
+				if (!instance) return IBoxedValue::NotComparable;
+				if (typeDescriptor != instance->typeDescriptor) return IBoxedValue::NotComparable;
+				
+				auto result = value <=> instance->value;
+				if (result < 0) return IBoxedValue::Smaller;
+				if (result > 0) return IBoxedValue::Greater;
+				return IBoxedValue::Equal;
 			}
 
 /***********************************************************************
@@ -5508,11 +5745,11 @@ WfTypeImpl
 				}
 
 				globalContext = _globalContext;
-				FOREACH(Ptr<WfClass>, td, classes)
+				for (auto td : classes)
 				{
 					td->SetGlobalContext(globalContext);
 				}
-				FOREACH(Ptr<WfInterface>, td, interfaces)
+				for (auto td : interfaces)
 				{
 					td->SetGlobalContext(globalContext);
 				}
@@ -5529,7 +5766,7 @@ WfTypeImpl
 
 			void WfTypeImpl::Load(reflection::description::ITypeManager* manager)
 			{
-				FOREACH(Ptr<WfClass>, td, classes)
+				for (auto td : classes)
 				{
 					if (td->GetBaseTypeDescriptorCount() == 0)
 					{
@@ -5537,7 +5774,7 @@ WfTypeImpl
 					}
 					manager->SetTypeDescriptor(td->GetTypeName(), td);
 				}
-				FOREACH(Ptr<WfInterface>, td, interfaces)
+				for (auto td : interfaces)
 				{
 					if (td->GetBaseTypeDescriptorCount() == 0)
 					{
@@ -5545,11 +5782,11 @@ WfTypeImpl
 					}
 					manager->SetTypeDescriptor(td->GetTypeName(), td);
 				}
-				FOREACH(Ptr<WfStruct>, td, structs)
+				for (auto td : structs)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), td);
 				}
-				FOREACH(Ptr<WfEnum>, td, enums)
+				for (auto td : enums)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), td);
 				}
@@ -5557,19 +5794,19 @@ WfTypeImpl
 
 			void WfTypeImpl::Unload(reflection::description::ITypeManager* manager)
 			{
-				FOREACH(Ptr<WfClass>, td, classes)
+				for (auto td : classes)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), nullptr);
 				}
-				FOREACH(Ptr<WfInterface>, td, interfaces)
+				for (auto td : interfaces)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), nullptr);
 				}
-				FOREACH(Ptr<WfStruct>, td, structs)
+				for (auto td : structs)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), nullptr);
 				}
-				FOREACH(Ptr<WfEnum>, td, enums)
+				for (auto td : enums)
 				{
 					manager->SetTypeDescriptor(td->GetTypeName(), nullptr);
 				}

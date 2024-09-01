@@ -2,7 +2,7 @@
 #include "../Templates/GuiThemeStyleFactory.h"
 #include "../../GraphicsComposition/GuiGraphicsStackComposition.h"
 #include "../../GraphicsComposition/GuiGraphicsSharedSizeComposition.h"
-#include "../../GraphicsHost/GuiGraphicsHost_ShortcutKey.h"
+#include "../../Application/GraphicsHost/GuiGraphicsHost_ShortcutKey.h"
 
 namespace vl
 {
@@ -132,6 +132,7 @@ GuiToolstripCollection
 				:GuiToolstripCollectionBase(_contentCallback)
 				,stackComposition(_stackComposition)
 			{
+				stackComposition->SetPreferredMinSize(Size(1, 1));
 			}
 
 			GuiToolstripCollection::~GuiToolstripCollection()
@@ -161,7 +162,7 @@ GuiToolstripMenu
 				stackComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				sharedSizeRootComposition->AddChild(stackComposition);
 				
-				toolstripItems = new GuiToolstripCollection(this, stackComposition);
+				toolstripItems = Ptr(new GuiToolstripCollection(this, stackComposition));
 			}
 
 			GuiToolstripMenu::~GuiToolstripMenu()
@@ -186,7 +187,7 @@ GuiToolstripMenuBar
 				stackComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				containerComposition->AddChild(stackComposition);
 
-				toolstripItems=new GuiToolstripCollection(nullptr, stackComposition);
+				toolstripItems=Ptr(new GuiToolstripCollection(nullptr, stackComposition));
 			}
 
 			GuiToolstripMenuBar::~GuiToolstripMenuBar()
@@ -211,7 +212,7 @@ GuiToolstripToolBar
 				stackComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				containerComposition->AddChild(stackComposition);
 
-				toolstripItems=new GuiToolstripCollection(nullptr, stackComposition);
+				toolstripItems=Ptr(new GuiToolstripCollection(nullptr, stackComposition));
 			}
 
 			GuiToolstripToolBar::~GuiToolstripToolBar()
@@ -358,7 +359,7 @@ GuiToolstripButton
 					}
 					else
 					{
-						newSubMenu->SetControlTemplate(GetControlTemplateObject(true)->GetSubMenuTemplate());
+						newSubMenu->SetControlTemplate(TypedControlTemplateObject(true)->GetSubMenuTemplate());
 					}
 					SetSubMenu(newSubMenu, true);
 				}
@@ -382,7 +383,8 @@ GuiToolstripNestedContainer
 
 			void GuiToolstripNestedContainer::UpdateLayout()
 			{
-				if (callback)
+				// It could happen if a GuiToolstripGroupContainer contains something other that GuiToolstripGroup
+				if (callback && callback != this)
 				{
 					callback->UpdateLayout();
 				}
@@ -534,7 +536,6 @@ GuiToolstripGroupContainer
 					}
 
 					stackComposition->SetDirection(direction);
-					splitterThemeName = splitterThemeName;
 					groupCollection->RebuildSplitters();
 					UpdateLayout();
 				}
@@ -552,7 +553,7 @@ GuiToolstripGroupContainer
 				stackComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				containerComposition->AddChild(stackComposition);
 
-				groupCollection = new GroupCollection(this);
+				groupCollection = Ptr(new GroupCollection(this));
 			}
 
 			GuiToolstripGroupContainer::~GuiToolstripGroupContainer()
@@ -607,7 +608,7 @@ GuiToolstripGroup
 				stackComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				containerComposition->AddChild(stackComposition);
 
-				toolstripItems = new GuiToolstripCollection(nullptr, stackComposition);
+				toolstripItems = Ptr(new GuiToolstripCollection(nullptr, stackComposition));
 			}
 
 			GuiToolstripGroup::~GuiToolstripGroup()

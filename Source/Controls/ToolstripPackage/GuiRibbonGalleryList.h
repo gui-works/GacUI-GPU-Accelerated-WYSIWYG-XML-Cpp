@@ -41,19 +41,7 @@ Ribbon Gallery List
 				{
 				}
 
-				vint Compare(GalleryPos value)const
-				{
-					vint result = group - value.group;
-					if (result != 0) return result;
-					return item - value.item;
-				}
-
-				bool operator==(const GalleryPos& value)const { return Compare(value) == 0; }
-				bool operator!=(const GalleryPos& value)const { return Compare(value) != 0; }
-				bool operator<(const GalleryPos& value)const { return Compare(value)<0; }
-				bool operator<=(const GalleryPos& value)const { return Compare(value) <= 0; }
-				bool operator>(const GalleryPos& value)const { return Compare(value)>0; }
-				bool operator>=(const GalleryPos& value)const { return Compare(value) >= 0; }
+				GUI_DEFINE_COMPARE_OPERATORS(GalleryPos)
 			};
 
 			namespace list
@@ -155,6 +143,7 @@ Ribbon Gallery List
 
 			namespace ribbon_impl
 			{
+				class GalleryItemArrangerRepeatComposition;
 				class GalleryItemArranger;
 				class GalleryResponsiveLayout;
 			}
@@ -162,7 +151,7 @@ Ribbon Gallery List
 			/// <summary>Auto resizable ribbon gallyer list.</summary>
 			class GuiBindableRibbonGalleryList : public GuiRibbonGallery, public list::GroupedDataSource, private IGuiMenuDropdownProvider, public Description<GuiBindableRibbonGalleryList>
 			{
-				friend class ribbon_impl::GalleryItemArranger;
+				friend class ribbon_impl::GalleryItemArrangerRepeatComposition;
 
 				using IValueEnumerable = reflection::description::IValueEnumerable;
 				using IValueObservableList = reflection::description::IValueObservableList;
@@ -185,7 +174,7 @@ Ribbon Gallery List
 				void													OnItemListSelectionChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void													OnItemListItemMouseEnter(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments);
 				void													OnItemListItemMouseLeave(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments);
-				void													OnBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+				void													OnCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void													OnRequestedDropdown(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void													OnRequestedScrollUp(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void													OnRequestedScrollDown(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);

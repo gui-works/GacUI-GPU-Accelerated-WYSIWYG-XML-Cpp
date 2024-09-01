@@ -85,7 +85,7 @@ GuiMultilineTextBox
 
 			void GuiMultilineTextBox::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				ct->SetCommands(nullptr);
@@ -93,8 +93,8 @@ GuiMultilineTextBox
 
 			void GuiMultilineTextBox::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
-				Array<text::ColorEntry> colors(1);
+				auto ct = TypedControlTemplateObject(true);
+				Array<ColorEntry> colors(1);
 				colors[0] = ct->GetTextColor();
 				textElement->SetColors(colors);
 				textElement->SetCaretColor(ct->GetCaretColor());
@@ -122,7 +122,7 @@ GuiMultilineTextBox
 
 			Size GuiMultilineTextBox::QueryFullSize()
 			{
-				text::TextLines& lines = textElement->GetLines();
+				TextLines& lines = textElement->GetLines();
 				return Size(lines.GetMaxWidth() + TextMargin * 2, lines.GetMaxHeight() + TextMargin * 2);
 			}
 
@@ -133,7 +133,7 @@ GuiMultilineTextBox
 
 			void GuiMultilineTextBox::CalculateViewAndSetScroll()
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				CalculateView();
 				vint smallMove = textElement->GetLines().GetRowHeight();
 				vint bigMove = smallMove * 5;
@@ -155,7 +155,7 @@ GuiMultilineTextBox
 			{
 				if(GetVisuallyEnabled())
 				{
-					SetFocus();
+					SetFocused();
 				}
 			}
 
@@ -167,11 +167,11 @@ GuiMultilineTextBox
 
 				textComposition = new GuiBoundsComposition;
 				textComposition->SetAlignmentToParent(Margin(0, 0, 0, 0));
-				textComposition->SetOwnedElement(textElement);
+				textComposition->SetOwnedElement(Ptr(textElement));
 				containerComposition->AddChild(textComposition);
 
-				callback = new TextElementOperatorCallback(this);
-				commandExecutor = new CommandExecutor(this);
+				callback = Ptr(new TextElementOperatorCallback(this));
+				commandExecutor = Ptr(new CommandExecutor(this));
 
 				SetAcceptTabInput(true);
 				SetFocusableComposition(boundsComposition);
@@ -215,19 +215,26 @@ GuiSinglelineTextBox::DefaultTextElementOperatorCallback
 
 			bool GuiSinglelineTextBox::TextElementOperatorCallback::BeforeModify(TextPos start, TextPos end, const WString& originalText, WString& inputText)
 			{
-				vint length=inputText.Length();
-				const wchar_t* input=inputText.Buffer();
-				for(vint i=0;i<length;i++)
+				vint length = inputText.Length();
+				const wchar_t* input = inputText.Buffer();
+				for (vint i = 0; i < length; i++)
 				{
-					if(*input==0 || *input==L'\r' || *input==L'\n')
+					if (*input == 0 || *input == L'\r' || *input == L'\n')
 					{
-						length=i;
+						length = i;
 						break;
 					}
 				}
-				if(length!=inputText.Length())
+				if (length != inputText.Length())
 				{
-					inputText=inputText.Left(length);
+					if (length == 0)
+					{
+						// if the first line is empty after adjustment
+						// the input should just be canceled
+						// to prevent from making noise in undo
+						return false;
+					}
+					inputText = inputText.Left(length);
 				}
 				return true;
 			}
@@ -252,7 +259,7 @@ GuiSinglelineTextBox::DefaultTextElementOperatorCallback
 
 				newX+=marginX;
 				vint minX=-TextMargin;
-				vint maxX=textElement->GetLines().GetMaxWidth()+TextMargin-textComposition->GetBounds().Width();
+				vint maxX=textElement->GetLines().GetMaxWidth()+TextMargin-textComposition->GetCachedBounds().Width();
 				if(newX>=maxX)
 				{
 					newX=maxX-1;
@@ -279,8 +286,8 @@ GuiSinglelineTextBox
 
 			void GuiSinglelineTextBox::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
-				Array<text::ColorEntry> colors(1);
+				auto ct = TypedControlTemplateObject(true);
+				Array<ColorEntry> colors(1);
 				colors[0] = ct->GetTextColor();
 				textElement->SetColors(colors);
 				textElement->SetCaretColor(ct->GetCaretColor());
@@ -318,7 +325,7 @@ GuiSinglelineTextBox
 			{
 				if(GetVisuallyEnabled())
 				{
-					SetFocus();
+					SetFocused();
 				}
 			}
 
@@ -340,11 +347,11 @@ GuiSinglelineTextBox
 				containerComposition->AddChild(textCompositionTable);
 
 				textComposition = new GuiCellComposition;
-				textComposition->SetOwnedElement(textElement);
+				textComposition->SetOwnedElement(Ptr(textElement));
 				textCompositionTable->AddChild(textComposition);
 				textComposition->SetSite(1, 0, 1, 1);
 
-				callback = new TextElementOperatorCallback(this);
+				callback = Ptr(new TextElementOperatorCallback(this));
 				SetAcceptTabInput(true);
 				SetFocusableComposition(boundsComposition);
 				Install(textElement, textComposition, this, boundsComposition, focusableComposition);

@@ -14,6 +14,20 @@ namespace vl
 	{
 
 /***********************************************************************
+CreateArray
+***********************************************************************/
+
+		CreateArray::CreateArray()
+			:list(IValueArray::Create())
+		{
+		}
+
+		CreateArray::CreateArray(Ptr<IValueArray> _list)
+			:list(_list)
+		{
+		}
+
+/***********************************************************************
 CreateList
 ***********************************************************************/
 
@@ -191,7 +205,7 @@ EnumerableCoroutine
 
 				Ptr<IValueEnumerator> CreateEnumerator()override
 				{
-					return new CoroutineEnumerator(creator);
+					return Ptr(new CoroutineEnumerator(creator));
 				}
 			};
 
@@ -211,7 +225,7 @@ EnumerableCoroutine
 
 			Ptr<IValueEnumerable> EnumerableCoroutine::Create(const Creator& creator)
 			{
-				return new CoroutineEnumerable(creator);
+				return Ptr(new CoroutineEnumerable(creator));
 			}
 
 /***********************************************************************
@@ -306,7 +320,7 @@ DelayAsync
 
 			Ptr<IAsync> IAsync::Delay(vint milliseconds)
 			{
-				return new DelayAsync(milliseconds);
+				return Ptr(new DelayAsync(milliseconds));
 			}
 
 /***********************************************************************
@@ -338,7 +352,7 @@ FutureAndPromiseAsync
 					SPIN_LOCK(lock)
 					{
 						if (status == AsyncStatus::Stopped || cr) return false;
-						cr = MakePtr<CoroutineResult>();
+						cr = Ptr(new CoroutineResult);
 						f();
 						if (status == AsyncStatus::Executing)
 						{
@@ -373,7 +387,7 @@ FutureAndPromiseAsync
 
 				Ptr<IPromise> GetPromise()override
 				{
-					return this;
+					return Ptr(this);
 				}
 
 				bool SendResult(const Value& result)override
@@ -395,7 +409,7 @@ FutureAndPromiseAsync
 
 			Ptr<IFuture> IFuture::Create()
 			{
-				return new FutureAndPromiseAsync();
+				return Ptr(new FutureAndPromiseAsync);
 			}
 
 /***********************************************************************
@@ -558,7 +572,7 @@ AsyncCoroutine
 				{
 					if (!context)
 					{
-						context = new AsyncContext;
+						context = Ptr(new AsyncContext);
 					}
 					return context;
 				}
@@ -570,7 +584,7 @@ AsyncCoroutine
 						async->coroutine->Resume(false, output);
 						if (async->coroutine->GetStatus() == CoroutineStatus::Stopped && async->callback)
 						{
-							auto result = MakePtr<CoroutineResult>();
+							auto result = Ptr(new CoroutineResult);
 							if (async->coroutine->GetFailure())
 							{
 								result->SetFailure(async->coroutine->GetFailure());
@@ -610,11 +624,11 @@ AsyncCoroutine
 
 			Ptr<IAsync> AsyncCoroutine::Create(const Creator& creator)
 			{
-				return new CoroutineAsync(creator);
+				return Ptr(new CoroutineAsync(creator));
 			}
 			void AsyncCoroutine::CreateAndRun(const Creator& creator)
 			{
-				MakePtr<CoroutineAsync>(creator)->Execute(
+				Ptr(new CoroutineAsync(creator))->Execute(
 					[](Ptr<CoroutineResult> cr)
 					{
 						if (cr->GetFailure())
@@ -671,7 +685,7 @@ StateMachine
 						else if (currentCoroutine->GetStatus() == CoroutineStatus::Stopped)
 						{
 							// leave a state machine
-							previousResult = MakePtr<CoroutineResult>();
+							previousResult = Ptr(new CoroutineResult);
 							if (auto failure = currentCoroutine->GetFailure())
 							{
 								previousResult->SetFailure(failure);
@@ -766,7 +780,7 @@ Sys
 
 					Ptr<IValueEnumerator> CreateEnumerator()override
 					{
-						return MakePtr<Enumerator>(list);
+						return Ptr(new Enumerator(list));
 					}
 				};
 			}
@@ -811,11 +825,6 @@ Sys
 				return DateTime::FromDateTime(year, month, day, hour, minute, second, milliseconds);
 			}
 
-			DateTime Sys::CreateDateTime(vuint64_t filetime)
-			{
-				return DateTime::FromFileTime(filetime);
-			}
-
 			Ptr<IValueEnumerable> Sys::ReverseEnumerable(Ptr<IValueEnumerable> value)
 			{
 				auto list = value.Cast<IValueReadonlyList>();
@@ -823,21 +832,16 @@ Sys
 				{
 					list = IValueList::Create(GetLazyList<Value>(value));
 				}
-				return new system_sys::ReverseEnumerable(list);
+				return Ptr(new system_sys::ReverseEnumerable(list));
 			}
 
 #define DEFINE_COMPARE(TYPE)\
 			vint Sys::Compare(TYPE a, TYPE b)\
 			{\
-				auto result = TypedValueSerializerProvider<TYPE>::Compare(a, b);\
-				switch (result)\
-				{\
-				case IBoxedValue::Smaller:	return -1;\
-				case IBoxedValue::Greater:	return 1;\
-				case IBoxedValue::Equal:	return 0;\
-				default:\
-					CHECK_FAIL(L"Unexpected compare result.");\
-				}\
+				auto result = a <=> b;\
+				if (result < 0) return -1;\
+				if (result > 0) return 1;\
+				return 0;\
 			}\
 
 			REFLECTION_PREDEFINED_PRIMITIVE_TYPES(DEFINE_COMPARE)
@@ -883,42 +887,42 @@ Localization
 
 			collections::LazyList<Locale> Localization::Locales()
 			{
-				auto result = MakePtr<List<Locale>>();
+				auto result = Ptr(new List<Locale>);
 				Locale::Enumerate(*result.Obj());
 				return result;
 			}
 
 			collections::LazyList<WString> Localization::GetShortDateFormats(Locale locale)
 			{
-				auto result = MakePtr<List<WString>>();
+				auto result = Ptr(new List<WString>);
 				locale.GetShortDateFormats(*result.Obj());
 				return result;
 			}
 
 			collections::LazyList<WString> Localization::GetLongDateFormats(Locale locale)
 			{
-				auto result = MakePtr<List<WString>>();
+				auto result = Ptr(new List<WString>);
 				locale.GetLongDateFormats(*result.Obj());
 				return result;
 			}
 
 			collections::LazyList<WString> Localization::GetYearMonthDateFormats(Locale locale)
 			{
-				auto result = MakePtr<List<WString>>();
+				auto result = Ptr(new List<WString>);
 				locale.GetYearMonthDateFormats(*result.Obj());
 				return result;
 			}
 
 			collections::LazyList<WString> Localization::GetLongTimeFormats(Locale locale)
 			{
-				auto result = MakePtr<List<WString>>();
+				auto result = Ptr(new List<WString>);
 				locale.GetLongTimeFormats(*result.Obj());
 				return result;
 			}
 
 			collections::LazyList<WString> Localization::GetShortTimeFormats(Locale locale)
 			{
-				auto result = MakePtr<List<WString>>();
+				auto result = Ptr(new List<WString>);
 				locale.GetShortTimeFormats(*result.Obj());
 				return result;
 			}
@@ -1013,32 +1017,9 @@ TypeName
 WfLoadLibraryTypes
 ***********************************************************************/
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
-#define _ ,	
-
-			template<>
-			struct CustomTypeDescriptorSelector<DescriptableObject>
-			{
-			public:
-				class CustomTypeDescriptorImpl : public TypeDescriptorImpl
-				{
-				public:
-					CustomTypeDescriptorImpl()
-						:TypeDescriptorImpl(TypeDescriptorFlags::Class, &TypeInfo<DescriptableObject>::content)
-					{
-						Description<DescriptableObject>::SetAssociatedTypeDescroptor(this);
-					}
-					~CustomTypeDescriptorImpl()
-					{
-						Description<DescriptableObject>::SetAssociatedTypeDescroptor(0);
-					}
-				protected:
-					void LoadInternal()override
-					{
-					}
-				};
-			};
+#define _ ,
 
 			BEGIN_CLASS_MEMBER(Sys)
 				CLASS_MEMBER_STATIC_METHOD(Int32ToInt, { L"value" })
@@ -1081,7 +1062,6 @@ WfLoadLibraryTypes
 
 				CLASS_MEMBER_STATIC_METHOD_OVERLOAD(CreateDateTime, {L"year" _ L"month" _ L"day" }, DateTime(*)(vint, vint, vint))
 				CLASS_MEMBER_STATIC_METHOD_OVERLOAD(CreateDateTime, { L"year" _ L"month" _ L"day" _ L"hour" _ L"minute" _ L"second" _ L"milliseconds" }, DateTime(*)(vint, vint, vint, vint, vint, vint, vint))
-				CLASS_MEMBER_STATIC_METHOD_OVERLOAD(CreateDateTime, { L"filetime" }, DateTime(*)(vuint64_t))
 			END_CLASS_MEMBER(Sys)
 
 			BEGIN_CLASS_MEMBER(Math)
@@ -1253,11 +1233,11 @@ WfLoadLibraryTypes
 
 			bool WfLoadLibraryTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager = GetGlobalTypeManager();
 				if (manager)
 				{
-					Ptr<ITypeLoader> loader = new WfLibraryTypeLoader;
+					auto loader = Ptr(new WfLibraryTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

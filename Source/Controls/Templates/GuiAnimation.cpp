@@ -16,7 +16,7 @@ GuiTimedAnimation
 			class GuiTimedAnimation : public Object, public virtual IGuiAnimation
 			{
 			protected:
-				DateTime						startTime;
+				DateTime						startUtcTime;
 				vuint64_t						time;
 				bool							running = false;
 
@@ -31,7 +31,7 @@ GuiTimedAnimation
 
 				void Start()override
 				{
-					startTime = DateTime::LocalTime();
+					startUtcTime = DateTime::UtcTime();
 					time = 0;
 					running = true;
 				}
@@ -44,7 +44,7 @@ GuiTimedAnimation
 
 				void Resume()override
 				{
-					startTime = DateTime::LocalTime();
+					startUtcTime = DateTime::UtcTime();
 					running = true;
 				}
 
@@ -52,7 +52,7 @@ GuiTimedAnimation
 				{
 					if (running)
 					{
-						return time + (DateTime::LocalTime().totalMilliseconds - startTime.totalMilliseconds);
+						return time + (DateTime::UtcTime().osMilliseconds - startUtcTime.osMilliseconds);
 					}
 					else
 					{
@@ -69,6 +69,7 @@ GuiFiniteAnimation
 			{
 			protected:
 				vuint64_t						length = 0;
+				vuint64_t						currentTime = 0;
 				Func<void(vuint64_t)>			run;
 
 			public:
@@ -84,7 +85,7 @@ GuiFiniteAnimation
 
 				void Run()override
 				{
-					auto currentTime = GetTime();
+					currentTime = GetTime();
 					if (currentTime < length && run)
 					{
 						run(currentTime);
@@ -93,7 +94,7 @@ GuiFiniteAnimation
 
 				bool GetStopped()override
 				{
-					return GetTime() >= length;
+					return currentTime >= length;
 				}
 			};
 
@@ -136,12 +137,12 @@ IGuiAnimation
 
 			Ptr<IGuiAnimation> IGuiAnimation::CreateAnimation(const Func<void(vuint64_t)>& run, vuint64_t milliseconds)
 			{
-				return new GuiFiniteAnimation(run, milliseconds);
+				return Ptr(new GuiFiniteAnimation(run, milliseconds));
 			}
 
 			Ptr<IGuiAnimation> IGuiAnimation::CreateAnimation(const Func<void(vuint64_t)>& run)
 			{
-				return new GuiInfiniteAnimation(run);
+				return Ptr(new GuiInfiniteAnimation(run));
 			}
 
 /***********************************************************************
@@ -202,9 +203,10 @@ IGuiAnimationCoroutine
 					{
 						waitingAnimation->Pause();
 					}
+					// TODO: (enumerable) foreach on group
 					for (vint i = 0; i < groupAnimations.Count(); i++)
 					{
-						FOREACH(Ptr<IGuiAnimation>, animation, groupAnimations.GetByIndex(i))
+						for (auto animation : groupAnimations.GetByIndex(i))
 						{
 							animation->Pause();
 						}
@@ -217,9 +219,10 @@ IGuiAnimationCoroutine
 					{
 						waitingAnimation->Resume();
 					}
+					// TODO: (enumerable) foreach on group
 					for (vint i = 0; i < groupAnimations.Count(); i++)
 					{
-						FOREACH(Ptr<IGuiAnimation>, animation, groupAnimations.GetByIndex(i))
+						for (auto animation : groupAnimations.GetByIndex(i))
 						{
 							animation->Resume();
 						}
@@ -239,6 +242,7 @@ IGuiAnimationCoroutine
 						}
 					}
 
+					// TODO: (enumerable) foreach:reversed on group
 					for (vint i = groupAnimations.Count() - 1; i >= 0; i--)
 					{
 						auto& animations = groupAnimations.GetByIndex(i);
@@ -303,7 +307,7 @@ IGuiAnimationCoroutine
 
 			Ptr<IGuiAnimation> IGuiAnimationCoroutine::Create(const Creator& creator)
 			{
-				return new GuiCoroutineAnimation(creator);
+				return Ptr(new GuiCoroutineAnimation(creator));
 			}
 		}
 	}

@@ -7,9 +7,8 @@ namespace vl
 	{
 		using namespace collections;
 		using namespace stream;
-		using namespace parsing::xml;
+		using namespace glr::xml;
 		using namespace reflection::description;
-		using namespace controls;
 
 /***********************************************************************
 Class Name Record (ClassNameRecord)
@@ -41,20 +40,20 @@ Class Name Record (ClassNameRecord)
 				return this;
 			}
 
-			void SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& stream)override
+			void SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& binaryStream)override
 			{
 				if (auto obj = content.Cast<GuiResourceClassNameRecord>())
 				{
-					internal::ContextFreeWriter writer(stream);
+					internal::ContextFreeWriter writer(binaryStream);
 					writer << obj->classNames;
 				}
 			}
 
-			Ptr<DescriptableObject> ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& stream, GuiResourceError::List& errors)override
+			Ptr<DescriptableObject> ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& binaryStream, GuiResourceError::List& errors)override
 			{
-				internal::ContextFreeReader reader(stream);
+				internal::ContextFreeReader reader(binaryStream);
 
-				auto obj = MakePtr<GuiResourceClassNameRecord>();
+				auto obj = Ptr(new GuiResourceClassNameRecord);
 				reader << obj->classNames;
 				return obj;
 			}
@@ -107,16 +106,25 @@ IGuiInstanceResourceManager
 				GUI_PLUGIN_DEPEND(GacUI_Res_ResourceResolver);
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				resourceManager = this;
-				IGuiResourceResolverManager* manager = GetResourceResolverManager();
-				manager->SetTypeResolver(new GuiResourceClassNameRecordTypeResolver);
+				if (controllerRelatedPlugins)
+				{
+					resourceManager = this;
+					IGuiResourceResolverManager* manager = GetResourceResolverManager();
+					manager->SetTypeResolver(Ptr(new GuiResourceClassNameRecordTypeResolver));
+				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				resourceManager = nullptr;
+				if (controllerRelatedPlugins)
+				{
+					anonymousResources.Clear();
+					resources.Clear();
+					instanceResources.Clear();
+					resourceManager = nullptr;
+				}
 			}
 
 			void SetResource(Ptr<GuiResource> resource, GuiResourceError::List& errors, GuiResourceUsage usage)override
@@ -146,7 +154,7 @@ IGuiInstanceResourceManager
 				
 				if (auto record = resource->GetValueByPath(L"Precompiled/ClassNameRecord").Cast<GuiResourceClassNameRecord>())
 				{
-					FOREACH(WString, className, record->classNames)
+					for (auto className : record->classNames)
 					{
 						instanceResources.Add(className, resource);
 					}
@@ -161,7 +169,7 @@ IGuiInstanceResourceManager
 						CopyFrom(prs, depToPendings.GetByIndex(index));
 						depToPendings.Remove(metadata->name);
 
-						FOREACH(Ptr<PendingResource>, pr, prs)
+						for (auto pr : prs)
 						{
 							pr->dependencies.Remove(metadata->name);
 							if (pr->dependencies.Count() == 0)
@@ -177,7 +185,8 @@ IGuiInstanceResourceManager
 			Ptr<GuiResource> GetResource(const WString& name)override
 			{
 				vint index = resources.Keys().IndexOf(name);
-				return index == -1 ? nullptr : resources.Values()[index];
+				if (index == -1) return nullptr;
+				return resources.Values()[index];
 			}
 
 			Ptr<GuiResource> GetResourceFromClassName(const WString& classFullName)override
@@ -187,31 +196,57 @@ IGuiInstanceResourceManager
 				return instanceResources.Values()[index];
 			}
 
-			void UnloadResource(const WString& name)override
+			LazyList<Ptr<GuiResource>> GetLoadedResources()override
 			{
-				vint index = resources.Keys().IndexOf(name);
-				if (index != -1)
-				{
-					auto resource = resources.Values()[index];
-					resources.Remove(name);
-
-					if (auto record = resource->GetValueByPath(L"Precompiled/ClassNameRecord").Cast<GuiResourceClassNameRecord>())
-					{
-						FOREACH(WString, className, record->classNames)
-						{
-							instanceResources.Remove(className);
-						}
-					}
-				}
+				return From(anonymousResources).Concat(resources.Values());
 			}
 
-			void LoadResourceOrPending(stream::IStream& stream, GuiResourceError::List& errors, GuiResourceUsage usage)override
+			bool UnloadResource(const WString& name)override
 			{
-				auto pr = MakePtr<PendingResource>();
-				pr->usage = usage;
-				CopyStream(stream, pr->memoryStream);
+				return UnloadResource(GetResource(name));
+			}
 
-				pr->metadata = MakePtr<GuiResourceMetadata>();
+			bool UnloadResource(Ptr<GuiResource> resource)override
+			{
+				if (!resource) return false;
+
+				WString name;
+				if (auto metadata = resource->GetMetadata())
+				{
+					name = metadata->name;
+				}
+
+				if (name == WString::Empty)
+				{
+					vint index = anonymousResources.IndexOf(resource.Obj());
+					if (index == -1) return false;
+					anonymousResources.RemoveAt(index);
+				}
+				else
+				{
+					vint index = resources.Keys().IndexOf(name);
+					if (index == -1) return false;
+					auto resource = resources.Values()[index];
+					resources.Remove(name);
+				}
+
+				if (auto record = resource->GetValueByPath(L"Precompiled/ClassNameRecord").Cast<GuiResourceClassNameRecord>())
+				{
+					for (auto className : record->classNames)
+					{
+						instanceResources.Remove(className);
+					}
+				}
+				return true;
+			}
+
+			void LoadResourceOrPending(stream::IStream& resourceStream, GuiResourceError::List& errors, GuiResourceUsage usage)override
+			{
+				auto pr = Ptr(new PendingResource);
+				pr->usage = usage;
+				CopyStream(resourceStream, pr->memoryStream);
+
+				pr->metadata = Ptr(new GuiResourceMetadata);
 				{
 					pr->memoryStream.SeekFromBegin(0);
 					stream::internal::ContextFreeReader reader(pr->memoryStream);
@@ -239,17 +274,17 @@ IGuiInstanceResourceManager
 				else
 				{
 					pendingResources.Add(pr);
-					FOREACH(WString, dep, pr->dependencies)
+					for (auto dep : pr->dependencies)
 					{
 						depToPendings.Add(dep, pr);
 					}
 				}
 			}
 
-			void LoadResourceOrPending(stream::IStream& stream, GuiResourceUsage usage)override
+			void LoadResourceOrPending(stream::IStream& resourceStream, GuiResourceUsage usage)override
 			{
 				GuiResourceError::List errors;
-				LoadResourceOrPending(stream, errors, usage);
+				LoadResourceOrPending(resourceStream, errors, usage);
 				CHECK_ERROR(errors.Count() == 0, L"GuiResourceManager::LoadResourceOrPending(stream::IStream&, GuiResourceUsage)#Error happened.");
 			}
 

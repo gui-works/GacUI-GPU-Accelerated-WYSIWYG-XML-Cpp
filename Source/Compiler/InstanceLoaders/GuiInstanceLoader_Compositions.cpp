@@ -31,7 +31,7 @@ GuiAxisInstanceLoader
 					return typeName;
 				}
 
-				void GetRequiredPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetRequiredPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					if (CanCreate(typeInfo))
 					{
@@ -39,12 +39,12 @@ GuiAxisInstanceLoader
 					}
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
-					GetRequiredPropertyNames(typeInfo, propertyNames);
+					GetRequiredPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _AxisDirection)
 					{
@@ -52,7 +52,7 @@ GuiAxisInstanceLoader
 						info->usage = GuiInstancePropertyInfo::ConstructorArgument;
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				bool CanCreate(const TypeInfo& typeInfo)override
@@ -67,19 +67,19 @@ GuiAxisInstanceLoader
 						vint indexAxisDirection = arguments.Keys().IndexOf(_AxisDirection);
 						if (indexAxisDirection != -1)
 						{
-							auto createExpr = MakePtr<WfNewClassExpression>();
+							auto createExpr = Ptr(new WfNewClassExpression);
 							createExpr->type = GetTypeFromTypeInfo(TypeInfoRetriver<Ptr<GuiAxis>>::CreateTypeInfo().Obj());
 							createExpr->arguments.Add(arguments.GetByIndex(indexAxisDirection)[0].expression);
 
-							auto refVariable = MakePtr<WfReferenceExpression>();
+							auto refVariable = Ptr(new WfReferenceExpression);
 							refVariable->name.value = variableName.ToString();
 
-							auto assignExpr = MakePtr<WfBinaryExpression>();
+							auto assignExpr = Ptr(new WfBinaryExpression);
 							assignExpr->op = WfBinaryOperator::Assign;
 							assignExpr->first = refVariable;
 							assignExpr->second = createExpr;
 
-							auto assignStat = MakePtr<WfExpressionStatement>();
+							auto assignStat = Ptr(new WfExpressionStatement);
 							assignStat->expression = assignExpr;
 							return assignStat;
 						}
@@ -108,12 +108,12 @@ GuiCompositionInstanceLoader
 					return typeName;
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(GlobalStringKey::Empty);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == GlobalStringKey::Empty)
 					{
@@ -127,14 +127,15 @@ GuiCompositionInstanceLoader
 						}
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfStatement> AssignParameters(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, GlobalStringKey variableName, ArgumentMap& arguments, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
 				{
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 
-					FOREACH_INDEXER(GlobalStringKey, prop, index, arguments.Keys())
+					// TODO: (enumerable) foreach on group
+					for (auto [prop, index] : indexed(arguments.Keys()))
 					{
 						const auto& values = arguments.GetByIndex(index);
 						if (prop == GlobalStringKey::Empty)
@@ -145,14 +146,14 @@ GuiCompositionInstanceLoader
 							Ptr<WfExpression> expr;
 							if (td->CanConvertTo(description::GetTypeDescriptor<GuiComponent>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refAddComponent = MakePtr<WfMemberExpression>();
+								auto refAddComponent = Ptr(new WfMemberExpression);
 								refAddComponent->parent = refControl;
 								refAddComponent->name.value = L"AddComponent";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddComponent;
 								call->arguments.Add(value);
 
@@ -160,14 +161,14 @@ GuiCompositionInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiControlHost>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refAddControlHostComponent = MakePtr<WfMemberExpression>();
+								auto refAddControlHostComponent = Ptr(new WfMemberExpression);
 								refAddControlHostComponent->parent = refControl;
 								refAddControlHostComponent->name.value = L"AddControlHostComponent";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddControlHostComponent;
 								call->arguments.Add(value);
 
@@ -175,14 +176,14 @@ GuiCompositionInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<IGuiGraphicsElement>()))
 							{
-								auto refComposition = MakePtr<WfReferenceExpression>();
+								auto refComposition = Ptr(new WfReferenceExpression);
 								refComposition->name.value = variableName.ToString();
 
-								auto refOwnedElement = MakePtr<WfMemberExpression>();
+								auto refOwnedElement = Ptr(new WfMemberExpression);
 								refOwnedElement->parent = refComposition;
 								refOwnedElement->name.value = L"OwnedElement";
 
-								auto assign = MakePtr<WfBinaryExpression>();
+								auto assign = Ptr(new WfBinaryExpression);
 								assign->op = WfBinaryOperator::Assign;
 								assign->first = refOwnedElement;
 								assign->second = value;
@@ -191,18 +192,18 @@ GuiCompositionInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiControl>()))
 							{
-								auto refBoundsComposition = MakePtr<WfMemberExpression>();
+								auto refBoundsComposition = Ptr(new WfMemberExpression);
 								refBoundsComposition->parent = value;
 								refBoundsComposition->name.value = L"BoundsComposition";
 
-								auto refComposition = MakePtr<WfReferenceExpression>();
+								auto refComposition = Ptr(new WfReferenceExpression);
 								refComposition->name.value = variableName.ToString();
 
-								auto refAddChild = MakePtr<WfMemberExpression>();
+								auto refAddChild = Ptr(new WfMemberExpression);
 								refAddChild->parent = refComposition;
 								refAddChild->name.value = L"AddChild";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddChild;
 								call->arguments.Add(refBoundsComposition);
 
@@ -210,14 +211,14 @@ GuiCompositionInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiGraphicsComposition>()))
 							{
-								auto refComposition = MakePtr<WfReferenceExpression>();
+								auto refComposition = Ptr(new WfReferenceExpression);
 								refComposition->name.value = variableName.ToString();
 
-								auto refAddChild = MakePtr<WfMemberExpression>();
+								auto refAddChild = Ptr(new WfMemberExpression);
 								refAddChild->parent = refComposition;
 								refAddChild->name.value = L"AddChild";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddChild;
 								call->arguments.Add(value);
 
@@ -226,7 +227,7 @@ GuiCompositionInstanceLoader
 
 							if (expr)
 							{
-								auto stat = MakePtr<WfExpressionStatement>();
+								auto stat = Ptr(new WfExpressionStatement);
 								stat->expression = expr;
 								block->statements.Add(stat);
 							}
@@ -264,13 +265,13 @@ GuiTableCompositionInstanceLoader
 					return typeName;
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(_Rows);
 					propertyNames.Add(_Columns);
 				}
 
-				void GetPairedProperties(const PropertyInfo& propertyInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPairedProperties(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					if (propertyInfo.propertyName == _Rows || propertyInfo.propertyName == _Columns)
 					{
@@ -279,20 +280,21 @@ GuiTableCompositionInstanceLoader
 					}
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _Rows || propertyInfo.propertyName == _Columns)
 					{
 						return GuiInstancePropertyInfo::Array(TypeInfoRetriver<GuiCellOption>::CreateTypeInfo());
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfStatement> AssignParameters(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, GlobalStringKey variableName, ArgumentMap& arguments, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
 				{
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 
-					FOREACH_INDEXER(GlobalStringKey, prop, index, arguments.Keys())
+					// TODO: (enumerable) foreach on group
+					for (auto [prop, index] : indexed(arguments.Keys()))
 					{
 						if (prop == _Rows)
 						{
@@ -303,69 +305,71 @@ GuiTableCompositionInstanceLoader
 								auto& columns = arguments.GetByIndex(indexColumns);
 
 								{
-									auto refComposition = MakePtr<WfReferenceExpression>();
+									auto refComposition = Ptr(new WfReferenceExpression);
 									refComposition->name.value = variableName.ToString();
 
-									auto refSetRowsAndColumns = MakePtr<WfMemberExpression>();
+									auto refSetRowsAndColumns = Ptr(new WfMemberExpression);
 									refSetRowsAndColumns->parent = refComposition;
 									refSetRowsAndColumns->name.value = L"SetRowsAndColumns";
 
-									auto rowsExpr = MakePtr<WfIntegerExpression>();
+									auto rowsExpr = Ptr(new WfIntegerExpression);
 									rowsExpr->value.value = itow(rows.Count());
 
-									auto columnsExpr = MakePtr<WfIntegerExpression>();
+									auto columnsExpr = Ptr(new WfIntegerExpression);
 									columnsExpr->value.value = itow(columns.Count());
 
-									auto call = MakePtr<WfCallExpression>();
+									auto call = Ptr(new WfCallExpression);
 									call->function = refSetRowsAndColumns;
 									call->arguments.Add(rowsExpr);
 									call->arguments.Add(columnsExpr);
 
-									auto stat = MakePtr<WfExpressionStatement>();
+									auto stat = Ptr(new WfExpressionStatement);
 									stat->expression = call;
 									block->statements.Add(stat);
 								}
 
+								// TODO: (enumerable) foreach:indexed
 								for (vint i = 0; i < rows.Count(); i++)
 								{
-									auto refComposition = MakePtr<WfReferenceExpression>();
+									auto refComposition = Ptr(new WfReferenceExpression);
 									refComposition->name.value = variableName.ToString();
 
-									auto refSetRowOption = MakePtr<WfMemberExpression>();
+									auto refSetRowOption = Ptr(new WfMemberExpression);
 									refSetRowOption->parent = refComposition;
 									refSetRowOption->name.value = L"SetRowOption";
 
-									auto indexExpr = MakePtr<WfIntegerExpression>();
+									auto indexExpr = Ptr(new WfIntegerExpression);
 									indexExpr->value.value = itow(i);
 
-									auto call = MakePtr<WfCallExpression>();
+									auto call = Ptr(new WfCallExpression);
 									call->function = refSetRowOption;
 									call->arguments.Add(indexExpr);
 									call->arguments.Add(rows[i].expression);
 
-									auto stat = MakePtr<WfExpressionStatement>();
+									auto stat = Ptr(new WfExpressionStatement);
 									stat->expression = call;
 									block->statements.Add(stat);
 								}
 
+								// TODO: (enumerable) foreach:indexed
 								for (vint i = 0; i < columns.Count(); i++)
 								{
-									auto refComposition = MakePtr<WfReferenceExpression>();
+									auto refComposition = Ptr(new WfReferenceExpression);
 									refComposition->name.value = variableName.ToString();
 
-									auto refSetColumnOption = MakePtr<WfMemberExpression>();
+									auto refSetColumnOption = Ptr(new WfMemberExpression);
 									refSetColumnOption->parent = refComposition;
 									refSetColumnOption->name.value = L"SetColumnOption";
 
-									auto indexExpr = MakePtr<WfIntegerExpression>();
+									auto indexExpr = Ptr(new WfIntegerExpression);
 									indexExpr->value.value = itow(i);
 
-									auto call = MakePtr<WfCallExpression>();
+									auto call = Ptr(new WfCallExpression);
 									call->function = refSetColumnOption;
 									call->arguments.Add(indexExpr);
 									call->arguments.Add(columns[i].expression);
 
-									auto stat = MakePtr<WfExpressionStatement>();
+									auto stat = Ptr(new WfExpressionStatement);
 									stat->expression = call;
 									block->statements.Add(stat);
 								}
@@ -403,25 +407,26 @@ GuiCellCompositionInstanceLoader
 					return typeName;
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(_Site);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _Site)
 					{
 						return GuiInstancePropertyInfo::Assign(TypeInfoRetriver<SiteValue>::CreateTypeInfo());
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfStatement> AssignParameters(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, GlobalStringKey variableName, ArgumentMap& arguments, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
 				{
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 
-					FOREACH_INDEXER(GlobalStringKey, prop, index, arguments.Keys())
+					// TODO: (enumerable) foreach on group
+					for (auto [prop, index] : indexed(arguments.Keys()))
 					{
 						if (prop == _Site)
 						{
@@ -433,7 +438,7 @@ GuiCellCompositionInstanceLoader
 									if (auto ctorExpr = inferExpr->expression.Cast<WfConstructorExpression>())
 									{
 										auto st = description::GetTypeDescriptor<vint>()->GetSerializableType();
-										FOREACH(Ptr<WfConstructorArgument>, argument, ctorExpr->arguments)
+										for (auto argument : ctorExpr->arguments)
 										{
 											if (auto keyExpr = argument->key.Cast<WfReferenceExpression>())
 											{
@@ -482,46 +487,38 @@ GuiCellCompositionInstanceLoader
 						FINISH_SITE_PROPERTY:;
 
 							{
-								auto refComposition = MakePtr<WfReferenceExpression>();
+								auto refComposition = Ptr(new WfReferenceExpression);
 								refComposition->name.value = variableName.ToString();
 
-								auto refSetSite = MakePtr<WfMemberExpression>();
+								auto refSetSite = Ptr(new WfMemberExpression);
 								refSetSite->parent = refComposition;
 								refSetSite->name.value = L"SetSite";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refSetSite;
 
-								auto GetValueText = [](const Value& value)
 								{
-									WString result;
-									auto st = value.GetTypeDescriptor()->GetSerializableType();
-									st->Serialize(value, result);
-									return result;
-								};
-
-								{
-									auto arg = MakePtr<WfIntegerExpression>();
+									auto arg = Ptr(new WfIntegerExpression);
 									arg->value.value = itow(site.row);
 									call->arguments.Add(arg);
 								}
 								{
-									auto arg = MakePtr<WfIntegerExpression>();
+									auto arg = Ptr(new WfIntegerExpression);
 									arg->value.value = itow(site.column);
 									call->arguments.Add(arg);
 								}
 								{
-									auto arg = MakePtr<WfIntegerExpression>();
+									auto arg = Ptr(new WfIntegerExpression);
 									arg->value.value = itow(site.rowSpan);
 									call->arguments.Add(arg);
 								}
 								{
-									auto arg = MakePtr<WfIntegerExpression>();
+									auto arg = Ptr(new WfIntegerExpression);
 									arg->value.value = itow(site.columnSpan);
 									call->arguments.Add(arg);
 								}
 
-								auto stat = MakePtr<WfExpressionStatement>();
+								auto stat = Ptr(new WfExpressionStatement);
 								stat->expression = call;
 								block->statements.Add(stat);
 							}
@@ -542,10 +539,10 @@ Initialization
 
 			void LoadCompositions(IGuiInstanceLoaderManager* manager)
 			{
-				manager->SetLoader(new GuiAxisInstanceLoader);
-				manager->SetLoader(new GuiCompositionInstanceLoader);
-				manager->SetLoader(new GuiTableCompositionInstanceLoader);
-				manager->SetLoader(new GuiCellCompositionInstanceLoader);
+				manager->SetLoader(Ptr(new GuiAxisInstanceLoader));
+				manager->SetLoader(Ptr(new GuiCompositionInstanceLoader));
+				manager->SetLoader(Ptr(new GuiTableCompositionInstanceLoader));
+				manager->SetLoader(Ptr(new GuiCellCompositionInstanceLoader));
 			}
 		}
 	}

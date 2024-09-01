@@ -6,13 +6,18 @@ using namespace vl::stream;
 using namespace vl::filesystem;
 using namespace vl::presentation;
 
-extern WString GetTestResourcePath();
-extern WString GetTestOutputPath();
+namespace compiler_error_tests
+{
+	extern WString GetTestResourcePath();
+	extern WString GetTestBaselinePath();
+	extern WString GetTestOutputPath();
+}
+using namespace compiler_error_tests;
 
 void WriteErrors(GuiResourceError::List& errors, const WString& resourceName)
 {
 	auto outputPath = FilePath(GetTestOutputPath()) / (resourceName + L".txt");
-	auto baselinePath = FilePath(GetTestResourcePath()) / (resourceName + L".txt");
+	auto baselinePath = FilePath(GetTestBaselinePath()) / (resourceName + L".txt");
 
 	List<WString> output;
 	GuiResourceError::SortAndLog(errors, output, GetTestResourcePath());
@@ -35,7 +40,20 @@ void WriteErrors(GuiResourceError::List& errors, const WString& resourceName)
 	{
 		TEST_ASSERT(output.Count() > i);
 		TEST_ASSERT(baseline.Count() > i);
+#if defined VCZH_MSVC
 		TEST_ASSERT(output[i] == baseline[i]);
+#elif defined VCZH_GCC
+		auto posRes = INVLOC.FindFirst(output[i], L"Resource.", Locale::Normalization::None);
+		if (posRes.key == -1)
+		{
+			TEST_ASSERT(output[i] == baseline[i]);
+		}
+		else
+		{
+			auto fixedOutput = output[i].Remove(posRes.key, posRes.value).Insert(posRes.key, L".\\Resource.");
+			TEST_ASSERT(output[i] == baseline[i] || fixedOutput == baseline[i]);
+		}
+#endif
 	}
 }
 
@@ -45,126 +63,59 @@ void WriteErrors(GuiResourceError::List& errors, const WString& resourceName)
 		if (errors.Count() > 0)\
 		{\
 			WriteErrors(errors, resourceName);\
-			return nullptr;\
+			return;\
 		}\
 	}while(0)\
 
-Ptr<GuiResource> LoadResource(const WString& resourceName, bool requireErrors)
+Ptr<GuiResource> LoadResource(const WString& resourceName)
 {
-	auto inputPath = FilePath(GetTestResourcePath()) / resourceName;
-	GuiResourceError::List errors;
+	Ptr<GuiResource> resource;
+	TEST_CASE(L"Compare compiler output for: " + resourceName)
+	{
+		auto inputPath = FilePath(GetTestResourcePath()) / resourceName;
+		GuiResourceError::List errors;
 
-	auto resource = GuiResource::LoadFromXml(inputPath.GetFullPath(), errors);
-	PRINT_ERROR;
-	resource->Precompile(nullptr, errors);
-	PRINT_ERROR;
-	TEST_ASSERT(!requireErrors);
-
-	auto outputPath = FilePath(GetTestOutputPath()) / (resourceName + L".bin");
-	FileStream stream(outputPath.GetFullPath(), FileStream::WriteOnly);
-	resource->SavePrecompiledBinary(stream);
+		resource = GuiResource::LoadFromXml(inputPath.GetFullPath(), errors);
+		PRINT_ERROR;
+		resource->Precompile(GuiResourceCpuArchitecture::Unspecified, nullptr, errors);
+		PRINT_ERROR;
+		TEST_ASSERT(false);
+	});
 	return resource;
 }
 
 #undef PRINT_ERROR
 
-TEST_CASE(TestResource_NotExists)
-{
-	LoadResource(L"Resource.NotExists.xml", true);
-}
+extern void SetGuiMainProxy(const Func<void()>& proxy);
 
-TEST_CASE(TestResource_WrongSyntax)
+TEST_FILE
 {
-	LoadResource(L"Resource.WrongSyntax.xml", true);
-}
-
-TEST_CASE(TestResource_WrongSyntax2)
-{
-	LoadResource(L"Resource.WrongSyntax2.xml", true);
-}
-
-TEST_CASE(TestResource_WrongDoc)
-{
-	LoadResource(L"Resource.WrongDoc.xml", true);
-}
-
-TEST_CASE(TestResource_WrongInstanceStyle)
-{
-	LoadResource(L"Resource.WrongInstanceStyle.xml", true);
-}
-
-TEST_CASE(TestResource_WrongInstance)
-{
-	LoadResource(L"Resource.WrongInstance.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Ctor1)
-{
-	LoadResource(L"Resource.FailedInstance.Ctor1.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Ctor2)
-{
-	LoadResource(L"Resource.FailedInstance.Ctor2.xml", true);
-	LoadResource(L"Resource.FailedInstance.Ctor2_r.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Ctor3)
-{
-	LoadResource(L"Resource.FailedInstance.Ctor3.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Ctor4)
-{
-	LoadResource(L"Resource.FailedInstance.Ctor4.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Ctor5)
-{
-	LoadResource(L"Resource.FailedInstance.Ctor5.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Control)
-{
-	LoadResource(L"Resource.FailedInstance.Control.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Inheriting1)
-{
-	LoadResource(L"Resource.FailedInstance.Inheriting1.xml", true);
-}
-
-TEST_CASE(TestResource_FailedInstance_Inheriting2)
-{
-	LoadResource(L"Resource.FailedInstance.Inheriting2.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Workflow)
-{
-	LoadResource(L"Resource.FailedScript.Workflow.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Properties)
-{
-	LoadResource(L"Resource.FailedScript.Properties.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Animations)
-{
-	LoadResource(L"Resource.FailedScript.Animations.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Animations2)
-{
-	LoadResource(L"Resource.FailedScript.Animations2.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Strings)
-{
-	LoadResource(L"Resource.FailedScript.Strings.xml", true);
-}
-
-TEST_CASE(Resource_FailedScript_Strings2)
-{
-	LoadResource(L"Resource.FailedScript.Strings2.xml", true);
+	SetGuiMainProxy([]()
+	{
+		LoadResource(L"Resource.NotExists.xml");
+		LoadResource(L"Resource.WrongSyntax.xml");
+		LoadResource(L"Resource.WrongSyntax2.xml");
+		LoadResource(L"Resource.WrongDoc.xml");
+		LoadResource(L"Resource.WrongInstanceStyle.xml");
+		LoadResource(L"Resource.WrongInstance.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor1.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor2.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor2_r.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor3.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor4.xml");
+		LoadResource(L"Resource.FailedInstance.Ctor5.xml");
+		LoadResource(L"Resource.FailedInstance.Control.xml");
+		LoadResource(L"Resource.FailedInstance.Inheriting1.xml");
+		LoadResource(L"Resource.FailedInstance.Inheriting2.xml");
+		LoadResource(L"Resource.FailedScript.Workflow.xml");
+		LoadResource(L"Resource.FailedScript.Properties.xml");
+		LoadResource(L"Resource.FailedScript.Animations.xml");
+		LoadResource(L"Resource.FailedScript.Animations2.xml");
+		LoadResource(L"Resource.FailedScript.Strings.xml");
+		LoadResource(L"Resource.FailedScript.Strings2.xml");
+		LoadResource(L"Resource.FailedScript.Strings3.xml");
+		LoadResource(L"Resource.FailedScript.Strings4.xml");
+	});
+	SetupGacGenNativeController();
+	SetGuiMainProxy({});
 }

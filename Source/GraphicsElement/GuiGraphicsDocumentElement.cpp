@@ -48,7 +48,7 @@ SetPropertiesVisitor
 
 					void VisitContainer(DocumentContainerRun* run)
 					{
-						FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+						for (auto subRun : run->runs)
 						{
 							subRun->Accept(this);
 						}
@@ -130,7 +130,7 @@ SetPropertiesVisitor
 					{
 						length=run->GetRepresentationText().Length();
 
-						Ptr<GuiImageFrameElement> element=GuiImageFrameElement::Create();
+						auto element=Ptr(GuiImageFrameElement::Create());
 						element->SetImage(run->image, run->frameIndex);
 						element->SetStretch(true);
 
@@ -177,7 +177,7 @@ SetPropertiesVisitor
 							}
 							else
 							{
-								auto eo = MakePtr<Renderer::EmbeddedObject>();
+								auto eo = Ptr(new Renderer::EmbeddedObject);
 								eo->name = run->name;
 								eo->size = Size(0, 0);
 								eo->start = start;
@@ -258,6 +258,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 			void GuiDocumentElement::GuiDocumentElementRenderer::RenderTargetChangedInternal(IGuiGraphicsRenderTarget* oldRenderTarget, IGuiGraphicsRenderTarget* newRenderTarget)
 			{
+				// TODO: (enumerable) foreach
 				for(vint i=0;i<paragraphCaches.Count();i++)
 				{
 					ParagraphCache* cache=paragraphCaches[i].Obj();
@@ -275,7 +276,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 				Ptr<ParagraphCache> cache=paragraphCaches[paragraphIndex];
 				if(!cache)
 				{
-					cache=new ParagraphCache;
+					cache=Ptr(new ParagraphCache);
 					cache->fullText=paragraph->GetText(false);
 					paragraphCaches[paragraphIndex]=cache;
 				}
@@ -310,6 +311,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 			bool GuiDocumentElement::GuiDocumentElementRenderer::GetParagraphIndexFromPoint(Point point, vint& top, vint& index)
 			{
 				vint y=0;
+				// TODO: (enumerable) foreach
 				for(vint i=0;i<paragraphHeights.Count();i++)
 				{
 					vint paragraphHeight=paragraphHeights[i];
@@ -346,7 +348,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 				{
 					element->callback->OnStartRender();
 				}
-				renderTarget->PushClipper(bounds);
+				renderTarget->PushClipper(bounds, element);
 				if(!renderTarget->IsClipperCoverWholeTarget())
 				{
 					vint maxWidth=bounds.Width();
@@ -359,6 +361,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 					lastMaxWidth=maxWidth;
 
+					// TODO: (enumerable) foreach
 					for(vint i=0;i<paragraphHeights.Count();i++)
 					{
 						vint paragraphHeight=paragraphHeights[i];
@@ -390,6 +393,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 							renderingParagraph = -1;
 
 							bool resized = false;
+							// TODO: (enumerable) foreach
 							for (vint j = 0; j < cache->embeddedObjects.Count(); j++)
 							{
 								auto eo = cache->embeddedObjects.Values()[j];
@@ -409,7 +413,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 						y+=paragraphHeight+paragraphDistance;
 					}
 				}
-				renderTarget->PopClipper();
+				renderTarget->PopClipper(element);
 				if (element->callback)
 				{
 					element->callback->OnFinishRender();
@@ -516,6 +520,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 						{
 							if (auto cache = oldCaches[index + i])
 							{
+								// TODO: (enumerable) foreach on dictionary
 								for (vint j = 0; j < cache->embeddedObjects.Count(); j++)
 								{
 									auto id = cache->embeddedObjects.Keys()[j];
@@ -531,6 +536,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 			Ptr<DocumentHyperlinkRun::Package> GuiDocumentElement::GuiDocumentElementRenderer::GetHyperlinkFromPoint(Point point)
 			{
+				if (!renderTarget) return nullptr;
 				vint top=0;
 				vint index=-1;
 				if(GetParagraphIndexFromPoint(point, top, index))
@@ -548,7 +554,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 					vint caret=cache->graphicsParagraph->GetCaretFromPoint(paragraphPoint);
 					return element->document->GetHyperlink(index, caret, caret);
 				}
-				return 0;
+				return nullptr;
 			}
 
 			void GuiDocumentElement::GuiDocumentElementRenderer::OpenCaret(TextPos caret, Color color, bool frontSide)
@@ -595,6 +601,8 @@ GuiDocumentElement::GuiDocumentElementRenderer
 					end=TextPos(-1, -1);
 				}
 
+				if (!renderTarget) return;
+				// TODO: (enumerable) foreach:indexed
 				for(vint i=0;i<paragraphCaches.Count();i++)
 				{
 					if(begin.row<=i && i<=end.row)
@@ -628,6 +636,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 			TextPos GuiDocumentElement::GuiDocumentElementRenderer::CalculateCaret(TextPos comparingCaret, IGuiGraphicsParagraph::CaretRelativePosition position, bool& preferFrontSide)
 			{
+				if (!renderTarget) return comparingCaret;
 				Ptr<ParagraphCache> cache=EnsureAndGetCache(comparingCaret.row, true);
 				if(cache)
 				{
@@ -725,6 +734,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 			TextPos GuiDocumentElement::GuiDocumentElementRenderer::CalculateCaretFromPoint(Point point)
 			{
+				if (!renderTarget) return TextPos(-1, -1);
 				vint top=0;
 				vint index=-1;
 				if(GetParagraphIndexFromPoint(point, top, index))
@@ -739,6 +749,7 @@ GuiDocumentElement::GuiDocumentElementRenderer
 
 			Rect GuiDocumentElement::GuiDocumentElementRenderer::GetCaretBounds(TextPos caret, bool frontSide)
 			{
+				if (!renderTarget) return Rect();
 				Ptr<ParagraphCache> cache=EnsureAndGetCache(caret.row, true);
 				if(cache)
 				{

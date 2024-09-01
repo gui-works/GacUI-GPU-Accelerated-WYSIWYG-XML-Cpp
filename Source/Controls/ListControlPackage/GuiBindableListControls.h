@@ -89,10 +89,11 @@ GuiBindableTextList
 			/// <summary>A bindable Text list control.</summary>
 			class GuiBindableTextList : public GuiVirtualTextList, public Description<GuiBindableTextList>
 			{
-			protected:
+			public:
 				class ItemSource
 					: public list::ItemProviderBase
 					, protected list::ITextItemView
+					, public Description<ItemSource>
 				{
 				protected:
 					Ptr<EventHandler>								itemChangedEventHandler;
@@ -111,6 +112,7 @@ GuiBindableTextList
 
 					description::Value								Get(vint index);
 					void											UpdateBindingProperties();
+					bool											NotifyUpdate(vint start, vint count, bool itemReferenceUpdated);
 					
 					// ===================== GuiListControl::IItemProvider =====================
 
@@ -163,6 +165,12 @@ GuiBindableTextList
 				/// <summary>Get the selected item.</summary>
 				/// <returns>Returns the selected item. If there are multiple selected items, or there is no selected item, null will be returned.</returns>
 				description::Value									GetSelectedItem();
+
+				/// <summary>Notify the control that data in some items are modified.</summary>
+				/// <param name="start">The index of the first item.</param>
+				/// <param name="count">The number of items</param>
+				/// <returns>Returns true if this operation succeeded.</returns>
+				bool												NotifyItemDataModified(vint start, vint count);
 			};
 
 /***********************************************************************
@@ -172,12 +180,13 @@ GuiBindableListView
 			/// <summary>A bindable List view control.</summary>
 			class GuiBindableListView : public GuiVirtualListView, public Description<GuiBindableListView>
 			{
-			protected:
+			public:
 				class ItemSource
 					: public list::ItemProviderBase
 					, protected virtual list::IListViewItemProvider
 					, public virtual list::IListViewItemView
 					, public virtual list::ListViewColumnItemArranger::IColumnItemView
+					, public Description<ItemSource>
 				{
 					typedef collections::List<list::ListViewColumnItemArranger::IColumnItemViewCallback*>		ColumnItemViewCallbackList;
 				protected:
@@ -200,14 +209,16 @@ GuiBindableListView
 					
 					description::Value								Get(vint index);
 					void											UpdateBindingProperties();
-					bool											NotifyUpdate(vint start, vint count);
+					bool											NotifyUpdate(vint start, vint count, bool itemReferenceUpdated);
 					list::ListViewDataColumns&						GetDataColumns();
 					list::ListViewColumns&							GetColumns();
 					
 					// ===================== list::IListViewItemProvider =====================
 
-					void											NotifyAllItemsUpdate()override;
-					void											NotifyAllColumnsUpdate()override;
+					void											RebuildAllItems() override;
+					void											RefreshAllItems() override;
+					void											NotifyColumnRebuilt() override;
+					void											NotifyColumnChanged() override;
 					
 					// ===================== GuiListControl::IItemProvider =====================
 
@@ -282,6 +293,12 @@ GuiBindableListView
 				/// <summary>Get the selected item.</summary>
 				/// <returns>Returns the selected item. If there are multiple selected items, or there is no selected item, null will be returned.</returns>
 				description::Value									GetSelectedItem();
+
+				/// <summary>Notify the control that data in some items are modified.</summary>
+				/// <param name="start">The index of the first item.</param>
+				/// <param name="count">The number of items</param>
+				/// <returns>Returns true if this operation succeeded.</returns>
+				bool												NotifyItemDataModified(vint start, vint count);
 			};
 
 /***********************************************************************
@@ -292,7 +309,7 @@ GuiBindableTreeView
 			class GuiBindableTreeView : public GuiVirtualTreeView, public Description<GuiBindableTreeView>
 			{
 				using IValueEnumerable = reflection::description::IValueEnumerable;
-			protected:
+			public:
 				class ItemSource;
 
 				class ItemSourceNode
@@ -315,6 +332,8 @@ GuiBindableTreeView
 					Ptr<description::IValueReadonlyList>			PrepareValueList(const description::Value& inputItemSource);
 					void											PrepareChildren(Ptr<description::IValueReadonlyList> newValueList);
 					void											UnprepareChildren();
+					void											PrepareReverseMapping();
+					void											UnprepareReverseMapping();
 				public:
 					ItemSourceNode(const description::Value& _itemSource, ItemSourceNode* _parent);
 					ItemSourceNode(ItemSource* _rootProvider);
@@ -328,6 +347,7 @@ GuiBindableTreeView
 					bool											GetExpanding()override;
 					void											SetExpanding(bool value)override;
 					vint											CalculateTotalVisibleNodes()override;
+					void											NotifyDataModified()override;
 
 					vint											GetChildCount()override;
 					Ptr<tree::INodeProvider>						GetParent()override;
@@ -337,9 +357,11 @@ GuiBindableTreeView
 				class ItemSource
 					: public tree::NodeRootProviderBase
 					, public virtual tree::ITreeViewItemView
+					, public Description<ItemSource>
 				{
 					friend class ItemSourceNode;
 				public:
+					WritableItemProperty<description::Value>		reverseMappingProperty;
 					ItemProperty<WString>							textProperty;
 					ItemProperty<Ptr<GuiImageData>>					imageProperty;
 					ItemProperty<Ptr<IValueEnumerable>>				childrenProperty;
@@ -361,7 +383,6 @@ GuiBindableTreeView
 					description::Value								GetBindingValue(tree::INodeProvider* node)override;
 					IDescriptable*									RequestView(const WString& identifier)override;
 
-
 					// ===================== tree::ITreeViewItemView =====================
 
 					Ptr<GuiImageData>								GetNodeImage(tree::INodeProvider* node)override;
@@ -373,7 +394,8 @@ GuiBindableTreeView
 			public:
 				/// <summary>Create a bindable Tree view control.</summary>
 				/// <param name="themeName">The theme name for retriving a default control template.</param>
-				GuiBindableTreeView(theme::ThemeName themeName);
+				/// <param name="reverseMappingProperty">(Optional): The value of <see cref="GuiBindableTreeView::GetReverseMappingProperty"/>.</param>
+				GuiBindableTreeView(theme::ThemeName themeName, WritableItemProperty<description::Value> reverseMappingProperty = {});
 				~GuiBindableTreeView();
 				
 				/// <summary>Text property name changed event.</summary>
@@ -389,6 +411,15 @@ GuiBindableTreeView
 				/// <summary>Set the item source.</summary>
 				/// <param name="_itemSource">The item source. Null is acceptable if you want to clear all data.</param>
 				void												SetItemSource(description::Value _itemSource);
+
+				/// <summary>
+				/// Get the reverse mapping property name to store the internal tree view node for an item.
+				/// The value is set in the constructor.
+				/// Using this property makes items in item source exclusive to a treeview control.
+				/// Sharing such item in different treeview controls causes exceptions.
+				/// </summary>
+				/// <returns>The reverse mapping property name.</returns>
+				WritableItemProperty<description::Value>			GetReverseMappingProperty();
 				
 				/// <summary>Get the text property name to get the item text from an item.</summary>
 				/// <returns>The text property name.</returns>
@@ -414,6 +445,11 @@ GuiBindableTreeView
 				/// <summary>Get the selected item.</summary>
 				/// <returns>Returns the selected item. If there are multiple selected items, or there is no selected item, null will be returned.</returns>
 				description::Value									GetSelectedItem();
+
+				/// <summary>Notify the control that data in an item is modified. Child nodes are not notified.</summary>
+				/// <param name="value">The item from the item source.</param>
+				/// <returns>Returns true if this operation succeeded.</returns>
+				void												NotifyNodeDataModified(description::Value value);
 			};
 		}
 	}

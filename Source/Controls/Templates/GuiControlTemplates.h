@@ -9,8 +9,9 @@ Interfaces:
 #ifndef VCZH_PRESENTATION_CONTROLS_TEMPLATES_GUICONTROLTEMPLATES
 #define VCZH_PRESENTATION_CONTROLS_TEMPLATES_GUICONTROLTEMPLATES
 
-#include "GuiControlShared.h"
 #include "../../GraphicsElement/GuiGraphicsTextElement.h"
+#include "../../Application/Controls/GuiThemeManager.h"
+#include "../../GraphicsComposition/IncludeForward.h"
 
 namespace vl
 {
@@ -27,60 +28,134 @@ namespace vl
 			class GuiScroll;
 		}
 
+		namespace controls
+		{
+			class GuiControlHost;
+			class GuiCustomControl;
+
+			/// <summary>The visual state for button.</summary>
+			enum class ButtonState
+			{
+				/// <summary>Normal state.</summary>
+				Normal,
+				/// <summary>Active state (when the cursor is hovering on a button).</summary>
+				Active,
+				/// <summary>Pressed state (when the buttin is being pressed).</summary>
+				Pressed,
+			};
+
+			/// <summary>Represents the sorting state of list view items related to this column.</summary>
+			enum class ColumnSortingState
+			{
+				/// <summary>Not sorted.</summary>
+				NotSorted,
+				/// <summary>Ascending.</summary>
+				Ascending,
+				/// <summary>Descending.</summary>
+				Descending,
+			};
+
+			/// <summary>Represents the order of tab pages.</summary>
+			enum class TabPageOrder
+			{
+				/// <summary>Unknown.</summary>
+				Unknown,
+				/// <summary>Left to right.</summary>
+				LeftToRight,
+				/// <summary>Right to left.</summary>
+				RightToLeft,
+				/// <summary>Top to bottom.</summary>
+				TopToBottom,
+				/// <summary>Bottom to top.</summary>
+				BottomToTop,
+			};
+
+			/// <summary>A command executor for the combo box to change the control state.</summary>
+			class ITextBoxCommandExecutor : public virtual IDescriptable, public Description<ITextBoxCommandExecutor>
+			{
+			public:
+				/// <summary>Override the text content in the control.</summary>
+				/// <param name="value">The new text content.</param>
+				virtual void						UnsafeSetText(const WString& value) = 0;
+			};
+
+			/// <summary>A command executor for the style controller to change the control state.</summary>
+			class IScrollCommandExecutor : public virtual IDescriptable, public Description<IScrollCommandExecutor>
+			{
+			public:
+				/// <summary>Do small decrement.</summary>
+				virtual void						SmallDecrease() = 0;
+				/// <summary>Do small increment.</summary>
+				virtual void						SmallIncrease() = 0;
+				/// <summary>Do big decrement.</summary>
+				virtual void						BigDecrease() = 0;
+				/// <summary>Do big increment.</summary>
+				virtual void						BigIncrease() = 0;
+
+				/// <summary>Change to total size of the scroll.</summary>
+				/// <param name="value">The total size.</param>
+				virtual void						SetTotalSize(vint value) = 0;
+				/// <summary>Change to page size of the scroll.</summary>
+				/// <param name="value">The page size.</param>
+				virtual void						SetPageSize(vint value) = 0;
+				/// <summary>Change to position of the scroll.</summary>
+				/// <param name="value">The position.</param>
+				virtual void						SetPosition(vint value) = 0;
+			};
+
+			/// <summary>A command executor for the style controller to change the control state.</summary>
+			class ITabCommandExecutor : public virtual IDescriptable, public Description<ITabCommandExecutor>
+			{
+			public:
+				/// <summary>Select a tab page.</summary>
+				/// <param name="index">The specified position for the tab page.</param>
+				/// <param name="setFocus">Set to true to set focus to the tab control.</param>
+				virtual void						ShowTab(vint index, bool setFocus) = 0;
+			};
+
+			/// <summary>A command executor for the style controller to change the control state.</summary>
+			class IDatePickerCommandExecutor : public virtual IDescriptable, public Description<IDatePickerCommandExecutor>
+			{
+			public:
+				/// <summary>Called when the date has been changed.</summary>
+				virtual void						NotifyDateChanged() = 0;
+				/// <summary>Called when navigated to a date.</summary>
+				virtual void						NotifyDateNavigated() = 0;
+				/// <summary>Called when selected a date.</summary>
+				virtual void						NotifyDateSelected() = 0;
+			};
+
+			/// <summary>A command executor for the style controller to change the control state.</summary>
+			class IRibbonGroupCommandExecutor : public virtual IDescriptable, public Description<IRibbonGroupCommandExecutor>
+			{
+			public:
+				/// <summary>Called when the expand button is clicked.</summary>
+				virtual void						NotifyExpandButtonClicked() = 0;
+			};
+
+			/// <summary>A command executor for the style controller to change the control state.</summary>
+			class IRibbonGalleryCommandExecutor : public virtual IDescriptable, public Description<IRibbonGalleryCommandExecutor>
+			{
+			public:
+				/// <summary>Called when the scroll up button is clicked.</summary>
+				virtual void						NotifyScrollUp() = 0;
+				/// <summary>Called when the scroll down button is clicked.</summary>
+				virtual void						NotifyScrollDown() = 0;
+				/// <summary>Called when the dropdown button is clicked.</summary>
+				virtual void						NotifyDropdown() = 0;
+			};
+		}
+
+/***********************************************************************
+Templates
+***********************************************************************/
+
 		namespace templates
 		{
 
-#define GUI_TEMPLATE_PROPERTY_DECL(CLASS, TYPE, NAME, VALUE)\
-			private:\
-				TYPE NAME##_ = VALUE;\
-			public:\
-				TYPE Get##NAME();\
-				void Set##NAME(TYPE const& value);\
-				compositions::GuiNotifyEvent NAME##Changed;\
-
-#define GUI_TEMPLATE_PROPERTY_IMPL(CLASS, TYPE, NAME, VALUE)\
-			TYPE CLASS::Get##NAME()\
-			{\
-				return NAME##_;\
-			}\
-			void CLASS::Set##NAME(TYPE const& value)\
-			{\
-				if (NAME##_ != value)\
-				{\
-					NAME##_ = value;\
-					NAME##Changed.Execute(compositions::GuiEventArgs(this));\
-				}\
-			}\
-
-#define GUI_TEMPLATE_PROPERTY_EVENT_INIT(CLASS, TYPE, NAME, VALUE)\
-			NAME##Changed.SetAssociatedComposition(this);
-
-#define GUI_TEMPLATE_CLASS_DECL(CLASS, BASE)\
-			class CLASS : public BASE, public AggregatableDescription<CLASS>\
-			{\
-			public:\
-				CLASS();\
-				~CLASS();\
-				CLASS ## _PROPERTIES(GUI_TEMPLATE_PROPERTY_DECL)\
-			};\
-
-#define GUI_TEMPLATE_CLASS_IMPL(CLASS, BASE)\
-			CLASS ## _PROPERTIES(GUI_TEMPLATE_PROPERTY_IMPL)\
-			CLASS::CLASS()\
-			{\
-				CLASS ## _PROPERTIES(GUI_TEMPLATE_PROPERTY_EVENT_INIT)\
-			}\
-			CLASS::~CLASS()\
-			{\
-				FinalizeAggregation();\
-			}\
-
 #define GUI_CONTROL_TEMPLATE_DECL(F)\
-			F(GuiControlTemplate,				GuiTemplate)				\
-			F(GuiLabelTemplate,					GuiControlTemplate)			\
 			F(GuiSinglelineTextBoxTemplate,		GuiControlTemplate)			\
 			F(GuiDocumentLabelTemplate,			GuiControlTemplate)			\
-			F(GuiWindowTemplate,				GuiControlTemplate)			\
 			F(GuiMenuTemplate,					GuiWindowTemplate)			\
 			F(GuiButtonTemplate,				GuiControlTemplate)			\
 			F(GuiSelectableButtonTemplate,		GuiButtonTemplate)			\
@@ -100,6 +175,7 @@ namespace vl
 			F(GuiDateComboBoxTemplate,			GuiComboBoxTemplate)		\
 			F(GuiRibbonTabTemplate,				GuiTabTemplate)				\
 			F(GuiRibbonGroupTemplate,			GuiControlTemplate)			\
+			F(GuiRibbonGroupMenuTemplate,		GuiMenuTemplate)			\
 			F(GuiRibbonIconLabelTemplate,		GuiControlTemplate)			\
 			F(GuiRibbonButtonsTemplate,			GuiControlTemplate)			\
 			F(GuiRibbonToolstripsTemplate,		GuiControlTemplate)			\
@@ -108,80 +184,16 @@ namespace vl
 			F(GuiRibbonGalleryListTemplate,		GuiRibbonGalleryTemplate)	\
 
 #define GUI_ITEM_TEMPLATE_DECL(F)\
+			F(GuiListItemTemplate,				GuiTemplate)				\
 			F(GuiTextListItemTemplate,			GuiListItemTemplate)		\
-			F(GuiTreeItemTemplate,				GuiTextListItemTemplate)	\
+			F(GuiTreeItemTemplate,				GuiListItemTemplate)		\
 			F(GuiGridCellTemplate,				GuiControlTemplate)			\
 			F(GuiGridVisualizerTemplate,		GuiGridCellTemplate)		\
 			F(GuiGridEditorTemplate,			GuiGridCellTemplate)		\
 
 /***********************************************************************
-GuiTemplate
-***********************************************************************/
-
-			/// <summary>Represents a user customizable template.</summary>
-			class GuiTemplate : public compositions::GuiBoundsComposition, public controls::GuiInstanceRootObject, public Description<GuiTemplate>
-			{
-			protected:
-				controls::GuiControlHost*		GetControlHostForInstance()override;
-				void							OnParentLineChanged()override;
-			public:
-				/// <summary>Create a template.</summary>
-				GuiTemplate();
-				~GuiTemplate();
-				
-#define GuiTemplate_PROPERTIES(F)\
-				F(GuiTemplate,	FontProperties,		Font,				{}	)\
-				F(GuiTemplate,	description::Value,	Context,			{}	)\
-				F(GuiTemplate,	WString,			Text,				{}	)\
-				F(GuiTemplate,	bool,				VisuallyEnabled,	true)\
-
-				GuiTemplate_PROPERTIES(GUI_TEMPLATE_PROPERTY_DECL)
-			};
-
-/***********************************************************************
-GuiListItemTemplate
-***********************************************************************/
-
-			class GuiListItemTemplate : public GuiTemplate, public AggregatableDescription<GuiListItemTemplate>
-			{
-			protected:
-				controls::GuiListControl*	listControl = nullptr;
-
-				virtual void				OnInitialize();
-			public:
-				GuiListItemTemplate();
-				~GuiListItemTemplate();
-
-#define GuiListItemTemplate_PROPERTIES(F)\
-				F(GuiListItemTemplate, bool, Selected, false)\
-				F(GuiListItemTemplate, vint, Index, 0)\
-
-				GuiListItemTemplate_PROPERTIES(GUI_TEMPLATE_PROPERTY_DECL)
-
-				void						BeginEditListItem();
-				void						EndEditListItem();
-				void						Initialize(controls::GuiListControl* _listControl);
-			};
-
-/***********************************************************************
 Control Template
 ***********************************************************************/
-
-			enum class BoolOption
-			{
-				AlwaysTrue,
-				AlwaysFalse,
-				Customizable,
-			};
-
-#define GuiControlTemplate_PROPERTIES(F)\
-				F(GuiControlTemplate, compositions::GuiGraphicsComposition*, ContainerComposition, this)\
-				F(GuiControlTemplate, compositions::GuiGraphicsComposition*, FocusableComposition, nullptr)\
-				F(GuiControlTemplate, bool, Focused, false)\
-
-#define GuiLabelTemplate_PROPERTIES(F)\
-				F(GuiLabelTemplate, Color, DefaultTextColor, {})\
-				F(GuiLabelTemplate, Color, TextColor, {})\
 
 #define GuiSinglelineTextBoxTemplate_PROPERTIES(F)\
 				F(GuiSinglelineTextBoxTemplate, elements::text::ColorEntry, TextColor, {})\
@@ -190,27 +202,6 @@ Control Template
 #define GuiDocumentLabelTemplate_PROPERTIES(F)\
 				F(GuiDocumentLabelTemplate, Ptr<DocumentModel>, BaselineDocument, {})\
 				F(GuiDocumentLabelTemplate, Color, CaretColor, {})\
-
-#define GuiWindowTemplate_PROPERTIES(F)\
-				F(GuiWindowTemplate, BoolOption, MaximizedBoxOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, BoolOption, MinimizedBoxOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, BoolOption, BorderOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, BoolOption, SizeBoxOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, BoolOption, IconVisibleOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, BoolOption, TitleBarOption, BoolOption::Customizable)\
-				F(GuiWindowTemplate, bool, MaximizedBox, true)\
-				F(GuiWindowTemplate, bool, MinimizedBox, true)\
-				F(GuiWindowTemplate, bool, Border, true)\
-				F(GuiWindowTemplate, bool, SizeBox, true)\
-				F(GuiWindowTemplate, bool, IconVisible, true)\
-				F(GuiWindowTemplate, bool, TitleBar, true)\
-				F(GuiWindowTemplate, bool, Maximized, false)\
-				F(GuiWindowTemplate, bool, Activated, false)\
-				F(GuiWindowTemplate, TemplateProperty<GuiWindowTemplate>, TooltipTemplate, {})\
-				F(GuiWindowTemplate, TemplateProperty<GuiLabelTemplate>, ShortcutKeyTemplate, {})\
-				F(GuiWindowTemplate, bool, CustomFrameEnabled, true)\
-				F(GuiWindowTemplate, Margin, CustomFramePadding, {})\
-				F(GuiWindowTemplate, Ptr<GuiImageData>, Icon, {})\
 
 #define GuiMenuTemplate_PROPERTIES(F)
 
@@ -295,7 +286,11 @@ Control Template
 				F(GuiRibbonGroupTemplate, bool, Expandable, false)\
 				F(GuiRibbonGroupTemplate, bool, Collapsed, false)\
 				F(GuiRibbonGroupTemplate, TemplateProperty<GuiToolstripButtonTemplate>, LargeDropdownButtonTemplate, {})\
-				F(GuiRibbonGroupTemplate, TemplateProperty<GuiMenuTemplate>, SubMenuTemplate, {})\
+				F(GuiRibbonGroupTemplate, TemplateProperty<GuiRibbonGroupMenuTemplate>, SubMenuTemplate, {})\
+
+#define GuiRibbonGroupMenuTemplate_PROPERTIES(F)\
+				F(GuiRibbonGroupMenuTemplate, controls::IRibbonGroupCommandExecutor*, Commands, nullptr)\
+				F(GuiRibbonGroupMenuTemplate, bool, Expandable, false)\
 
 #define GuiRibbonIconLabelTemplate_PROPERTIES(F)\
 				F(GuiRibbonIconLabelTemplate, Ptr<GuiImageData>, Image, {})\
@@ -334,16 +329,18 @@ Control Template
 /***********************************************************************
 Item Template
 ***********************************************************************/
-				
+
 #define GuiListItemTemplate_PROPERTIES(F)\
 				F(GuiListItemTemplate, bool, Selected, false)\
 				F(GuiListItemTemplate, vint, Index, 0)\
+				F(GuiListItemTemplate, controls::GuiListControl*, AssociatedListControl, nullptr)\
 
 #define GuiTextListItemTemplate_PROPERTIES(F)\
 				F(GuiTextListItemTemplate, Color, TextColor, {})\
 				F(GuiTextListItemTemplate, bool, Checked, false)\
 				
 #define GuiTreeItemTemplate_PROPERTIES(F)\
+				F(GuiTreeItemTemplate, Color, TextColor, {})\
 				F(GuiTreeItemTemplate, bool, Expanding, false)\
 				F(GuiTreeItemTemplate, bool, Expandable, false)\
 				F(GuiTreeItemTemplate, vint, Level, 0)\
@@ -370,6 +367,9 @@ Item Template
 /***********************************************************************
 Template Declarations
 ***********************************************************************/
+
+			GUI_CONTROL_TEMPLATE_DECL(GUI_TEMPLATE_CLASS_FORWARD_DECL)
+			GUI_ITEM_TEMPLATE_DECL(GUI_TEMPLATE_CLASS_FORWARD_DECL)
 
 			GUI_CONTROL_TEMPLATE_DECL(GUI_TEMPLATE_CLASS_DECL)
 			GUI_ITEM_TEMPLATE_DECL(GUI_TEMPLATE_CLASS_DECL)

@@ -9,8 +9,8 @@ Interfaces:
 #ifndef VCZH_PRESENTATION_CONTROLS_GUIMENUCONTROLS
 #define VCZH_PRESENTATION_CONTROLS_GUIMENUCONTROLS
 
+#include "../../Application/Controls/GuiWindowControls.h"
 #include "../GuiButtonControls.h"
-#include "../GuiWindowControls.h"
 
 namespace vl
 {
@@ -92,8 +92,10 @@ Menu
 			{
 				GUI_SPECIFY_CONTROL_TEMPLATE_TYPE(MenuTemplate, GuiPopup)
 			private:
-				IGuiMenuService*						parentMenuService;
+				IGuiMenuService*						parentMenuService = nullptr;
 				bool									hideOnDeactivateAltHost = true;
+				Size									preferredMenuClientSizeBeforeUpdating;
+				Size									preferredMenuClientSize;
 
 				IGuiMenuService*						GetParentMenuService()override;
 				Direction								GetPreferredDirection()override;
@@ -101,11 +103,12 @@ Menu
 				bool									IsSubMenuActivatedByMouseDown()override;
 				void									MenuItemExecuted()override;
 
+				void									Moving(NativeRect& bounds, bool fixSizeOnly, bool draggingBorder)override;
+				void									UpdateClientSizeAfterRendering(Size preferredSize, Size clientSize)override;
 			protected:
 				GuiControl*								owner;
 
 				void									OnDeactivatedAltHost()override;
-				void									MouseClickedOnOtherWindow(GuiWindow* window)override;
 				void									OnWindowOpened(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void									OnWindowClosed(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 			public:
@@ -125,6 +128,13 @@ Menu
 				/// <summary>Set if this menu hide after pressing ESC key to exit to the upper level of ALT shortcuts.</summary>
 				/// <param name="value">Set to true to make this menu hide after pressing ESC key to exit to the upper level of ALT shortcuts.</param>
 				void									SetHideOnDeactivateAltHost(bool value);
+
+				/// <summary>Get the preferred client size for the menu.</summary>
+				/// <returns>The preferred client size for the menu.</returns>
+				Size									GetPreferredMenuClientSize();
+				/// <summary>Set the preferred client size for the menu.</summary>
+				/// <param name="value">The preferred client size for the menu.</param>
+				void									SetPreferredMenuClientSize(Size value);
 			};
 			
 			/// <summary>Menu bar.</summary>
@@ -156,6 +166,9 @@ MenuButton
 
 				using IEventHandler = compositions::IGuiGraphicsEventHandler;
 			protected:
+				Ptr<GuiDisposedFlag>					subMenuDisposeFlag;
+				Ptr<IEventHandler>						subMenuWindowOpenedHandler;
+				Ptr<IEventHandler>						subMenuWindowClosedHandler;
 				Ptr<IEventHandler>						hostClickedHandler;
 				Ptr<IEventHandler>						hostMouseEnterHandler;
 				Ptr<GuiImageData>						image;
@@ -180,6 +193,7 @@ MenuButton
 				virtual IGuiMenuService::Direction		GetSubMenuDirection();
 
 			private:
+				void									DetachSubMenu();
 				GuiMenu*								ProvideDropdownMenu()override;
 
 			public:

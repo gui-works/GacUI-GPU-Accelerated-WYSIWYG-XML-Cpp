@@ -25,6 +25,7 @@ Clear all runs that have an empty length
 
 				void VisitContainer(DocumentContainerRun* run)
 				{
+					// TODO: (enumerable) foreach:indexed(alterable(reversed))
 					for (vint i = run->runs.Count() - 1; i >= 0; i--)
 					{
 						vint oldStart = start;
@@ -109,6 +110,7 @@ Remove DocumentStylePropertiesRun if it is empty or contains no text run
 
 				void VisitContainer(DocumentContainerRun* run)
 				{
+					// TODO: (enumerable) foreach:indexed(alterable)
 					for (vint i = 0; i < run->runs.Count(); i++)
 					{
 						Ptr<DocumentRun> subRun = run->runs[i];
@@ -117,6 +119,7 @@ Remove DocumentStylePropertiesRun if it is empty or contains no text run
 						if (replacedRuns.Count() > 0)
 						{
 							run->runs.RemoveAt(i);
+							// TODO: (enumerable) foreach
 							for (vint j = 0; j < replacedRuns.Count(); j++)
 							{
 								run->runs.Insert(i + j, replacedRuns[j]);
@@ -133,7 +136,7 @@ Remove DocumentStylePropertiesRun if it is empty or contains no text run
 				bool OnlyImageOrObject(DocumentContainerRun* run)
 				{
 					bool onlyImageOrObject = true;
-					FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+					for (auto subRun : run->runs)
 					{
 						if (!subRun.Cast<DocumentImageRun>() && !subRun.Cast<DocumentEmbeddedObjectRun>())
 						{
@@ -182,7 +185,7 @@ Remove DocumentStylePropertiesRun if it is empty or contains no text run
 				CONTINUE_PROCESSING:
 					if (From(run->runs).Cast<DocumentStylePropertiesRun>().First(nullptr) != nullptr)
 					{
-						FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+						for (auto subRun : run->runs)
 						{
 							if (auto styleRun = subRun.Cast<DocumentStylePropertiesRun>())
 							{
@@ -261,7 +264,7 @@ Merge sibling runs if they are exactly the same
 					if (auto sibilingRun = nextRun.Cast<DocumentTextRun>())
 					{
 						run->text += sibilingRun->text;
-						replacedRun = run;
+						replacedRun = Ptr(run);
 					}
 				}
 
@@ -281,7 +284,7 @@ Merge sibling runs if they are exactly the same
 						if (run->style->verticalAntialias !=	sibilingRun->style->verticalAntialias)	return;
 
 						CopyFrom(run->runs, sibilingRun->runs, true);
-						replacedRun = run;
+						replacedRun = Ptr(run);
 					}
 				}
 
@@ -292,7 +295,7 @@ Merge sibling runs if they are exactly the same
 						if (run->styleName == sibilingRun->styleName)
 						{
 							CopyFrom(run->runs, sibilingRun->runs, true);
-							replacedRun = run;
+							replacedRun = Ptr(run);
 						}
 					}
 				}
@@ -307,7 +310,7 @@ Merge sibling runs if they are exactly the same
 							run->reference == sibilingRun->reference)
 						{
 							CopyFrom(run->runs, sibilingRun->runs, true);
-							replacedRun = run;
+							replacedRun = Ptr(run);
 						}
 					}
 				}
@@ -333,6 +336,7 @@ Merge sibling runs if they are exactly the same
 
 				void VisitContainer(DocumentContainerRun* run)
 				{
+					// TODO: (enumerable) foreach:indexed(alterable(reversed))
 					for (vint i = 0; i < run->runs.Count() - 1; i++)
 					{
 						auto currentRun = run->runs[i];
@@ -350,6 +354,7 @@ Merge sibling runs if they are exactly the same
 						}
 					}
 
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i < run->runs.Count() - 1; i++)
 					{
 						run->runs[i]->Accept(this);

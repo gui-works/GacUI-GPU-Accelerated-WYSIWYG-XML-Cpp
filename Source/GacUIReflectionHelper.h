@@ -12,14 +12,37 @@ GacUI Reflection Helper
 #include "GraphicsElement/GuiGraphicsTextElement.h"
 #include "GraphicsElement/GuiGraphicsDocumentElement.h"
 #include "GraphicsComposition/IncludeAll.h"
-#include "GraphicsHost/GuiGraphicsHost.h"
+#include "Application/GraphicsHost/GuiGraphicsHost.h"
 #include "Controls/IncludeAll.h"
 #include "Controls/Templates/GuiAnimation.h"
 #include "Controls/Templates/GuiCommonTemplates.h"
 #include "Controls/Templates/GuiThemeStyleFactory.h"
+#include "Utilities/FakeServices/GuiFakeDialogServiceBase.h"
 
 namespace vl
 {
+	namespace presentation
+	{
+		namespace helper_types
+		{
+			struct SiteValue
+			{
+				vint					row = 0;
+				vint					column = 0;
+				vint					rowSpan = 1;
+				vint					columnSpan = 1;
+
+				auto operator<=>(const SiteValue&) const = default;
+			};
+
+			class LocalizedStrings
+			{
+			public:
+				static WString			FirstOrEmpty(const collections::LazyList<WString>& formats);
+			};
+		}
+	}
+
 	namespace reflection
 	{
 		namespace description
@@ -35,7 +58,6 @@ Serialization
 				static presentation::Color GetDefaultValue();
 				static bool Serialize(const presentation::Color& input, WString& output);
 				static bool Deserialize(const WString& input, presentation::Color& output);
-				static IBoxedValue::CompareResult Compare(const presentation::Color& a, const presentation::Color& b);
 			};
 
 			template<>
@@ -44,7 +66,6 @@ Serialization
 				static presentation::DocumentFontSize GetDefaultValue();
 				static bool Serialize(const presentation::DocumentFontSize& input, WString& output);
 				static bool Deserialize(const WString& input, presentation::DocumentFontSize& output);
-				static IBoxedValue::CompareResult Compare(const presentation::DocumentFontSize& a, const presentation::DocumentFontSize& b);
 			};
 
 			template<>
@@ -53,7 +74,6 @@ Serialization
 				static presentation::GlobalStringKey GetDefaultValue();
 				static bool Serialize(const presentation::GlobalStringKey& input, WString& output);
 				static bool Deserialize(const WString& input, presentation::GlobalStringKey& output);
-				static IBoxedValue::CompareResult Compare(const presentation::GlobalStringKey& a, const presentation::GlobalStringKey& b);
 			};
 
 /***********************************************************************
@@ -67,7 +87,7 @@ External Functions
 			template<typename T>
 			Ptr<T> Element_Constructor()
 			{
-				return T::Create();
+				return Ptr(T::Create());
 			}
 			extern presentation::elements::text::TextLines*					GuiColorizedTextElement_GetLines(presentation::elements::GuiColorizedTextElement* thisObject);
 

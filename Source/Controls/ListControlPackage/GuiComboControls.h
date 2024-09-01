@@ -9,7 +9,6 @@ Interfaces:
 #ifndef VCZH_PRESENTATION_CONTROLS_GUICOMBOCONTROLS
 #define VCZH_PRESENTATION_CONTROLS_GUICOMBOCONTROLS
 
-#include "../GuiWindowControls.h"
 #include "GuiListControls.h"
 #include "../ToolstripPackage/GuiMenuControls.h"
 
@@ -31,12 +30,32 @@ ComboBox Base
 			protected:
 				
 				IGuiMenuService::Direction					GetSubMenuDirection()override;
-				void										OnBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+				void										OnCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 			public:
 				/// <summary>Create a control with a specified default theme.</summary>
 				/// <param name="themeName">The theme name for retriving a default control template.</param>
 				GuiComboBoxBase(theme::ThemeName themeName);
 				~GuiComboBoxBase();
+			};
+
+/***********************************************************************
+ComboBox with GuiControl
+***********************************************************************/
+
+			/// <summary>Combo box control. This control is a combo box with a control in its popup.</summary>
+			class GuiComboButton
+				: public GuiComboBoxBase
+				, public Description<GuiComboButton>
+			{
+			protected:
+				GuiControl*									dropdownControl = nullptr;
+
+			public:
+				/// <summary>Create a control with a specified default theme and a control that will be put in the popup control.</summary>
+				/// <param name="themeName">The theme name for retriving a default control template.</param>
+				/// <param name="_dropdownControl">The contained control.</param>
+				GuiComboButton(theme::ThemeName themeName, GuiControl* _dropdownControl);
+				~GuiComboButton();
 			};
 
 /***********************************************************************
@@ -46,7 +65,7 @@ ComboBox with GuiListControl
 			/// <summary>Combo box list control. This control is a combo box with a list control in its popup.</summary>
 			class GuiComboBoxListControl
 				: public GuiComboBoxBase
-				, private GuiListControl::IItemProviderCallback
+				, private list::IItemProviderCallback
 				, public Description<GuiComboBoxListControl>
 			{
 			public:
@@ -71,19 +90,18 @@ ComboBox with GuiListControl
 				void										OnVisuallyEnabledChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void										OnAfterSubMenuOpening(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void										OnListControlAdoptedSizeInvalidated(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
-				void										OnListControlBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void										OnListControlItemMouseDown(compositions::GuiGraphicsComposition* sender, compositions::GuiItemMouseEventArgs& arguments);
-				void										OnListControlKeyDown(compositions::GuiGraphicsComposition* sender, compositions::GuiKeyEventArgs& arguments);
+				void										OnKeyDown(compositions::GuiGraphicsComposition* sender, compositions::GuiKeyEventArgs& arguments);
 
 			private:
 				// ===================== GuiListControl::IItemProviderCallback =====================
 
-				void										OnAttached(GuiListControl::IItemProvider* provider)override;
-				void										OnItemModified(vint start, vint count, vint newCount)override;
+				void										OnAttached(list::IItemProvider* provider)override;
+				void										OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)override;
 			public:
 				/// <summary>Create a control with a specified default theme and a list control that will be put in the popup control to show all items.</summary>
 				/// <param name="themeName">The theme name for retriving a default control template.</param>
-				/// <param name="_containedListControl">The list controller.</param>
+				/// <param name="_containedListControl">The list control.</param>
 				GuiComboBoxListControl(theme::ThemeName themeName, GuiSelectableListControl* _containedListControl);
 				~GuiComboBoxListControl();
 				
@@ -115,7 +133,7 @@ ComboBox with GuiListControl
 				description::Value							GetSelectedItem();
 				/// <summary>Get the item provider in the list control.</summary>
 				/// <returns>The item provider in the list control.</returns>
-				GuiListControl::IItemProvider*				GetItemProvider();
+				list::IItemProvider*						GetItemProvider();
 			};
 		}
 	}

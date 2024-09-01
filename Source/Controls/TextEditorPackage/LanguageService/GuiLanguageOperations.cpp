@@ -198,7 +198,7 @@ RepeatingParsingExecutor
 				if(node)
 				{
 					OnContextFinishedAsync(result);
-					FOREACH(ICallback*, callback, callbacks)
+					for (auto callback : callbacks)
 					{
 						callback->OnParsingFinishedAsync(result);
 					}
@@ -260,14 +260,14 @@ RepeatingParsingExecutor
 					}
 				}
 
-				FOREACH(Ptr<ParsingTable::AttributeInfo>, att, 
+				for (auto att :
 					From(tokenColorAtts.Values())
 						.Concat(tokenContextColorAtts.Values())
 						.Concat(fieldColorAtts.Values())
 						.Concat(fieldSemanticAtts.Values())
 					)
 				{
-					FOREACH(WString, argument, att->arguments)
+					for (auto argument : att->arguments)
 					{
 						if(!semanticIndexMap.Contains(argument))
 						{
@@ -277,7 +277,7 @@ RepeatingParsingExecutor
 				}
 
 				vint index=0;
-				FOREACH(vint, tokenIndex, tokenIndexMap.Values())
+				for (auto tokenIndex : tokenIndexMap.Values())
 				{
 					TokenMetaData md;
 					md.tableTokenIndex=tokenIndex+ParsingTable::UserTokenStart;
@@ -293,16 +293,17 @@ RepeatingParsingExecutor
 					}
 					md.hasContextColor=tokenContextColorAtts.Keys().Contains(tokenIndex);
 					md.hasAutoComplete=tokenAutoCompleteAtts.Keys().Contains(tokenIndex);
-					if((md.isCandidate=tokenCandidateAtts.Keys().Contains(tokenIndex)))
+					if ((md.isCandidate = tokenCandidateAtts.Keys().Contains(tokenIndex)))
 					{
-						const ParsingTable::TokenInfo& tokenInfo=table->GetTokenInfo(md.tableTokenIndex);
-						if(IsRegexEscapedLiteralString(tokenInfo.regex))
+						const ParsingTable::TokenInfo& tokenInfo = table->GetTokenInfo(md.tableTokenIndex);
+						auto regex = wtou32(tokenInfo.regex);
+						if (IsRegexEscapedLiteralString(regex))
 						{
-							md.unescapedRegexText=UnescapeTextForRegex(tokenInfo.regex);
+							md.unescapedRegexText = u32tow(UnescapeTextForRegex(regex));
 						}
 						else
 						{
-							md.isCandidate=false;
+							md.isCandidate = false;
 						}
 					}
 
@@ -324,8 +325,8 @@ RepeatingParsingExecutor
 						}
 						if((index=fieldSemanticAtts.Keys().IndexOf(fieldDesc))!=-1)
 						{
-							md.semantics=new List<vint>;
-							FOREACH(WString, argument, fieldSemanticAtts.Values()[index]->arguments)
+							md.semantics=Ptr(new List<vint>);
+							for (auto argument : fieldSemanticAtts.Values()[index]->arguments)
 							{
 								md.semantics->Add(semanticIndexMap.IndexOf(argument));
 							}

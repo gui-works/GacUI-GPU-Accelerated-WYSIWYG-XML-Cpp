@@ -9,7 +9,8 @@ Interfaces:
 #ifndef VCZH_PRESENTATION_CONTROLS_GUIBUTTONCONTROLS
 #define VCZH_PRESENTATION_CONTROLS_GUIBUTTONCONTROLS
 
-#include "GuiBasicControls.h"
+#include "../Application/Controls/GuiBasicControls.h"
+#include "Templates/GuiControlTemplates.h"
 
 namespace vl
 {
@@ -28,9 +29,11 @@ Buttons
 				GUI_SPECIFY_CONTROL_TEMPLATE_TYPE(ButtonTemplate, GuiControl)
 			protected:
 				bool									clickOnMouseUp = true;
+				bool									ignoreChildControlMouseEvents = true;
 				bool									autoFocus = true;
 				bool									keyPressing = false;
-				bool									mousePressing = false;
+				bool									mousePressingDirect = false;
+				bool									mousePressingIndirect = false;
 				bool									mouseHoving = false;
 				ButtonState								controlState = ButtonState::Normal;
 
@@ -38,7 +41,7 @@ Buttons
 				void									OnActiveAlt()override;
 				bool									IsTabAvailable()override;
 				void									UpdateControlState();
-				void									CheckAndClick(compositions::GuiEventArgs& arguments);
+				void									CheckAndClick(bool skipChecking, compositions::GuiEventArgs& arguments);
 				void									OnLeftButtonDown(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
 				void									OnLeftButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
 				void									OnMouseEnter(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
@@ -63,11 +66,22 @@ Buttons
 				void									SetClickOnMouseUp(bool value);
 
 				/// <summary>Test if the button gets focus when it is clicked.</summary>
-				/// <returns>Returns true if the button gets focus when it is clicked</returns>
+				/// <returns>Returns true if the button gets focus when it is clicked.</returns>
 				bool									GetAutoFocus();
 				/// <summary>Set if the button gets focus when it is clicked.</summary>
 				/// <param name="value">Set to true to make this button get focus when it is clicked.</param>
 				void									SetAutoFocus(bool value);
+
+				/// <summary>
+				/// Test if the button ignores mouse events raised in child controls.
+				/// When this property is false,
+				/// the button reacts to mouse operations even when it happens on contained child controls.
+				/// </summary>
+				/// <returns>Returns true if the button ignores mouse events raised in child controls.</returns>
+				bool									GetIgnoreChildControlMouseEvents();
+				/// <summary>Set if the button ignores mouse events raised in child controls.</summary>
+				/// <param name="value">Set to true to make this button ignore mouse events raised in child controls.</param>
+				void									SetIgnoreChildControlMouseEvents(bool value);
 			};
 
 			/// <summary>A <see cref="GuiButton"/> with a selection state.</summary>

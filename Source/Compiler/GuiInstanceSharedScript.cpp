@@ -4,19 +4,19 @@ namespace vl
 {
 	namespace presentation
 	{
-		using namespace parsing::xml;
+		using namespace glr::xml;
 
 /***********************************************************************
 GuiInstanceSharedScript
 ***********************************************************************/
 
-		Ptr<GuiInstanceSharedScript> GuiInstanceSharedScript::LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<parsing::xml::XmlDocument> xml, GuiResourceError::List& errors)
+		Ptr<GuiInstanceSharedScript> GuiInstanceSharedScript::LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<glr::xml::XmlDocument> xml, GuiResourceError::List& errors)
 		{
 			if (xml->rootElement->subNodes.Count() == 1)
 			{
 				if (auto cdata = xml->rootElement->subNodes[0].Cast<XmlCData>())
 				{
-					auto script = MakePtr<GuiInstanceSharedScript>();
+					auto script = Ptr(new GuiInstanceSharedScript);
 					script->language = xml->rootElement->name.value;
 					script->code = cdata->content.value;
 					script->codePosition = { {resource},cdata->codeRange.start };
@@ -28,12 +28,12 @@ GuiInstanceSharedScript
 			return nullptr;
 		}
 
-		Ptr<parsing::xml::XmlElement> GuiInstanceSharedScript::SaveToXml()
+		Ptr<glr::xml::XmlElement> GuiInstanceSharedScript::SaveToXml()
 		{
-			auto cdata = MakePtr<XmlCData>();
+			auto cdata = Ptr(new XmlCData);
 			cdata->content.value = code;
 
-			auto xml = MakePtr<XmlElement>();
+			auto xml = Ptr(new XmlElement);
 			xml->name.value = language;
 			xml->subNodes.Add(cdata);
 

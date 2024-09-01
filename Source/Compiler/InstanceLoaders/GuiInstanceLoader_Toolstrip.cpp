@@ -10,9 +10,10 @@ namespace vl
 		{
 			Ptr<workflow::WfStatement> AddControlToToolstrip(GlobalStringKey variableName, IGuiInstanceLoader::ArgumentMap& arguments, GuiResourceError::List& errors)
 			{
-				auto block = MakePtr<WfBlockStatement>();
+				auto block = Ptr(new WfBlockStatement);
 
-				FOREACH_INDEXER(GlobalStringKey, prop, index, arguments.Keys())
+				// TODO: (enumerable) foreach on group
+				for (auto [prop, index] : indexed(arguments.Keys()))
 				{
 					const auto& values = arguments.GetByIndex(index);
 					if (prop == GlobalStringKey::Empty)
@@ -23,18 +24,18 @@ namespace vl
 						Ptr<WfExpression> expr;
 						if (td->CanConvertTo(description::GetTypeDescriptor<GuiControl>()))
 						{
-							auto refControl = MakePtr<WfReferenceExpression>();
+							auto refControl = Ptr(new WfReferenceExpression);
 							refControl->name.value = variableName.ToString();
 
-							auto refToolstripItems = MakePtr<WfMemberExpression>();
+							auto refToolstripItems = Ptr(new WfMemberExpression);
 							refToolstripItems->parent = refControl;
 							refToolstripItems->name.value = L"ToolstripItems";
 
-							auto refAdd = MakePtr<WfMemberExpression>();
+							auto refAdd = Ptr(new WfMemberExpression);
 							refAdd->parent = refToolstripItems;
 							refAdd->name.value = L"Add";
 
-							auto call = MakePtr<WfCallExpression>();
+							auto call = Ptr(new WfCallExpression);
 							call->function = refAdd;
 							call->arguments.Add(value);
 
@@ -43,7 +44,7 @@ namespace vl
 
 						if (expr)
 						{
-							auto stat = MakePtr<WfExpressionStatement>();
+							auto stat = Ptr(new WfExpressionStatement);
 							stat->expression = expr;
 							block->statements.Add(stat);
 						}
@@ -81,19 +82,19 @@ GuiToolstripInstanceLoaderBase
 				{
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(GlobalStringKey::Empty);
-					TBaseType::GetPropertyNames(typeInfo, propertyNames);
+					TBaseType::GetPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == GlobalStringKey::Empty)
 					{
 						return GuiInstancePropertyInfo::CollectionWithParent(TypeInfoRetriver<GuiControl*>::CreateTypeInfo());
 					}
-					return TBaseType::GetPropertyType(propertyInfo);
+					return TBaseType::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfStatement> AssignParameters(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, GlobalStringKey variableName, ArgumentMap& arguments, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
@@ -119,7 +120,7 @@ GuiToolstripMenuInstanceLoader
 			public:
 				static Ptr<WfExpression> ArgumentFunction(ArgumentMap&)
 				{
-					auto expr = MakePtr<WfLiteralExpression>();
+					auto expr = Ptr(new WfLiteralExpression);
 					expr->value = WfLiteralValue::Null;
 					return expr;
 				}
@@ -208,33 +209,33 @@ GuiToolstripButtonInstanceLoader
 					_SubMenu = GlobalStringKey::Get(L"SubMenu");
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(_SubMenu);
-					BASE_TYPE::GetPropertyNames(typeInfo, propertyNames);
+					BASE_TYPE::GetPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _SubMenu)
 					{
 						return GuiInstancePropertyInfo::Set(TypeInfoRetriver<GuiToolstripMenu*>::CreateTypeInfo());
 					}
-					return BASE_TYPE::GetPropertyType(propertyInfo);
+					return BASE_TYPE::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfExpression> GetParameter(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const PropertyInfo& propertyInfo, GlobalStringKey variableName, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
 				{
 					if (propertyInfo.propertyName == _SubMenu)
 					{
-						auto refControl = MakePtr<WfReferenceExpression>();
+						auto refControl = Ptr(new WfReferenceExpression);
 						refControl->name.value = variableName.ToString();
 
-						auto refEnsureToolstripSubMenu = MakePtr<WfMemberExpression>();
+						auto refEnsureToolstripSubMenu = Ptr(new WfMemberExpression);
 						refEnsureToolstripSubMenu->parent = refControl;
 						refEnsureToolstripSubMenu->name.value = L"EnsureToolstripSubMenu";
 
-						auto call = MakePtr<WfCallExpression>();
+						auto call = Ptr(new WfCallExpression);
 						call->function = refEnsureToolstripSubMenu;
 
 						return call;
@@ -254,7 +255,7 @@ GuiRibbonToolstripMenuInstanceLoader
 			public:
 				static Ptr<WfExpression> ArgumentFunction(ArgumentMap&)
 				{
-					auto expr = MakePtr<WfLiteralExpression>();
+					auto expr = Ptr(new WfLiteralExpression);
 					expr->value = WfLiteralValue::Null;
 					return expr;
 				}
@@ -295,7 +296,7 @@ GuiRibbonButtonsInstanceLoader
 					_MinSize = GlobalStringKey::Get(L"MinSize");
 				}
 
-				void GetRequiredPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetRequiredPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					if (CanCreate(typeInfo))
 					{
@@ -304,12 +305,12 @@ GuiRibbonButtonsInstanceLoader
 					}
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
-					GetRequiredPropertyNames(typeInfo, propertyNames);
+					GetRequiredPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _MaxSize || propertyInfo.propertyName == _MinSize)
 					{
@@ -317,7 +318,7 @@ GuiRibbonButtonsInstanceLoader
 						info->usage = GuiInstancePropertyInfo::ConstructorArgument;
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 			};
 #undef BASE_TYPE
@@ -328,14 +329,14 @@ Initialization
 
 			void LoadToolstripControls(IGuiInstanceLoaderManager* manager)
 			{
-				manager->SetLoader(new GuiToolstripMenuInstanceLoader);
-				manager->SetLoader(new GuiToolstripMenuBarInstanceLoader);
-				manager->SetLoader(new GuiToolstripToolBarInstanceLoader);
-				manager->SetLoader(new GuiToolstripGroupContainerInstanceLoader);
-				manager->SetLoader(new GuiToolstripGroupInstanceLoader);
-				manager->SetLoader(new GuiToolstripButtonInstanceLoader);
-				manager->SetLoader(new GuiRibbonButtonsInstanceLoader);
-				manager->SetLoader(new GuiRibbonToolstripMenuInstanceLoader);
+				manager->SetLoader(Ptr(new GuiToolstripMenuInstanceLoader));
+				manager->SetLoader(Ptr(new GuiToolstripMenuBarInstanceLoader));
+				manager->SetLoader(Ptr(new GuiToolstripToolBarInstanceLoader));
+				manager->SetLoader(Ptr(new GuiToolstripGroupContainerInstanceLoader));
+				manager->SetLoader(Ptr(new GuiToolstripGroupInstanceLoader));
+				manager->SetLoader(Ptr(new GuiToolstripButtonInstanceLoader));
+				manager->SetLoader(Ptr(new GuiRibbonButtonsInstanceLoader));
+				manager->SetLoader(Ptr(new GuiRibbonToolstripMenuInstanceLoader));
 			}
 		}
 	}

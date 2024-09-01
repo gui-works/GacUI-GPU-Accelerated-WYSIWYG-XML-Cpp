@@ -1,6 +1,7 @@
 #include "GuiListControls.h"
 #include "../Templates/GuiControlTemplates.h"
-#include "../../GraphicsHost/GuiGraphicsHost.h"
+#include "../../Application/GraphicsHost/GuiGraphicsHost.h"
+#include "../GuiButtonControls.h"
 
 namespace vl
 {
@@ -16,30 +17,44 @@ namespace vl
 GuiListControl::ItemCallback
 ***********************************************************************/
 
-			Ptr<GuiListControl::ItemCallback::BoundsChangedHandler> GuiListControl::ItemCallback::InstallStyle(ItemStyle* style, vint itemIndex, compositions::GuiBoundsComposition* itemComposition)
+			GuiListControl::ItemStyleRecord GuiListControl::ItemCallback::InstallStyle(ItemStyle* style, vint itemIndex)
 			{
-				auto handler = style->BoundsChanged.AttachMethod(this, &ItemCallback::OnStyleBoundsChanged);
-				listControl->GetContainerComposition()->AddChild(itemComposition ? itemComposition : style);
-				listControl->OnStyleInstalled(itemIndex, style);
-				return handler;
+				templates::GuiTemplate* bounds = style;
+				if (listControl->GetDisplayItemBackground())
+				{
+					style->SetAlignmentToParent(Margin(0, 0, 0, 0));
+
+					auto backgroundButton = new GuiSelectableButton(theme::ThemeName::ListItemBackground);
+					if (auto backgroundStyle = listControl->TypedControlTemplateObject(true)->GetBackgroundTemplate())
+					{
+						backgroundButton->SetControlTemplate(backgroundStyle);
+					}
+					backgroundButton->GetBoundsComposition()->SetAlignmentToParent(Margin(0, 0, 0, 0));
+					backgroundButton->SetAutoFocus(false);
+					backgroundButton->SetAutoSelection(false);
+					backgroundButton->SetSelected(style->GetSelected());
+					backgroundButton->GetContainerComposition()->AddChild(style);
+
+					bounds = new templates::GuiTemplate;
+					bounds->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
+					bounds->AddChild(backgroundButton->GetBoundsComposition());
+					
+					style->SelectedChanged.AttachLambda([=](GuiGraphicsComposition* sender, GuiEventArgs& arguments)
+					{
+						backgroundButton->SetSelected(style->GetSelected());
+					});
+				}
+
+				listControl->OnStyleInstalled(itemIndex, style, false);
+				return { style,bounds };
 			}
 
-			GuiListControl::ItemStyle* GuiListControl::ItemCallback::UninstallStyle(vint index)
+			GuiListControl::ItemStyleRecord GuiListControl::ItemCallback::UninstallStyle(vint index)
 			{
 				auto style = installedStyles.Keys()[index];
-				auto handler = installedStyles.Values()[index];
+				auto bounds = installedStyles.Values()[index];
 				listControl->OnStyleUninstalled(style);
-				listControl->GetContainerComposition()->RemoveChild(style);
-				style->BoundsChanged.Detach(handler);
-				return style;
-			}
-
-			void GuiListControl::ItemCallback::OnStyleBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
-			{
-				listControl->InvokeOrDelayIfRendering([=]()
-				{
-					listControl->CalculateView();
-				});
+				return { style,bounds };
 			}
 
 			GuiListControl::ItemCallback::ItemCallback(GuiListControl* _listControl)
@@ -54,75 +69,83 @@ GuiListControl::ItemCallback
 
 			void GuiListControl::ItemCallback::ClearCache()
 			{
+				// TODO: (enumerable) foreach:indexed
 				for (vint i = 0; i < installedStyles.Count(); i++)
 				{
-					auto style = UninstallStyle(i);
-					SafeDeleteComposition(style);
+					auto [style, bounds] = UninstallStyle(i);
+					SafeDeleteComposition(bounds);
 				}
 				installedStyles.Clear();
 			}
 
-			void GuiListControl::ItemCallback::OnAttached(IItemProvider* provider)
+			void GuiListControl::ItemCallback::OnAttached(list::IItemProvider* provider)
 			{
 				itemProvider = provider;
 			}
 
-			void GuiListControl::ItemCallback::OnItemModified(vint start, vint count, vint newCount)
+			void GuiListControl::ItemCallback::OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)
 			{
-				listControl->OnItemModified(start, count, newCount);
+				listControl->OnItemModified(start, count, newCount, itemReferenceUpdated);
 			}
 
-			GuiListControl::ItemStyle* GuiListControl::ItemCallback::RequestItem(vint itemIndex, compositions::GuiBoundsComposition* itemComposition)
+			GuiListControl::ItemStyle* GuiListControl::ItemCallback::CreateItem(vint itemIndex)
 			{
-				CHECK_ERROR(0 <= itemIndex && itemIndex < itemProvider->Count(), L"GuiListControl::ItemCallback::RequestItem(vint)#Index out of range.");
-				CHECK_ERROR(listControl->itemStyleProperty, L"GuiListControl::ItemCallback::RequestItem(vint)#SetItemTemplate function should be called before adding items to the list control.");
+#define ERROR_MESSAGE_PREFIX L"GuiListControl::ItemCallback::RequestItem(vint)#"
+				CHECK_ERROR(0 <= itemIndex && itemIndex < itemProvider->Count(), ERROR_MESSAGE_PREFIX L"Index out of range.");
+				CHECK_ERROR(listControl->itemStyleProperty, ERROR_MESSAGE_PREFIX L"SetItemTemplate function should be called before adding items to the list control.");
 
 				auto style = listControl->itemStyleProperty(itemProvider->GetBindingValue(itemIndex));
-				auto handler = InstallStyle(style, itemIndex, itemComposition);
-				installedStyles.Add(style, handler);
+				auto record = InstallStyle(style, itemIndex);
+				installedStyles.Add(record);
 				return style;
+#undef ERROR_MESSAGE_PREFIX
+			}
+
+			GuiListControl::ItemStyleBounds* GuiListControl::ItemCallback::GetItemBounds(ItemStyle * style)
+			{
+#define ERROR_MESSAGE_PREFIX L"GuiListControl::ItemCallback::GetItemBounds(GuiListItemTemplate*)#The style is not created from CreateItem."
+				vint index = installedStyles.Keys().IndexOf(style);
+				CHECK_ERROR(index != -1, ERROR_MESSAGE_PREFIX);
+
+				return installedStyles.Values()[index];
+#undef ERROR_MESSAGE_PREFIX
+			}
+
+			GuiListControl::ItemStyle* GuiListControl::ItemCallback::GetItem(ItemStyleBounds* bounds)
+			{
+#define ERROR_MESSAGE_PREFIX L"GuiListControl::ItemCallback::GetItem(GuiTemplate*)#The bounds is not created from CreateItem."
+				auto style = dynamic_cast<ItemStyle*>(bounds);
+				if (style) return style;
+
+				CHECK_ERROR(bounds->Children().Count() == 1, ERROR_MESSAGE_PREFIX);
+				auto backgroundButton = dynamic_cast<GuiSelectableButton*>(bounds->Children()[0]->GetAssociatedControl());
+				CHECK_ERROR(backgroundButton != nullptr, ERROR_MESSAGE_PREFIX);
+				CHECK_ERROR(backgroundButton->GetContainerComposition()->Children().Count() == 1, ERROR_MESSAGE_PREFIX);
+				style = dynamic_cast<ItemStyle*>(backgroundButton->GetContainerComposition()->Children()[0]);
+				CHECK_ERROR(style != nullptr, ERROR_MESSAGE_PREFIX);
+
+				vint index = installedStyles.Keys().IndexOf(style);
+				CHECK_ERROR(index != -1, ERROR_MESSAGE_PREFIX);
+				CHECK_ERROR(installedStyles.Values()[index] == bounds, ERROR_MESSAGE_PREFIX);
+				return style;
+#undef ERROR_MESSAGE_PREFIX
 			}
 
 			void GuiListControl::ItemCallback::ReleaseItem(ItemStyle* style)
 			{
+#define ERROR_MESSAGE_PREFIX L"GuiListControl::ItemCallback::GetItemBounds(GuiListItemTemplate*)#The style is not created from CreateItem."
 				vint index = installedStyles.Keys().IndexOf(style);
-				if (index != -1)
-				{
-					auto style = UninstallStyle(index);
-					installedStyles.Remove(style);
-					SafeDeleteComposition(style);
-				}
+				CHECK_ERROR(index != -1, ERROR_MESSAGE_PREFIX);
+
+				auto bounds = UninstallStyle(index).value;
+				installedStyles.Remove(style);
+				SafeDeleteComposition(bounds);
+#undef ERROR_MESSAGE_PREFIX
 			}
 
 			void GuiListControl::ItemCallback::SetViewLocation(Point value)
 			{
-				Rect virtualRect(value, listControl->GetViewSize());
-				Rect realRect = listControl->axis->VirtualRectToRealRect(listControl->fullSize, virtualRect);
-				listControl->SetViewPosition(realRect.LeftTop());
-			}
-
-			Size GuiListControl::ItemCallback::GetStylePreferredSize(compositions::GuiBoundsComposition* style)
-			{
-				Size size = style->GetPreferredBounds().GetSize();
-				return listControl->axis->RealSizeToVirtualSize(size);
-			}
-
-			void GuiListControl::ItemCallback::SetStyleAlignmentToParent(compositions::GuiBoundsComposition* style, Margin margin)
-			{
-				Margin newMargin = listControl->axis->VirtualMarginToRealMargin(margin);
-				style->SetAlignmentToParent(newMargin);
-			}
-
-			Rect GuiListControl::ItemCallback::GetStyleBounds(compositions::GuiBoundsComposition* style)
-			{
-				Rect bounds = style->GetBounds();
-				return listControl->axis->RealRectToVirtualRect(listControl->GetViewSize(), bounds);
-			}
-
-			void GuiListControl::ItemCallback::SetStyleBounds(compositions::GuiBoundsComposition* style, Rect bounds)
-			{
-				Rect newBounds = listControl->axis->VirtualRectToRealRect(listControl->GetViewSize(), bounds);
-				return style->SetBounds(newBounds);
+				listControl->SetViewPosition(value);
 			}
 
 			compositions::GuiGraphicsComposition* GuiListControl::ItemCallback::GetContainerComposition()
@@ -133,6 +156,11 @@ GuiListControl::ItemCallback
 			void GuiListControl::ItemCallback::OnTotalSizeChanged()
 			{
 				listControl->CalculateView();
+			}
+
+			void GuiListControl::ItemCallback::OnAdoptedSizeChanged()
+			{
+				listControl->AdoptedSizeInvalidated.Execute(listControl->GetNotifyEventArguments());
 			}
 
 /***********************************************************************
@@ -152,11 +180,27 @@ GuiListControl
 				}
 			}
 
-			void GuiListControl::OnItemModified(vint start, vint count, vint newCount)
+			void GuiListControl::OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)
 			{
+				// this function is executed before RangedItemArrangerBase::OnItemModified
+				// but we only handle itemReferenceUpdated==false
+				// so RangedItemArrangerBase::GetVisibleStyle is good here
+				// even it is possible that the style object will be replaced later
+				// OnStyleInstalled will be executed on affected style objects anyway
+				if (!itemReferenceUpdated && itemArranger && count == newCount)
+				{
+					for (vint i = 0; i < newCount; i++)
+					{
+						vint index = start + i;
+						if (auto style = itemArranger->GetVisibleStyle(index))
+						{
+							OnStyleInstalled(index, style, true);
+						}
+					}
+				}
 			}
 
-			void GuiListControl::OnStyleInstalled(vint itemIndex, ItemStyle* style)
+			void GuiListControl::OnStyleInstalled(vint itemIndex, ItemStyle* style, bool refreshPropertiesOnly)
 			{
 				style->SetFont(GetDisplayFont());
 				style->SetContext(GetContext());
@@ -164,8 +208,12 @@ GuiListControl
 				style->SetVisuallyEnabled(GetVisuallyEnabled());
 				style->SetSelected(false);
 				style->SetIndex(itemIndex);
-				style->Initialize(this);
-				AttachItemEvents(style);
+				style->SetAssociatedListControl(this);
+
+				if (!refreshPropertiesOnly)
+				{
+					AttachItemEvents(style);
+				}
 			}
 
 			void GuiListControl::OnStyleUninstalled(ItemStyle* style)
@@ -187,8 +235,7 @@ GuiListControl
 
 			Size GuiListControl::QueryFullSize()
 			{
-				Size virtualSize = itemArranger ? itemArranger->GetTotalSize() : Size(0, 0);
-				fullSize = axis->VirtualSizeToRealSize(virtualSize);
+				fullSize = itemArranger ? itemArranger->GetTotalSize() : Size(0, 0);
 				return fullSize;
 			}
 
@@ -196,8 +243,7 @@ GuiListControl
 			{
 				if (itemArranger)
 				{
-					Rect newBounds = axis->RealRectToVirtualRect(fullSize, viewBounds);
-					itemArranger->OnViewChanged(newBounds);
+					itemArranger->OnViewChanged(viewBounds);
 				}
 			}
 
@@ -205,7 +251,7 @@ GuiListControl
 			{
 				if(GetVisuallyEnabled())
 				{
-					SetFocus();
+					SetFocused();
 				}
 			}
 
@@ -213,14 +259,21 @@ GuiListControl
 			{
 				if (itemArranger)
 				{
+					itemProvider->DetachCallback(itemArranger.Obj());
 					itemArranger->DetachListControl();
 					itemArranger->SetCallback(nullptr);
-					itemProvider->DetachCallback(itemArranger.Obj());
 				}
 				callback->ClearCache();
 
 				itemStyleProperty = styleProperty;
 				itemArranger = arranger;
+
+				if (itemArranger)
+				{
+					itemArranger->SetCallback(callback.Obj());
+					itemArranger->AttachListControl(this);
+					itemProvider->AttachCallback(itemArranger.Obj());
+				}
 
 				if (auto scroll = GetVerticalScroll())
 				{
@@ -230,34 +283,21 @@ GuiListControl
 				{
 					scroll->SetPosition(0);
 				}
-
-				if (itemArranger)
-				{
-					itemProvider->AttachCallback(itemArranger.Obj());
-					itemArranger->SetCallback(callback.Obj());
-					itemArranger->AttachListControl(this);
-				}
 				CalculateView();
 			}
 
 			void GuiListControl::UpdateDisplayFont()
 			{
 				GuiControl::UpdateDisplayFont();
-				FOREACH(ItemStyle*, style, visibleStyles.Keys())
+				for (auto style : visibleStyles.Keys())
 				{
 					style->SetFont(GetDisplayFont());
 				}
 			}
 
-			void GuiListControl::OnClientBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
-			{
-				auto args = GetNotifyEventArguments();
-				AdoptedSizeInvalidated.Execute(args);
-			}
-
 			void GuiListControl::OnVisuallyEnabledChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
-				FOREACH(ItemStyle*, style, visibleStyles.Keys())
+				for (auto style : visibleStyles.Keys())
 				{
 					style->SetVisuallyEnabled(GetVisuallyEnabled());
 				}
@@ -265,7 +305,7 @@ GuiListControl
 
 			void GuiListControl::OnContextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
-				FOREACH(ItemStyle*, style, visibleStyles.Keys())
+				for (auto style : visibleStyles.Keys())
 				{
 					style->SetContext(GetContext());
 				}
@@ -309,17 +349,15 @@ GuiListControl
 
 #define ATTACH_ITEM_MOUSE_EVENT(EVENTNAME, ITEMEVENTNAME)\
 					{\
-						Func<void(GuiItemMouseEvent&, ItemStyle*, GuiGraphicsComposition*, GuiMouseEventArgs&)> func(this, &GuiListControl::OnItemMouseEvent);\
 						helper->EVENTNAME##Handler = style->GetEventReceiver()->EVENTNAME.AttachFunction(\
-							Curry(Curry(func)(ITEMEVENTNAME))(style)\
+							[this, style](GuiGraphicsComposition* sender, GuiMouseEventArgs& args){ OnItemMouseEvent(ITEMEVENTNAME, style, sender, args); }\
 							);\
 					}\
 
 #define ATTACH_ITEM_NOTIFY_EVENT(EVENTNAME, ITEMEVENTNAME)\
 					{\
-						Func<void(GuiItemNotifyEvent&, ItemStyle*, GuiGraphicsComposition*, GuiEventArgs&)> func(this, &GuiListControl::OnItemNotifyEvent);\
 						helper->EVENTNAME##Handler = style->GetEventReceiver()->EVENTNAME.AttachFunction(\
-							Curry(Curry(func)(ITEMEVENTNAME))(style)\
+							[this, style](GuiGraphicsComposition* sender, GuiEventArgs& args){ OnItemNotifyEvent(ITEMEVENTNAME, style, sender, args); }\
 							);\
 					}\
 
@@ -328,7 +366,7 @@ GuiListControl
 				vint index=visibleStyles.Keys().IndexOf(style);
 				if(index==-1)
 				{
-					Ptr<VisibleStyleHelper> helper=new VisibleStyleHelper;
+					auto helper=Ptr(new VisibleStyleHelper);
 					visibleStyles.Add(style, helper);
 
 					ATTACH_ITEM_MOUSE_EVENT(leftButtonDown, ItemLeftButtonDown);
@@ -376,13 +414,12 @@ GuiListControl
 
 #undef DETACH_ITEM_EVENT
 
-			GuiListControl::GuiListControl(theme::ThemeName themeName, IItemProvider* _itemProvider, bool acceptFocus)
+			GuiListControl::GuiListControl(theme::ThemeName themeName, list::IItemProvider* _itemProvider, bool acceptFocus)
 				:GuiScrollView(themeName)
 				, itemProvider(_itemProvider)
 			{
 				ContextChanged.AttachMethod(this, &GuiListControl::OnContextChanged);
 				VisuallyEnabledChanged.AttachMethod(this, &GuiListControl::OnVisuallyEnabledChanged);
-				containerComposition->BoundsChanged.AttachMethod(this, &GuiListControl::OnClientBoundsChanged);
 
 				ItemTemplateChanged.SetAssociatedComposition(boundsComposition);
 				ArrangerChanged.SetAssociatedComposition(boundsComposition);
@@ -402,9 +439,9 @@ GuiListControl
 				ItemMouseEnter.SetAssociatedComposition(boundsComposition);
 				ItemMouseLeave.SetAssociatedComposition(boundsComposition);
 
-				callback = new ItemCallback(this);
+				callback = Ptr(new ItemCallback(this));
 				itemProvider->AttachCallback(callback.Obj());
-				axis = new GuiDefaultAxis;
+				axis = Ptr(new GuiDefaultAxis);
 
 				if (acceptFocus)
 				{
@@ -426,7 +463,7 @@ GuiListControl
 				itemArranger = nullptr;
 			}
 
-			GuiListControl::IItemProvider* GuiListControl::GetItemProvider()
+			list::IItemProvider* GuiListControl::GetItemProvider()
 			{
 				return itemProvider.Obj();
 			}
@@ -496,22 +533,41 @@ GuiListControl
 			{
 				if (itemArranger)
 				{
-					Size controlSize = boundsComposition->GetBounds().GetSize();
-					Size viewSize = containerComposition->GetBounds().GetSize();
-					vint x = controlSize.x - viewSize.x;
-					vint y = controlSize.y - viewSize.y;
+					Size controlSize = boundsComposition->GetCachedBounds().GetSize();
+					Size viewSize = containerComposition->GetCachedBounds().GetSize();
+					vint dx = controlSize.x - viewSize.x;
+					vint dy = controlSize.y - viewSize.y;
+					if (dx < 0) dx = 0;
+					if (dy < 0) dy = 0;
+
+					auto hscroll = GetHorizontalScroll();
+					auto vscroll = GetVerticalScroll();
+
+					if (!vscroll || vscroll->GetBoundsComposition()->GetEventuallyVisible())
+					{
+						if (adoptedSizeDiffWithScroll.x < dx) adoptedSizeDiffWithScroll.x = dx;
+					}
+					if (!vscroll || !vscroll->GetBoundsComposition()->GetEventuallyVisible())
+					{
+						if (adoptedSizeDiffWithoutScroll.x < dx) adoptedSizeDiffWithoutScroll.x = dx;
+					}
+
+					if (!hscroll || hscroll->GetBoundsComposition()->GetEventuallyVisible())
+					{
+						if (adoptedSizeDiffWithScroll.y < dy) adoptedSizeDiffWithScroll.y = dy;
+					}
+					if (!hscroll || !hscroll->GetBoundsComposition()->GetEventuallyVisible())
+					{
+						if (adoptedSizeDiffWithoutScroll.y < dy) adoptedSizeDiffWithoutScroll.y = dy;
+					}
+
+					vint x = adoptedSizeDiffWithoutScroll.x != -1 ? adoptedSizeDiffWithoutScroll.x : adoptedSizeDiffWithScroll.x;
+					vint y = adoptedSizeDiffWithoutScroll.y != -1 ? adoptedSizeDiffWithoutScroll.y : adoptedSizeDiffWithScroll.y;
 
 					Size expectedViewSize(expectedSize.x - x, expectedSize.y - y);
-					if (axis)
-					{
-						expectedViewSize = axis->RealSizeToVirtualSize(expectedViewSize);
-					}
 					Size adoptedViewSize = itemArranger->GetAdoptedSize(expectedViewSize);
-					if (axis)
-					{
-						adoptedViewSize = axis->VirtualSizeToRealSize(adoptedViewSize);
-					}
-					return Size(adoptedViewSize.x + x, adoptedViewSize.y + y);
+					Size adoptedSize = Size(adoptedViewSize.x + x, adoptedViewSize.y + y);
+					return adoptedSize;
 				}
 				return expectedSize;
 			}
@@ -534,23 +590,44 @@ GuiListControl
 GuiSelectableListControl
 ***********************************************************************/
 
-			void GuiSelectableListControl::NotifySelectionChanged()
+			void GuiSelectableListControl::NotifySelectionChanged(bool triggeredByItemContentModified)
 			{
 				SelectionChanged.Execute(GetNotifyEventArguments());
 			}
 
-			void GuiSelectableListControl::OnItemModified(vint start, vint count, vint newCount)
+			void GuiSelectableListControl::OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)
 			{
-				GuiListControl::OnItemModified(start, count, newCount);
-				if(count!=newCount)
+				GuiListControl::OnItemModified(start, count, newCount, itemReferenceUpdated);
+				if (count != newCount)
 				{
 					ClearSelection();
 				}
+				else if (itemReferenceUpdated)
+				{
+					if (selectedItems.Count() > 0)
+					{
+						vint cmin = start;
+						vint cmax = start + count - 1;
+						vint smin = selectedItems[0];
+						vint smax = selectedItems[selectedItems.Count() - 1];
+						if (cmin <= smax && smin <= cmax)
+						{
+							ClearSelection();
+						}
+					}
+				}
+				else
+				{
+					if (GetSelectedItemIndex() == start)
+					{
+						NotifySelectionChanged(true);
+					}
+				}
 			}
 
-			void GuiSelectableListControl::OnStyleInstalled(vint itemIndex, ItemStyle* style)
+			void GuiSelectableListControl::OnStyleInstalled(vint itemIndex, ItemStyle* style, bool refreshPropertiesOnly)
 			{
-				GuiListControl::OnStyleInstalled(itemIndex, style);
+				GuiListControl::OnStyleInstalled(itemIndex, style, refreshPropertiesOnly);
 				style->SetSelected(selectedItems.Contains(itemIndex));
 			}
 
@@ -564,7 +641,7 @@ GuiSelectableListControl
 
 			void GuiSelectableListControl::OnItemSelectionCleared()
 			{
-				FOREACH(ItemStyle*, style, visibleStyles.Keys())
+				for (auto style : visibleStyles.Keys())
 				{
 					style->SetSelected(false);
 				}
@@ -637,7 +714,12 @@ GuiSelectableListControl
 				}
 			}
 
-			GuiSelectableListControl::GuiSelectableListControl(theme::ThemeName themeName, IItemProvider* _itemProvider)
+			vint GuiSelectableListControl::FindItemByVirtualKeyDirection(vint index, compositions::KeyDirection keyDirection)
+			{
+				return GetArranger()->FindItemByVirtualKeyDirection(selectedItemIndexEnd, keyDirection);
+			}
+
+			GuiSelectableListControl::GuiSelectableListControl(theme::ThemeName themeName, list::IItemProvider* _itemProvider)
 				:GuiListControl(themeName, _itemProvider, true)
 				, multiSelect(false)
 				, selectedItemIndexStart(-1)
@@ -708,7 +790,7 @@ GuiSelectableListControl
 						}
 						selectedItems.Add(itemIndex);
 						OnItemSelectionChanged(itemIndex, value);
-						NotifySelectionChanged();
+						NotifySelectionChanged(false);
 					}
 				}
 				else
@@ -716,7 +798,7 @@ GuiSelectableListControl
 					if(selectedItems.Remove(itemIndex))
 					{
 						OnItemSelectionChanged(itemIndex, value);
-						NotifySelectionChanged();
+						NotifySelectionChanged(false);
 					}
 				}
 			}
@@ -738,15 +820,17 @@ GuiSelectableListControl
 						shift = false;
 						ctrl = false;
 					}
+
 					if (shift)
 					{
 						if (!ctrl)
 						{
-							SetMultipleItemsSelectedSilently(selectedItemIndexStart, selectedItemIndexEnd, false);
+							selectedItems.Clear();
+							OnItemSelectionCleared();
 						}
 						selectedItemIndexEnd = itemIndex;
 						SetMultipleItemsSelectedSilently(selectedItemIndexStart, selectedItemIndexEnd, true);
-						NotifySelectionChanged();
+						NotifySelectionChanged(false);
 					}
 					else
 					{
@@ -762,7 +846,7 @@ GuiSelectableListControl
 								selectedItems.RemoveAt(index);
 							}
 							OnItemSelectionChanged(itemIndex, index == -1);
-							NotifySelectionChanged();
+							NotifySelectionChanged(false);
 						}
 						else
 						{
@@ -770,7 +854,7 @@ GuiSelectableListControl
 							OnItemSelectionCleared();
 							selectedItems.Add(itemIndex);
 							OnItemSelectionChanged(itemIndex, true);
-							NotifySelectionChanged();
+							NotifySelectionChanged(false);
 						}
 						selectedItemIndexStart = itemIndex;
 						selectedItemIndexEnd = itemIndex;
@@ -788,28 +872,28 @@ GuiSelectableListControl
 				KeyDirection keyDirection = KeyDirection::Up;
 				switch (code)
 				{
-				case VKEY::_UP:
+				case VKEY::KEY_UP:
 					keyDirection = KeyDirection::Up;
 					break;
-				case VKEY::_DOWN:
+				case VKEY::KEY_DOWN:
 					keyDirection = KeyDirection::Down;
 					break;
-				case VKEY::_LEFT:
+				case VKEY::KEY_LEFT:
 					keyDirection = KeyDirection::Left;
 					break;
-				case VKEY::_RIGHT:
+				case VKEY::KEY_RIGHT:
 					keyDirection = KeyDirection::Right;
 					break;
-				case VKEY::_HOME:
+				case VKEY::KEY_HOME:
 					keyDirection = KeyDirection::Home;
 					break;
-				case VKEY::_END:
+				case VKEY::KEY_END:
 					keyDirection = KeyDirection::End;
 					break;
-				case VKEY::_PRIOR:
+				case VKEY::KEY_PRIOR:
 					keyDirection = KeyDirection::PageUp;
 					break;
-				case VKEY::_NEXT:
+				case VKEY::KEY_NEXT:
 					keyDirection = KeyDirection::PageDown;
 					break;
 				default:
@@ -820,7 +904,7 @@ GuiSelectableListControl
 				{
 					keyDirection = GetAxis()->RealKeyDirectionToVirtualKeyDirection(keyDirection);
 				}
-				vint itemIndex = GetArranger()->FindItem(selectedItemIndexEnd, keyDirection);
+				vint itemIndex = FindItemByVirtualKeyDirection(selectedItemIndexEnd, keyDirection);
 				if (SelectItemsByClick(itemIndex, ctrl, shift, true))
 				{
 					return EnsureItemVisible(itemIndex);
@@ -836,85 +920,10 @@ GuiSelectableListControl
 				if(selectedItems.Count()>0)
 				{
 					selectedItems.Clear();
+					selectedItemIndexStart = -1;
+					selectedItemIndexEnd = -1;
 					OnItemSelectionCleared();
-					NotifySelectionChanged();
-				}
-			}
-
-			namespace list
-			{
-
-/***********************************************************************
-ItemProviderBase
-***********************************************************************/
-
-				void ItemProviderBase::InvokeOnItemModified(vint start, vint count, vint newCount)
-				{
-					CHECK_ERROR(!callingOnItemModified, L"ItemProviderBase::InvokeOnItemModified(vint, vint, vint)#Canning modify the observable data source during its item modified event, which will cause this event to be executed recursively.");
-					callingOnItemModified = true;
-					for (vint i = 0; i < callbacks.Count(); i++)
-					{
-						callbacks[i]->OnItemModified(start, count, newCount);
-					}
-					callingOnItemModified = false;
-				}
-
-				ItemProviderBase::ItemProviderBase()
-				{
-				}
-
-				ItemProviderBase::~ItemProviderBase()
-				{
-					for(vint i=0;i<callbacks.Count();i++)
-					{
-						callbacks[i]->OnAttached(0);
-					}
-				}
-
-				bool ItemProviderBase::AttachCallback(GuiListControl::IItemProviderCallback* value)
-				{
-					if(callbacks.Contains(value))
-					{
-						return false;
-					}
-					else
-					{
-						callbacks.Add(value);
-						value->OnAttached(this);
-						return true;
-					}
-				}
-
-				bool ItemProviderBase::DetachCallback(GuiListControl::IItemProviderCallback* value)
-				{
-					vint index=callbacks.IndexOf(value);
-					if(index==-1)
-					{
-						return false;
-					}
-					else
-					{
-						value->OnAttached(0);
-						callbacks.Remove(value);
-						return true;
-					}
-				}
-
-				void ItemProviderBase::PushEditing()
-				{
-					editingCounter++;
-				}
-
-				bool ItemProviderBase::PopEditing()
-				{
-					if (editingCounter == 0)return false;
-					editingCounter--;
-					return true;
-				}
-
-				bool ItemProviderBase::IsEditing()
-				{
-					return editingCounter > 0;
+					NotifySelectionChanged(false);
 				}
 			}
 		}

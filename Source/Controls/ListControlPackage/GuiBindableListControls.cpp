@@ -22,7 +22,11 @@ GuiBindableTextList::ItemSource
 
 			GuiBindableTextList::ItemSource::~ItemSource()
 			{
-				SetItemSource(nullptr);
+				if (itemChangedEventHandler)
+				{
+					auto ol = itemSource.Cast<IValueObservableList>();
+					ol->ItemChanged.Remove(itemChangedEventHandler);
+				}
 			}
 
 			Ptr<description::IValueEnumerable> GuiBindableTextList::ItemSource::GetItemSource()
@@ -53,7 +57,7 @@ GuiBindableTextList::ItemSource
 						itemSource = ol;
 						itemChangedEventHandler = ol->ItemChanged.Add([this](vint start, vint oldCount, vint newCount)
 						{
-							InvokeOnItemModified(start, oldCount, newCount);
+							InvokeOnItemModified(start, oldCount, newCount, true);
 						});
 					}
 					else if (auto rl = _itemSource.Cast<IValueReadonlyList>())
@@ -66,7 +70,7 @@ GuiBindableTextList::ItemSource
 					}
 				}
 
-				InvokeOnItemModified(0, oldCount, itemSource ? itemSource->GetCount() : 0);
+				InvokeOnItemModified(0, oldCount, itemSource ? itemSource->GetCount() : 0, true);
 			}
 
 			description::Value GuiBindableTextList::ItemSource::Get(vint index)
@@ -77,9 +81,23 @@ GuiBindableTextList::ItemSource
 
 			void GuiBindableTextList::ItemSource::UpdateBindingProperties()
 			{
-				InvokeOnItemModified(0, Count(), Count());
+				InvokeOnItemModified(0, Count(), Count(), false);
 			}
-					
+
+			bool GuiBindableTextList::ItemSource::NotifyUpdate(vint start, vint count, bool itemReferenceUpdated)
+			{
+				if (!itemSource) return false;
+				if (start<0 || start >= itemSource->GetCount() || count <= 0 || start + count > itemSource->GetCount())
+				{
+					return false;
+				}
+				else
+				{
+					InvokeOnItemModified(start, count, count, itemReferenceUpdated);
+					return true;
+				}
+			}
+
 			// ===================== GuiListControl::IItemProvider =====================
 			
 			vint GuiBindableTextList::ItemSource::Count()
@@ -148,7 +166,7 @@ GuiBindableTextList::ItemSource
 					{
 						auto thisValue = itemSource->Get(itemIndex);
 						WriteProperty(thisValue, checkedProperty, value);
-						InvokeOnItemModified(itemIndex, 1, 1);
+						InvokeOnItemModified(itemIndex, 1, 1, false);
 					}
 				}
 			}
@@ -217,6 +235,11 @@ GuiBindableTextList
 				return itemSource->Get(index);
 			}
 
+			bool GuiBindableTextList::NotifyItemDataModified(vint start, vint count)
+			{
+				return itemSource->NotifyUpdate(start, count, false);
+			}
+
 /***********************************************************************
 GuiBindableListView::ItemSource
 ***********************************************************************/
@@ -229,7 +252,11 @@ GuiBindableListView::ItemSource
 
 			GuiBindableListView::ItemSource::~ItemSource()
 			{
-				SetItemSource(nullptr);
+				if (itemChangedEventHandler)
+				{
+					auto ol = itemSource.Cast<IValueObservableList>();
+					ol->ItemChanged.Remove(itemChangedEventHandler);
+				}
 			}
 
 			Ptr<description::IValueEnumerable> GuiBindableListView::ItemSource::GetItemSource()
@@ -260,7 +287,7 @@ GuiBindableListView::ItemSource
 						itemSource = ol;
 						itemChangedEventHandler = ol->ItemChanged.Add([this](vint start, vint oldCount, vint newCount)
 						{
-							InvokeOnItemModified(start, oldCount, newCount);
+							InvokeOnItemModified(start, oldCount, newCount, true);
 						});
 					}
 					else if (auto rl = _itemSource.Cast<IValueReadonlyList>())
@@ -273,7 +300,7 @@ GuiBindableListView::ItemSource
 					}
 				}
 
-				InvokeOnItemModified(0, oldCount, itemSource ? itemSource->GetCount() : 0);
+				InvokeOnItemModified(0, oldCount, itemSource ? itemSource->GetCount() : 0, true);
 			}
 
 			description::Value GuiBindableListView::ItemSource::Get(vint index)
@@ -284,10 +311,10 @@ GuiBindableListView::ItemSource
 
 			void GuiBindableListView::ItemSource::UpdateBindingProperties()
 			{
-				InvokeOnItemModified(0, Count(), Count());
+				InvokeOnItemModified(0, Count(), Count(), false);
 			}
 
-			bool GuiBindableListView::ItemSource::NotifyUpdate(vint start, vint count)
+			bool GuiBindableListView::ItemSource::NotifyUpdate(vint start, vint count, bool itemReferenceUpdated)
 			{
 				if (!itemSource) return false;
 				if (start<0 || start >= itemSource->GetCount() || count <= 0 || start + count > itemSource->GetCount())
@@ -296,7 +323,7 @@ GuiBindableListView::ItemSource
 				}
 				else
 				{
-					InvokeOnItemModified(start, count, count);
+					InvokeOnItemModified(start, count, count, itemReferenceUpdated);
 					return true;
 				}
 			}
@@ -313,17 +340,32 @@ GuiBindableListView::ItemSource
 					
 			// ===================== list::IListViewItemProvider =====================
 
-			void GuiBindableListView::ItemSource::NotifyAllItemsUpdate()
+			void GuiBindableListView::ItemSource::RebuildAllItems()
 			{
-				NotifyUpdate(0, Count());
+				InvokeOnItemModified(0, Count(), Count(), true);
 			}
 
-			void GuiBindableListView::ItemSource::NotifyAllColumnsUpdate()
+			void GuiBindableListView::ItemSource::RefreshAllItems()
 			{
-				for (vint i = 0; i < columnItemViewCallbacks.Count(); i++)
+				InvokeOnItemModified(0, Count(), Count(), false);
+			}
+
+			void GuiBindableListView::ItemSource::NotifyColumnRebuilt()
+			{
+				for (auto callback : columnItemViewCallbacks)
 				{
-					columnItemViewCallbacks[i]->OnColumnChanged();
+					callback->OnColumnRebuilt();
 				}
+				RebuildAllItems();
+			}
+
+			void GuiBindableListView::ItemSource::NotifyColumnChanged()
+			{
+				for (auto callback : columnItemViewCallbacks)
+				{
+					callback->OnColumnChanged(true);
+				}
+				RefreshAllItems();
 			}
 
 			// ===================== GuiListControl::IItemProvider =====================
@@ -591,6 +633,11 @@ GuiBindableListView
 				return itemSource->Get(index);
 			}
 
+			bool GuiBindableListView::NotifyItemDataModified(vint start, vint count)
+			{
+				return itemSource->NotifyUpdate(start, count, false);
+			}
+
 /***********************************************************************
 GuiBindableTreeView::ItemSourceNode
 ***********************************************************************/
@@ -627,15 +674,15 @@ GuiBindableTreeView::ItemSourceNode
 					{
 						itemChangedEventHandler = ol->ItemChanged.Add([this](vint start, vint oldCount, vint newCount)
 						{
-							callback->OnBeforeItemModified(this, start, oldCount, newCount);
+							callback->OnBeforeItemModified(this, start, oldCount, newCount, true);
 							children.RemoveRange(start, oldCount);
 							for (vint i = 0; i < newCount; i++)
 							{
 								Value value = childrenVirtualList->Get(start + i);
-								auto node = new ItemSourceNode(value, this);
+								auto node = Ptr(new ItemSourceNode(value, this));
 								children.Insert(start + i, node);
 							}
-							callback->OnAfterItemModified(this, start, oldCount, newCount);
+							callback->OnAfterItemModified(this, start, oldCount, newCount, true);
 						});
 					}
 
@@ -643,7 +690,7 @@ GuiBindableTreeView::ItemSourceNode
 					for (vint i = 0; i < count; i++)
 					{
 						Value value = childrenVirtualList->Get(i);
-						auto node = new ItemSourceNode(value, this);
+						auto node = Ptr(new ItemSourceNode(value, this));
 						children.Add(node);
 					}
 				}
@@ -658,11 +705,35 @@ GuiBindableTreeView::ItemSourceNode
 					itemChangedEventHandler = nullptr;
 				}
 				childrenVirtualList = nullptr;
-				FOREACH(Ptr<ItemSourceNode>, node, children)
+				for (auto node : children)
 				{
 					node->UnprepareChildren();
 				}
 				children.Clear();
+			}
+
+			void GuiBindableTreeView::ItemSourceNode::PrepareReverseMapping()
+			{
+#define ERROR_MESSAGE_PREFIX L"vl::presentation::controls::GuiBindableTreeView::ItemSourceNode::PrepareReverseMapping()#"
+				if (rootProvider->reverseMappingProperty && !itemSource.IsNull())
+				{
+					auto oldValue = ReadProperty(itemSource, rootProvider->reverseMappingProperty);
+					CHECK_ERROR(oldValue.IsNull(), ERROR_MESSAGE_PREFIX L"The reverse mapping property of an item has been unexpectedly changed.");
+					WriteProperty(itemSource, rootProvider->reverseMappingProperty, Value::From(this));
+				}
+#undef ERROR_MESSAGE_PREFIX
+			}
+
+			void GuiBindableTreeView::ItemSourceNode::UnprepareReverseMapping()
+			{
+#define ERROR_MESSAGE_PREFIX L"vl::presentation::controls::GuiBindableTreeView::ItemSourceNode::PrepareReverseMapping()#"
+				if (rootProvider->reverseMappingProperty && !itemSource.IsNull())
+				{
+					auto oldValue = ReadProperty(itemSource, rootProvider->reverseMappingProperty);
+					CHECK_ERROR(oldValue.GetRawPtr() == this, ERROR_MESSAGE_PREFIX L"The reverse mapping property of an item has been unexpectedly changed.");
+					WriteProperty(itemSource, rootProvider->reverseMappingProperty, {});
+				}
+#undef ERROR_MESSAGE_PREFIX
 			}
 
 			GuiBindableTreeView::ItemSourceNode::ItemSourceNode(const description::Value& _itemSource, ItemSourceNode* _parent)
@@ -671,6 +742,7 @@ GuiBindableTreeView::ItemSourceNode
 				, parent(_parent)
 				, callback(_parent->callback)
 			{
+				PrepareReverseMapping();
 			}
 
 			GuiBindableTreeView::ItemSourceNode::ItemSourceNode(ItemSource* _rootProvider)
@@ -682,6 +754,12 @@ GuiBindableTreeView::ItemSourceNode
 
 			GuiBindableTreeView::ItemSourceNode::~ItemSourceNode()
 			{
+				UnprepareReverseMapping();
+				if (itemChangedEventHandler)
+				{
+					auto ol = childrenVirtualList.Cast<IValueObservableList>();
+					ol->ItemChanged.Remove(itemChangedEventHandler);
+				}
 			}
 
 			description::Value GuiBindableTreeView::ItemSourceNode::GetItemSource()
@@ -695,11 +773,13 @@ GuiBindableTreeView::ItemSourceNode
 				vint oldCount = childrenVirtualList ? childrenVirtualList->GetCount() : 0;
 				vint newCount = newVirtualList->GetCount();
 
-				callback->OnBeforeItemModified(this, 0, oldCount, newCount);
+				callback->OnBeforeItemModified(this, 0, oldCount, newCount, true);
 				UnprepareChildren();
+				UnprepareReverseMapping();
 				itemSource = _itemSource;
+				PrepareReverseMapping();
 				PrepareChildren(newVirtualList);
-				callback->OnAfterItemModified(this, 0, oldCount, newCount);
+				callback->OnAfterItemModified(this, 0, oldCount, newCount, true);
 			}
 
 			bool GuiBindableTreeView::ItemSourceNode::GetExpanding()
@@ -735,11 +815,21 @@ GuiBindableTreeView::ItemSourceNode
 					PrepareChildren(PrepareValueList(itemSource));
 				}
 				vint count = 1;
-				FOREACH(Ptr<ItemSourceNode>, child, children)
+				for (auto child : children)
 				{
 					count += child->CalculateTotalVisibleNodes();
 				}
 				return count;
+			}
+
+			void GuiBindableTreeView::ItemSourceNode::NotifyDataModified()
+			{
+				if (parent)
+				{
+					vint index = parent->children.IndexOf(this);
+					callback->OnBeforeItemModified(parent, index, 1, 1, false);
+					callback->OnAfterItemModified(parent, index, 1, 1, false);
+				}
 			}
 
 			vint GuiBindableTreeView::ItemSourceNode::GetChildCount()
@@ -753,7 +843,7 @@ GuiBindableTreeView::ItemSourceNode
 
 			Ptr<tree::INodeProvider> GuiBindableTreeView::ItemSourceNode::GetParent()
 			{
-				return parent;
+				return Ptr(parent);
 			}
 
 			Ptr<tree::INodeProvider> GuiBindableTreeView::ItemSourceNode::GetChild(vint index)
@@ -775,7 +865,7 @@ GuiBindableTreeView::ItemSource
 
 			GuiBindableTreeView::ItemSource::ItemSource()
 			{
-				rootNode = new ItemSourceNode(this);
+				rootNode = Ptr(new ItemSourceNode(this));
 			}
 
 			GuiBindableTreeView::ItemSource::~ItemSource()
@@ -800,8 +890,8 @@ GuiBindableTreeView::ItemSource
 					rootNode->UnprepareChildren();
 				}
 				vint newCount = rootNode->GetChildCount();
-				OnBeforeItemModified(rootNode.Obj(), 0, oldCount, newCount);
-				OnAfterItemModified(rootNode.Obj(), 0, oldCount, newCount);
+				OnBeforeItemModified(rootNode.Obj(), 0, oldCount, newCount, updateChildrenProperty);
+				OnAfterItemModified(rootNode.Obj(), 0, oldCount, newCount, updateChildrenProperty);
 			}
 
 			// ===================== tree::INodeRootProvider =====================
@@ -852,10 +942,11 @@ GuiBindableTreeView::ItemSource
 GuiBindableTreeView
 ***********************************************************************/
 
-			GuiBindableTreeView::GuiBindableTreeView(theme::ThemeName themeName)
-				:GuiVirtualTreeView(themeName, new ItemSource)
+			GuiBindableTreeView::GuiBindableTreeView(theme::ThemeName themeName, WritableItemProperty<description::Value> reverseMappingProperty)
+				:GuiVirtualTreeView(themeName, Ptr(new ItemSource))
 			{
 				itemSource = dynamic_cast<ItemSource*>(GetNodeRootProvider());
+				itemSource->reverseMappingProperty = reverseMappingProperty;
 
 				TextPropertyChanged.SetAssociatedComposition(boundsComposition);
 				ImagePropertyChanged.SetAssociatedComposition(boundsComposition);
@@ -874,6 +965,11 @@ GuiBindableTreeView
 			void GuiBindableTreeView::SetItemSource(description::Value _itemSource)
 			{
 				itemSource->SetItemSource(_itemSource);
+			}
+			
+			WritableItemProperty<description::Value> GuiBindableTreeView::GetReverseMappingProperty()
+			{
+				return itemSource->reverseMappingProperty;
 			}
 
 			ItemProperty<WString> GuiBindableTreeView::GetTextProperty()
@@ -935,6 +1031,29 @@ GuiBindableTreeView
 					}
 				}
 				return result;
+			}
+
+			void GuiBindableTreeView::NotifyNodeDataModified(description::Value value)
+			{
+#define ERROR_MESSAGE_PREFIX L"vl::presentation::controls::GuiBindableTreeView::NotifyNodeDataModified(Value)#"
+
+				CHECK_ERROR(itemSource->reverseMappingProperty, ERROR_MESSAGE_PREFIX L"This function can only be called when the ReverseMappingProperty is in use.");
+				CHECK_ERROR(!value.IsNull(), ERROR_MESSAGE_PREFIX L"The item cannot be null.");
+				auto mapping = ReadProperty(value, itemSource->reverseMappingProperty);
+				auto node = dynamic_cast<tree::INodeProvider*>(mapping.GetRawPtr());
+				CHECK_ERROR(node, ERROR_MESSAGE_PREFIX L"The item is not binded to a GuiBindableTreeView control or its reverse mapping property has been unexpectedly changed.");
+
+				auto rootNode = node;
+				while (rootNode->GetParent())
+				{
+					rootNode = rootNode->GetParent().Obj();
+				}
+
+				CHECK_ERROR(rootNode == itemSource->rootNode.Obj(), ERROR_MESSAGE_PREFIX L"The item is not binded to this control.");
+				CHECK_ERROR(node != itemSource->rootNode.Obj(), ERROR_MESSAGE_PREFIX L"The item should not be the root item, which is the item source assigned to this control.");
+				node->NotifyDataModified();
+
+#undef ERROR_MESSAGE_PREFIX
 			}
 		}
 	}

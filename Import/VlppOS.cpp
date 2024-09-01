@@ -7,15 +7,11 @@ DEVELOPER: Zihan Chen(vczh)
 /***********************************************************************
 .\FILESYSTEM.CPP
 ***********************************************************************/
-#if defined VCZH_MSVC
-#include <Windows.h>
-#include <Shlwapi.h>
-#pragma comment(lib, "Shlwapi.lib")
-#elif defined VCZH_GCC
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -30,107 +26,19 @@ namespace vl
 FilePath
 ***********************************************************************/
 
-#if defined VCZH_GCC
-		const wchar_t FilePath::Delimiter;
-#endif
-
-		void FilePath::Initialize()
+		void FilePath::NormalizeDelimiters(collections::Array<wchar_t>& buffer)
 		{
+			for (vint i = 0; i < buffer.Count(); i++)
 			{
-				Array<wchar_t> buffer(fullPath.Length() + 1);
-#if defined VCZH_MSVC
-				wcscpy_s(&buffer[0], fullPath.Length() + 1, fullPath.Buffer());
-#elif defined VCZH_GCC
-				wcscpy(&buffer[0], fullPath.Buffer());
-#endif
-				for (vint i = 0; i < buffer.Count(); i++)
+				if (buffer[i] == L'\\' || buffer[i] == L'/')
 				{
-					if (buffer[i] == L'\\' || buffer[i] == L'/')
-					{
-						buffer[i] = Delimiter;
-					}
-				}
-				fullPath = &buffer[0];
-			}
-
-#if defined VCZH_MSVC
-			if (fullPath != L"")
-			{
-				if (fullPath.Length() < 2 || fullPath[1] != L':')
-				{
-					wchar_t buffer[MAX_PATH + 1] = { 0 };
-					auto result = GetCurrentDirectory(sizeof(buffer) / sizeof(*buffer), buffer);
-					if (result > MAX_PATH + 1 || result == 0)
-					{
-						throw ArgumentException(L"Failed to call GetCurrentDirectory.", L"vl::filesystem::FilePath::Initialize", L"");
-					}
-					fullPath = WString(buffer) + L"\\" + fullPath;
-				}
-				{
-					wchar_t buffer[MAX_PATH + 1] = { 0 };
-					if (fullPath.Length() == 2 && fullPath[1] == L':')
-					{
-						fullPath += L"\\";
-					}
-					auto result = GetFullPathName(fullPath.Buffer(), sizeof(buffer) / sizeof(*buffer), buffer, NULL);
-					if (result > MAX_PATH + 1 || result == 0)
-					{
-						throw ArgumentException(L"The path is illegal.", L"vl::filesystem::FilePath::FilePath", L"_filePath");
-					}
-
-					{
-						wchar_t shortPath[MAX_PATH + 1];
-						wchar_t longPath[MAX_PATH + 1];
-						if (GetShortPathName(buffer, shortPath, MAX_PATH) > 0)
-						{
-							if (GetLongPathName(shortPath, longPath, MAX_PATH) > 0)
-							{
-								memcpy(buffer, longPath, sizeof(buffer));
-							}
-						}
-					}
-					fullPath = buffer;
+					buffer[i] = Delimiter;
 				}
 			}
-#elif defined VCZH_GCC
-			if (fullPath.Length() == 0)
-				fullPath = L"/";
+		}
 
-			if (fullPath[0] != Delimiter)
-			{
-				char buffer[PATH_MAX] = { 0 };
-				getcwd(buffer, PATH_MAX);
-				fullPath = atow(AString(buffer)) + Delimiter + fullPath;
-			}
-
-			{
-				collections::List<WString> components;
-				GetPathComponents(fullPath, components);
-				for(int i = 0; i < components.Count(); i++)
-				{
-					if(components[i] == L".")
-					{
-						components.RemoveAt(i);
-						i--;
-					}
-					else if(components[i] == L"..")
-					{
-						if(i > 0)
-						{
-							components.RemoveAt(i);
-							components.RemoveAt(i - 1);
-							i -= 2;
-						}
-						else
-						{
-							throw ArgumentException(L"Illegal path.");
-						}
-					}
-				}
-
-				fullPath = ComponentsToPath(components);
-			}
-#endif
+		void FilePath::TrimLastDelimiter(WString& fullPath)
+		{
 			if (fullPath != L"/" && fullPath.Length() > 0 && fullPath[fullPath.Length() - 1] == Delimiter)
 			{
 				fullPath = fullPath.Left(fullPath.Length() - 1);
@@ -139,6 +47,7 @@ FilePath
 
 		FilePath::FilePath()
 		{
+			Initialize();
 		}
 
 		FilePath::FilePath(const WString& _filePath)
@@ -158,15 +67,6 @@ FilePath
 		{
 		}
 
-		FilePath::~FilePath()
-		{
-		}
-
-		vint FilePath::Compare(const FilePath& a, const FilePath& b)
-		{
-			return WString::Compare(a.fullPath, b.fullPath);
-		}
-
 		FilePath FilePath::operator/(const WString& relativePath)const
 		{
 			if (IsRoot())
@@ -179,50 +79,9 @@ FilePath
 			}
 		}
 
-		bool FilePath::IsFile()const
-		{
-#if defined VCZH_MSVC
-			WIN32_FILE_ATTRIBUTE_DATA info;
-			BOOL result = GetFileAttributesEx(fullPath.Buffer(), GetFileExInfoStandard, &info);
-			if (!result) return false;
-			return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
-#elif defined VCZH_GCC
-			struct stat info;
-			AString path = wtoa(fullPath);
-			int result = stat(path.Buffer(), &info);
-			if(result != 0) return false;
-			else return S_ISREG(info.st_mode);
-#endif
-		}
-
-		bool FilePath::IsFolder()const
-		{
-#if defined VCZH_MSVC
-			WIN32_FILE_ATTRIBUTE_DATA info;
-			BOOL result = GetFileAttributesEx(fullPath.Buffer(), GetFileExInfoStandard, &info);
-			if (!result) return false;
-			return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-#elif defined VCZH_GCC
-			struct stat info;
-			AString path = wtoa(fullPath);
-			int result = stat(path.Buffer(), &info);
-			if(result != 0) return false;
-			else return S_ISDIR(info.st_mode);
-#endif
-		}
-
-		bool FilePath::IsRoot()const
-		{
-#if defined VCZH_MSVC
-			return fullPath == L"";
-#elif defined VCZH_GCC
-			return fullPath == L"/";
-#endif
-		}
-
 		WString FilePath::GetName()const
 		{
-			WString delimiter = Delimiter;
+			auto delimiter = WString::FromChar(Delimiter);
 			auto index = INVLOC.FindLast(fullPath, delimiter, Locale::None);
 			if (index.key == -1) return fullPath;
 			return fullPath.Right(fullPath.Length() - index.key - 1);
@@ -230,7 +89,7 @@ FilePath
 
 		FilePath FilePath::GetFolder()const
 		{
-			WString delimiter = Delimiter;
+			auto delimiter = WString::FromChar(Delimiter);
 			auto index = INVLOC.FindLast(fullPath, delimiter, Locale::None);
 			if (index.key == -1) return FilePath();
 			return fullPath.Left(index.key);
@@ -241,89 +100,42 @@ FilePath
 			return fullPath;
 		}
 
-		WString FilePath::GetRelativePathFor(const FilePath& _filePath)
-		{
-			if (fullPath.Length()==0 || _filePath.fullPath.Length()==0 || fullPath[0] != _filePath.fullPath[0])
-			{
-				return _filePath.fullPath;
-			}
-#if defined VCZH_MSVC
-			wchar_t buffer[MAX_PATH + 1] = { 0 };
-			PathRelativePathTo(
-				buffer,
-				fullPath.Buffer(),
-				(IsFolder() ? FILE_ATTRIBUTE_DIRECTORY : 0),
-				_filePath.fullPath.Buffer(),
-				(_filePath.IsFolder() ? FILE_ATTRIBUTE_DIRECTORY : 0)
-				);
-			return buffer;
-#elif defined VCZH_GCC
-			collections::List<WString> srcComponents, tgtComponents, resultComponents;
-			GetPathComponents(IsFolder() ? fullPath : GetFolder().GetFullPath(), srcComponents);
-			GetPathComponents(_filePath.fullPath, tgtComponents);
-
-			int minLength = srcComponents.Count() <= tgtComponents.Count() ? srcComponents.Count() : tgtComponents.Count();
-			int lastCommonComponent = 0;
-			for(int i = 0; i < minLength; i++)
-			{
-				if(srcComponents[i] == tgtComponents[i])
-				{
-					lastCommonComponent = i;
-				}
-				else
-					break;
-			}
-
-			for(int i = lastCommonComponent + 1; i < srcComponents.Count(); i++)
-			{
-				resultComponents.Add(L"..");
-			}
-
-			for(int i = lastCommonComponent + 1; i < tgtComponents.Count(); i++)
-			{
-				resultComponents.Add(tgtComponents[i]);
-			}
-
-			return ComponentsToPath(resultComponents);
-#endif
-		}
-
 		void FilePath::GetPathComponents(WString path, collections::List<WString>& components)
 		{
 			WString pathRemaining = path;
-			WString delimiter = Delimiter;
+			auto delimiter = WString::FromChar(Delimiter);
 
 			components.Clear();
 
-			while(true)
+			while (true)
 			{
 				auto index = INVLOC.FindFirst(pathRemaining, delimiter, Locale::None);
 				if (index.key == -1)
 					break;
 
-				if(index.key != 0)
+				if (index.key != 0)
 					components.Add(pathRemaining.Left(index.key));
 				else
 				{
-#if defined VCZH_GCC
-					// Unix absolute path starting with "/"
-					// components[0] will be L"/"
-					components.Add(delimiter);
-#elif defined VCZH_MSVC
-					if(pathRemaining.Length() >= 2 && pathRemaining[1] == Delimiter)
+#if defined VCZH_MSVC
+					if (pathRemaining.Length() >= 2 && pathRemaining[1] == Delimiter)
 					{
 						// Windows UNC Path starting with "\\"
 						// components[0] will be L"\\"
 						components.Add(L"\\");
 						index.value++;
 					}
+#elif defined VCZH_GCC
+					// Unix absolute path starting with "/"
+					// components[0] will be L"/"
+					components.Add(delimiter);
 #endif
 				}
 
 				pathRemaining = pathRemaining.Right(pathRemaining.Length() - (index.key + index.value));
 			}
 
-			if(pathRemaining.Length() != 0)
+			if (pathRemaining.Length() != 0)
 			{
 				components.Add(pathRemaining);
 			}
@@ -332,20 +144,20 @@ FilePath
 		WString FilePath::ComponentsToPath(const collections::List<WString>& components)
 		{
 			WString result;
-			WString delimiter = Delimiter;
+			auto delimiter = WString::FromChar(Delimiter);
 
 			int i = 0;
-
-#if defined VCZH_GCC
-			// For Unix-like OSes, if first component is "/" then take it as absolute path
-			if(components.Count() > 0 && components[0] == delimiter)
+			
+#if defined VCZH_MSVC
+			// For Windows, if first component is "\\" then it is an UNC path
+			if(components.Count() > 0 && components[0] == L"\\")
 			{
 				result += delimiter;
 				i++;
 			}
-#elif defined VCZH_MSVC
-			// For Windows, if first component is "\\" then it is an UNC path
-			if(components.Count() > 0 && components[0] == L"\\")
+#elif defined VCZH_GCC
+			// For Unix-like OSes, if first component is "/" then take it as absolute path
+			if(components.Count() > 0 && components[0] == delimiter)
 			{
 				result += delimiter;
 				i++;
@@ -365,17 +177,9 @@ FilePath
 /***********************************************************************
 File
 ***********************************************************************/
-
-		File::File()
-		{
-		}
 		
 		File::File(const FilePath& _filePath)
 			:filePath(_filePath)
-		{
-		}
-
-		File::~File()
 		{
 		}
 
@@ -548,7 +352,7 @@ File
 			{
 				EncoderStream encoderStream(fileStream, *encoder);
 				StreamWriter writer(encoderStream);
-				FOREACH(WString, line, lines)
+				for (auto line : lines)
 				{
 					writer.WriteLine(line);
 				}
@@ -562,209 +366,18 @@ File
 			return filePath.IsFile();
 		}
 
-		bool File::Delete()const
-		{
-#if defined VCZH_MSVC
-			return DeleteFile(filePath.GetFullPath().Buffer()) != 0;
-#elif defined VCZH_GCC
-			AString path = wtoa(filePath.GetFullPath());
-			return unlink(path.Buffer()) == 0;
-#endif
-		}
-
-		bool File::Rename(const WString& newName)const
-		{
-#if defined VCZH_MSVC
-			WString oldFileName = filePath.GetFullPath();
-			WString newFileName = (filePath.GetFolder() / newName).GetFullPath();
-			return MoveFile(oldFileName.Buffer(), newFileName.Buffer()) != 0;
-#elif defined VCZH_GCC
-			AString oldFileName = wtoa(filePath.GetFullPath());
-			AString newFileName = wtoa((filePath.GetFolder() / newName).GetFullPath());
-			return rename(oldFileName.Buffer(), newFileName.Buffer()) == 0;
-#endif
-		}
-
 /***********************************************************************
 Folder
 ***********************************************************************/
-
-		Folder::Folder()
-		{
-		}
 		
 		Folder::Folder(const FilePath& _filePath)
 			:filePath(_filePath)
 		{
 		}
 
-		Folder::~Folder()
-		{
-		}
-
 		const FilePath& Folder::GetFilePath()const
 		{
 			return filePath;
-		}
-
-		bool Folder::GetFolders(collections::List<Folder>& folders)const
-		{
-#if defined VCZH_MSVC
-			if (filePath.IsRoot())
-			{
-				auto bufferSize = GetLogicalDriveStrings(0, nullptr);
-				if (bufferSize > 0)
-				{
-					Array<wchar_t> buffer(bufferSize);
-					if (GetLogicalDriveStrings((DWORD)buffer.Count(), &buffer[0]) > 0)
-					{
-						auto begin = &buffer[0];
-						auto end = begin + buffer.Count();
-						while (begin < end && *begin)
-						{
-							WString driveString = begin;
-							begin += driveString.Length() + 1;
-							folders.Add(Folder(FilePath(driveString)));
-						}
-						return true;
-					}
-				}
-				return false;
-			}
-			else
-			{
-				if (!Exists()) return false;
-				WIN32_FIND_DATA findData;
-				HANDLE findHandle = INVALID_HANDLE_VALUE;
-
-				while (true)
-				{
-					if (findHandle == INVALID_HANDLE_VALUE)
-					{
-						WString searchPath = (filePath / L"*").GetFullPath();
-						findHandle = FindFirstFile(searchPath.Buffer(), &findData);
-						if (findHandle == INVALID_HANDLE_VALUE)
-						{
-							break;
-						}
-					}
-					else
-					{
-						BOOL result = FindNextFile(findHandle, &findData);
-						if (result == 0)
-						{
-							FindClose(findHandle);
-							break;
-						}
-					}
-
-					if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-					{
-						if (wcscmp(findData.cFileName, L".") != 0 && wcscmp(findData.cFileName, L"..") != 0)
-						{
-							folders.Add(Folder(filePath / findData.cFileName));
-						}
-					}
-				}
-				return true;
-			}
-#elif defined VCZH_GCC
-			if (!Exists()) return false;
-
-			DIR *dir;
-			AString searchPath = wtoa(filePath.GetFullPath());
-
-			if ((dir = opendir(searchPath.Buffer())) == NULL)
-			{
-				return false;
-			}
-
-			struct dirent* entry;
-			while ((entry = readdir(dir)) != NULL)
-			{
-				WString childName = atow(AString(entry->d_name));
-				FilePath childFullPath = filePath / childName;
-				if (childName != L"." && childName != L".." && childFullPath.IsFolder())
-				{
-					folders.Add(Folder(childFullPath));
-				}
-			}
-
-			if (closedir(dir) != 0)
-			{
-				return false;
-			}
-
-			return true;
-#endif
-		}
-
-		bool Folder::GetFiles(collections::List<File>& files)const
-		{
-#if defined VCZH_MSVC
-			if (filePath.IsRoot())
-			{
-				return true;
-			}
-			if (!Exists()) return false;
-			WIN32_FIND_DATA findData;
-			HANDLE findHandle = INVALID_HANDLE_VALUE;
-
-			while (true)
-			{
-				if (findHandle == INVALID_HANDLE_VALUE)
-				{
-					WString searchPath = (filePath / L"*").GetFullPath();
-					findHandle = FindFirstFile(searchPath.Buffer(), &findData);
-					if (findHandle == INVALID_HANDLE_VALUE)
-					{
-						break;
-					}
-				}
-				else
-				{
-					BOOL result = FindNextFile(findHandle, &findData);
-					if (result == 0)
-					{
-						FindClose(findHandle);
-						break;
-					}
-				}
-
-				if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-				{
-					files.Add(File(filePath / findData.cFileName));
-				}
-			}
-			return true;
-#elif defined VCZH_GCC
-			if (!Exists()) return false;
-
-			DIR *dir;
-			AString searchPath = wtoa(filePath.GetFullPath());
-
-			if ((dir = opendir(searchPath.Buffer())) == NULL)
-			{
-				return false;
-			}
-
-			struct dirent* entry;
-			while ((entry = readdir(dir)) != NULL)
-			{
-				FilePath childFullPath = filePath / (atow(AString(entry->d_name)));
-				if (childFullPath.IsFile())
-				{
-					files.Add(File(childFullPath));
-				}
-			}
-
-			if (closedir(dir) != 0)
-			{
-				return false;
-			}
-
-			return true;
-#endif
 		}
 
 		bool Folder::Exists()const
@@ -783,12 +396,7 @@ Folder
 			}
 			else
 			{
-#if defined VCZH_MSVC
-				return CreateDirectory(filePath.GetFullPath().Buffer(), NULL) != 0;
-#elif defined VCZH_GCC
-				AString path = wtoa(filePath.GetFullPath());
-				return mkdir(path.Buffer(), 0777) == 0;
-#endif
+				return CreateNonRecursively();
 			}
 		}
 
@@ -800,460 +408,37 @@ Folder
 			{
 				List<Folder> folders;
 				GetFolders(folders);
-				FOREACH(Folder, folder, folders)
+				for (auto folder : folders)
 				{
 					if (!folder.Delete(true)) return false;
 				}
 				
 				List<File> files;
 				GetFiles(files);
-				FOREACH(File, file, files)
+				for (auto file : files)
 				{
 					if (!file.Delete()) return false;
 				}
 
 				return Delete(false);
 			}
-#if defined VCZH_MSVC
-			return RemoveDirectory(filePath.GetFullPath().Buffer()) != 0;
-#elif defined VCZH_GCC
-			AString path = wtoa(filePath.GetFullPath());
-			return rmdir(path.Buffer()) == 0;
-#endif
-		}
-
-		bool Folder::Rename(const WString& newName)const
-		{
-#if defined VCZH_MSVC
-			WString oldFileName = filePath.GetFullPath();
-			WString newFileName = (filePath.GetFolder() / newName).GetFullPath();
-			return MoveFile(oldFileName.Buffer(), newFileName.Buffer()) != 0;
-#elif defined VCZH_GCC
-			AString oldFileName = wtoa(filePath.GetFullPath());
-			AString newFileName = wtoa((filePath.GetFolder() / newName).GetFullPath());
-			return rename(oldFileName.Buffer(), newFileName.Buffer()) == 0;
-#endif
+			return DeleteNonRecursively();
 		}
 	}
 }
-
-
-/***********************************************************************
-.\HTTPUTILITY.CPP
-***********************************************************************/
-
-#ifdef VCZH_MSVC
-#include <winhttp.h>
-
-#pragma comment(lib, "WinHttp.lib")
-
-namespace vl
-{
-	using namespace collections;
-
-/***********************************************************************
-HttpRequest
-***********************************************************************/
-
-	HttpRequest::HttpRequest()
-		:port(0)
-		,secure(false)
-	{
-	}
-
-	bool HttpRequest::SetHost(const WString& inputQuery)
-	{
-		server=L"";
-		query=L"";
-		port=0;
-		secure=false;
-
-		{
-			if(server==L"")
-			{
-				if(inputQuery.Length()>7)
-				{
-					WString protocol=inputQuery.Sub(0, 8);
-					if(_wcsicmp(protocol.Buffer(), L"https://")==0)
-					{
-						const wchar_t* reading=inputQuery.Buffer()+8;
-						const wchar_t* index1=wcschr(reading, L':');
-						const wchar_t* index2=wcschr(reading, L'/');
-						if(index2)
-						{
-							query=index2;
-							server=WString(reading, (index1?index1:index2)-reading);
-							port=INTERNET_DEFAULT_HTTPS_PORT;
-							secure=true;
-							if(index1)
-							{
-								WString portString(index1+1, index2-index1-1);
-								port=_wtoi(portString.Buffer());
-							}
-							return true;
-						}
-					}
-				}
-			}
-			if(server==L"")
-			{
-				if(inputQuery.Length()>6)
-				{
-					WString protocol=inputQuery.Sub(0, 7);
-					if(_wcsicmp(protocol.Buffer(), L"http://")==0)
-					{
-						const wchar_t* reading=inputQuery.Buffer()+7;
-						const wchar_t* index1=wcschr(reading, L':');
-						const wchar_t* index2=wcschr(reading, L'/');
-						if(index2)
-						{
-							query=index2;
-							server=WString(reading, (index1?index1:index2)-reading);
-							port=INTERNET_DEFAULT_HTTP_PORT;
-							if(index1)
-							{
-								WString portString(index1+1, index2-index1-1);
-								port=_wtoi(portString.Buffer());
-							}
-							return true;
-						}
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	void HttpRequest::SetBodyUtf8(const WString& bodyString)
-	{
-		vint utf8Size=WideCharToMultiByte(CP_UTF8, 0, bodyString.Buffer(), (int)bodyString.Length(), NULL, 0, NULL, NULL);
-		char* utf8=new char[utf8Size+1];
-		ZeroMemory(utf8, utf8Size+1);
-		WideCharToMultiByte(CP_UTF8, 0, bodyString.Buffer(), (int)bodyString.Length(), utf8, (int)utf8Size, NULL, NULL);
-
-		body.Resize(utf8Size);
-		memcpy(&body[0], utf8, utf8Size);
-		delete[] utf8;
-	}
-
-/***********************************************************************
-HttpResponse
-***********************************************************************/
-
-	HttpResponse::HttpResponse()
-		:statusCode(0)
-	{
-	}
-
-	WString HttpResponse::GetBodyUtf8()
-	{
-		WString response;
-		char* utf8=&body[0];
-		vint totalSize=body.Count();
-		vint utf16Size=MultiByteToWideChar(CP_UTF8, 0, utf8, (int)totalSize, NULL, 0);
-		wchar_t* utf16=new wchar_t[utf16Size+1];
-		ZeroMemory(utf16, (utf16Size+1)*sizeof(wchar_t));
-		MultiByteToWideChar(CP_UTF8, 0, utf8, (int)totalSize, utf16, (int)utf16Size);
-		response=utf16;
-		delete[] utf16;
-		return response;
-	}
-
-/***********************************************************************
-Utilities
-***********************************************************************/
-
-	struct BufferPair
-	{
-		char*		buffer;
-		vint		length;
-
-		BufferPair()
-			:buffer(0)
-			,length(0)
-		{
-		}
-
-		BufferPair(char* _buffer, vint _length)
-			:buffer(_buffer)
-			,length(_length)
-		{
-		}
-
-		bool operator==(const BufferPair& pair){return false;}
-		bool operator!=(const BufferPair& pair){return true;}
-	};
-
-	bool HttpQuery(const HttpRequest& request, HttpResponse& response)
-	{
-		// initialize
-		response.statusCode=-1;
-		HINTERNET internet=NULL;
-		HINTERNET connectedInternet=NULL;
-		HINTERNET requestInternet=NULL;
-		BOOL httpResult=FALSE;
-		DWORD error=0;
-		List<LPCWSTR> acceptTypes;
-		List<BufferPair> availableBuffers;
-
-		// access http
-		internet=WinHttpOpen(L"vczh", WINHTTP_ACCESS_TYPE_NO_PROXY, NULL, NULL, 0);
-		error=GetLastError();
-		if(!internet) goto CLEANUP;
-
-		// connect
-		connectedInternet=WinHttpConnect(internet, request.server.Buffer(), (int)request.port, 0);
-		error=GetLastError();
-		if(!connectedInternet) goto CLEANUP;
-
-		// open request
-		for(vint i=0;i<request.acceptTypes.Count();i++)
-		{
-			acceptTypes.Add(request.acceptTypes.Get(i).Buffer());
-		}
-		acceptTypes.Add(0);
-		requestInternet=WinHttpOpenRequest(connectedInternet, request.method.Buffer(), request.query.Buffer(), NULL, WINHTTP_NO_REFERER, &acceptTypes[0], (request.secure?WINHTTP_FLAG_SECURE:0));
-		error=GetLastError();
-		if(!requestInternet) goto CLEANUP;
-
-		// authentication, cookie and request
-		if(request.username!=L"" && request.password!=L"")
-		{
-			WinHttpSetCredentials(requestInternet, WINHTTP_AUTH_TARGET_SERVER, WINHTTP_AUTH_SCHEME_BASIC, request.username.Buffer(), request.password.Buffer(), NULL);
-		}
-		if(request.contentType!=L"")
-		{
-			httpResult=WinHttpAddRequestHeaders(requestInternet, (L"Content-type:"+request.contentType).Buffer(), -1, WINHTTP_ADDREQ_FLAG_REPLACE|WINHTTP_ADDREQ_FLAG_ADD);
-		}
-		if(request.cookie!=L"")
-		{
-			WinHttpAddRequestHeaders(requestInternet, (L"Cookie:"+request.cookie).Buffer(), -1, WINHTTP_ADDREQ_FLAG_REPLACE|WINHTTP_ADDREQ_FLAG_ADD);
-		}
-		
-		// extra headers
-		for(int i=0;i<request.extraHeaders.Count();i++)
-		{
-			WString key=request.extraHeaders.Keys()[i];
-			WString value=request.extraHeaders.Values().Get(i);
-			WinHttpAddRequestHeaders(requestInternet, (key+L":"+value).Buffer(), -1, WINHTTP_ADDREQ_FLAG_REPLACE|WINHTTP_ADDREQ_FLAG_ADD);
-		}
-
-		if(request.body.Count()>0)
-		{
-			httpResult=WinHttpSendRequest(requestInternet, WINHTTP_NO_ADDITIONAL_HEADERS, 0, (LPVOID)&request.body.Get(0), (int)request.body.Count(), (int)request.body.Count(), NULL);
-		}
-		else
-		{
-			httpResult=WinHttpSendRequest(requestInternet, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, NULL);
-		}
-		error=GetLastError();
-		if(httpResult==FALSE) goto CLEANUP;
-
-		// receive response
-		httpResult=WinHttpReceiveResponse(requestInternet, NULL);
-		error=GetLastError();
-		if(httpResult!=TRUE) goto CLEANUP;
-
-		// read response status code
-		{
-			DWORD headerLength=sizeof(DWORD);
-			DWORD statusCode=0;
-			httpResult=WinHttpQueryHeaders(requestInternet, WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &headerLength, WINHTTP_NO_HEADER_INDEX);
-			error=GetLastError();
-			if(httpResult==FALSE) goto CLEANUP;
-			response.statusCode=statusCode;
-		}
-		// read respons cookie
-		{
-			DWORD headerLength=sizeof(DWORD);
-			httpResult=WinHttpQueryHeaders(requestInternet, WINHTTP_QUERY_RAW_HEADERS_CRLF, WINHTTP_HEADER_NAME_BY_INDEX, NULL, &headerLength, WINHTTP_NO_HEADER_INDEX);
-			error=GetLastError();
-			if(error==ERROR_INSUFFICIENT_BUFFER)
-			{
-				wchar_t* rawHeader=new wchar_t[headerLength/sizeof(wchar_t)];
-				ZeroMemory(rawHeader, headerLength);
-				httpResult=WinHttpQueryHeaders(requestInternet, WINHTTP_QUERY_RAW_HEADERS_CRLF, WINHTTP_HEADER_NAME_BY_INDEX, rawHeader, &headerLength, WINHTTP_NO_HEADER_INDEX);
-			
-				const wchar_t* cookieStart=wcsstr(rawHeader, L"Cookie:");
-				if(cookieStart)
-				{
-					const wchar_t* cookieEnd=wcsstr(cookieStart, L";");
-					if(cookieEnd)
-					{
-						response.cookie=WString(cookieStart+7, cookieEnd-cookieStart-7);
-					}
-				}
-				delete[] rawHeader;
-			}
-		}
-
-		// read response body
-		while(true)
-		{
-			DWORD bytesAvailable=0;
-			BOOL queryDataAvailableResult=WinHttpQueryDataAvailable(requestInternet, &bytesAvailable);
-			error=GetLastError();
-			if(queryDataAvailableResult==TRUE && bytesAvailable!=0)
-			{
-				char* utf8=new char[bytesAvailable];
-				DWORD bytesRead=0;
-				BOOL readDataResult=WinHttpReadData(requestInternet, utf8, bytesAvailable, &bytesRead);
-				error=GetLastError();
-				if(readDataResult==TRUE)
-				{
-					availableBuffers.Add(BufferPair(utf8, bytesRead));
-				}
-				else
-				{
-					delete[] utf8;
-				}
-			}
-			else
-			{
-				break;
-			}
-		}
-
-		{
-			// concatincate response body
-			vint totalSize = 0;
-			FOREACH(BufferPair, p, availableBuffers)
-			{
-				totalSize += p.length;
-			}
-			response.body.Resize(totalSize);
-			if (totalSize > 0)
-			{
-				char* utf8 = new char[totalSize];
-				{
-					char* temp = utf8;
-					FOREACH(BufferPair, p, availableBuffers)
-					{
-						memcpy(temp, p.buffer, p.length);
-						temp += p.length;
-					}
-				}
-				memcpy(&response.body[0], utf8, totalSize);
-				delete[] utf8;
-			}
-			FOREACH(BufferPair, p, availableBuffers)
-			{
-				delete[] p.buffer;
-			}
-		}
-	CLEANUP:
-		if(requestInternet) WinHttpCloseHandle(requestInternet);
-		if(connectedInternet) WinHttpCloseHandle(connectedInternet);
-		if(internet) WinHttpCloseHandle(internet);
-		return response.statusCode!=-1;
-	}
-
-	WString UrlEncodeQuery(const WString& query)
-	{
-		vint utf8Size=WideCharToMultiByte(CP_UTF8, 0, query.Buffer(),(int) query.Length(), NULL, 0, NULL, NULL);
-		char* utf8=new char[utf8Size+1];
-		ZeroMemory(utf8, utf8Size+1);
-		WideCharToMultiByte(CP_UTF8, 0, query.Buffer(), (int)query.Length(), utf8, (int)utf8Size, NULL, NULL);
-
-		wchar_t* encoded=new wchar_t[utf8Size*3+1];
-		ZeroMemory(encoded, (utf8Size*3+1)*sizeof(wchar_t));
-		wchar_t* writing=encoded;
-		for(vint i=0;i<utf8Size;i++)
-		{
-			unsigned char x=(unsigned char)utf8[i];
-			if(L'a'<=x && x<='z' || L'A'<=x && x<=L'Z' || L'0'<=x && x<=L'9')
-			{
-				writing[0]=x;
-				writing+=1;
-			}
-			else
-			{
-				writing[0]=L'%';
-				writing[1]=L"0123456789ABCDEF"[x/16];
-				writing[2]=L"0123456789ABCDEF"[x%16];
-				writing+=3;
-			}
-		}
-
-		WString result=encoded;
-		delete[] encoded;
-		delete[] utf8;
-		return result;
-	}
-}
-#endif
 
 
 /***********************************************************************
 .\LOCALE.CPP
 ***********************************************************************/
-#if defined VCZH_MSVC
-#elif defined VCZH_GCC
-#include <ctype.h>
-#include <wctype.h>
-#include <wchar.h>
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
-	using namespace collections;
-
-#if defined VCZH_MSVC
-
-	extern SYSTEMTIME DateTimeToSystemTime(const DateTime& dateTime);
-
-	BOOL CALLBACK Locale_EnumLocalesProcEx(
-		_In_  LPWSTR lpLocaleString,
-		_In_  DWORD dwFlags,
-		_In_  LPARAM lParam
-		)
-	{
-		((List<Locale>*)lParam)->Add(Locale(lpLocaleString));
-		return TRUE;
-	}
-
-	BOOL CALLBACK Locale_EnumDateFormatsProcExEx(
-		_In_  LPWSTR lpDateFormatString,
-		_In_  CALID CalendarID,
-		_In_  LPARAM lParam
-	)
-	{
-		((List<WString>*)lParam)->Add(lpDateFormatString);
-		return TRUE;
-	}
-
-	BOOL CALLBACK EnumTimeFormatsProcEx(
-		_In_  LPWSTR lpTimeFormatString,
-		_In_  LPARAM lParam
-	)
-	{
-		((List<WString>*)lParam)->Add(lpTimeFormatString);
-		return TRUE;
-	}
-
-	WString Transform(const WString& localeName, const WString& input, DWORD flag)
-	{
-		int length=LCMapStringEx(localeName.Buffer(), flag, input.Buffer(), (int)input.Length()+1, NULL, 0, NULL, NULL, NULL);
-		Array<wchar_t> buffer(length);
-		LCMapStringEx(localeName.Buffer(), flag, input.Buffer(), (int)input.Length()+1, &buffer[0], (int)buffer.Count(), NULL, NULL, NULL);
-		return &buffer[0];
-	}
-
-	DWORD TranslateNormalization(Locale::Normalization normalization)
-	{
-		DWORD result=0;
-		if(normalization&Locale::IgnoreCase) result|=NORM_IGNORECASE;
-		if(normalization&Locale::IgnoreCaseLinguistic) result|=NORM_IGNORECASE | NORM_LINGUISTIC_CASING;
-		if(normalization&Locale::IgnoreKanaType) result|=NORM_IGNOREKANATYPE;
-		if(normalization&Locale::IgnoreNonSpace) result|=NORM_IGNORENONSPACE;
-		if(normalization&Locale::IgnoreSymbol) result|=NORM_IGNORESYMBOLS;
-		if(normalization&Locale::IgnoreWidth) result|=NORM_IGNOREWIDTH;
-		if(normalization&Locale::DigitsAsNumbers) result|=SORT_DIGITSASNUMBERS;
-		if(normalization&Locale::StringSoft) result|=SORT_STRINGSORT;
-		return result;
-	}
-
-#endif
 
 /***********************************************************************
 Locale
@@ -1264,586 +449,9 @@ Locale
 	{
 	}
 
-	Locale::~Locale()
-	{
-	}
-
-	Locale Locale::Invariant()
-	{
-#if defined VCZH_MSVC
-		return Locale(LOCALE_NAME_INVARIANT);
-#elif defined VCZH_GCC
-		return Locale(L"");
-#endif
-	}
-
-	Locale Locale::SystemDefault()
-	{
-#if defined VCZH_MSVC
-		wchar_t buffer[LOCALE_NAME_MAX_LENGTH+1]={0};
-		GetSystemDefaultLocaleName(buffer, LOCALE_NAME_MAX_LENGTH);
-		return Locale(buffer);
-#elif defined VCZH_GCC
-		return Locale(L"en-US");
-#endif
-	}
-
-	Locale Locale::UserDefault()
-	{
-#if defined VCZH_MSVC
-		wchar_t buffer[LOCALE_NAME_MAX_LENGTH+1]={0};
-		GetUserDefaultLocaleName(buffer, LOCALE_NAME_MAX_LENGTH);
-		return Locale(buffer);
-#elif defined VCZH_GCC
-		return Locale(L"en-US");
-#endif
-	}
-
-	void Locale::Enumerate(collections::List<Locale>& locales)
-	{
-#if defined VCZH_MSVC
-		EnumSystemLocalesEx(&Locale_EnumLocalesProcEx, LOCALE_ALL, (LPARAM)&locales, NULL);
-#elif defined VCZH_GCC
-		locales.Add(Locale(L"en-US"));
-#endif
-	}
-
 	const WString& Locale::GetName()const
 	{
 		return localeName;
-	}
-
-	void Locale::GetShortDateFormats(collections::List<WString>& formats)const
-	{
-#if defined VCZH_MSVC
-		EnumDateFormatsExEx(&Locale_EnumDateFormatsProcExEx, localeName.Buffer(), DATE_SHORTDATE, (LPARAM)&formats);
-#elif defined VCZH_GCC
-		formats.Add(L"MM/dd/yyyy");
-		formats.Add(L"yyyy-MM-dd");
-#endif
-	}
-
-	void Locale::GetLongDateFormats(collections::List<WString>& formats)const
-	{
-#if defined VCZH_MSVC
-		EnumDateFormatsExEx(&Locale_EnumDateFormatsProcExEx, localeName.Buffer(), DATE_LONGDATE, (LPARAM)&formats);
-#elif defined VCZH_GCC
-		formats.Add(L"dddd, dd MMMM yyyy");
-#endif
-	}
-
-	void Locale::GetYearMonthDateFormats(collections::List<WString>& formats)const
-	{
-#if defined VCZH_MSVC
-		EnumDateFormatsExEx(&Locale_EnumDateFormatsProcExEx, localeName.Buffer(), DATE_YEARMONTH, (LPARAM)&formats);
-#elif defined VCZH_GCC
-		formats.Add(L"yyyy MMMM");
-#endif
-	}
-
-	void Locale::GetLongTimeFormats(collections::List<WString>& formats)const
-	{
-#if defined VCZH_MSVC
-		EnumTimeFormatsEx(&EnumTimeFormatsProcEx, localeName.Buffer(), 0, (LPARAM)&formats);
-#elif defined VCZH_GCC
-		formats.Add(L"HH:mm:ss");
-#endif
-	}
-
-	void Locale::GetShortTimeFormats(collections::List<WString>& formats)const
-	{
-#if defined VCZH_MSVC
-		EnumTimeFormatsEx(&EnumTimeFormatsProcEx, localeName.Buffer(), TIME_NOSECONDS, (LPARAM)&formats);
-#elif defined VCZH_GCC
-		formats.Add(L"HH:mm");
-		formats.Add(L"hh:mm tt");
-#endif
-	}
-
-	WString Locale::FormatDate(const WString& format, DateTime date)const
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME st=DateTimeToSystemTime(date);
-		int length=GetDateFormatEx(localeName.Buffer(), 0, &st, format.Buffer(), NULL, 0, NULL);
-		if(length==0) return L"";
-		Array<wchar_t> buffer(length);
-		GetDateFormatEx(localeName.Buffer(), 0, &st, format.Buffer(), &buffer[0], (int)buffer.Count(), NULL);
-		return &buffer[0];
-#elif defined VCZH_GCC
-		/*
-		auto df = L"yyyy,MM,MMM,MMMM,dd,ddd,dddd";
-		auto ds = L"2000,01,Jan,January,02,Sun,Sunday";
-		auto tf = L"hh,HH,mm,ss,tt";
-		auto ts = L"01,13,02,03,PM";
-		*/
-		WString result;
-		const wchar_t* reading = format.Buffer();
-
-		while (*reading)
-		{
-			if (wcsncmp(reading, L"yyyy", 4) == 0)
-			{
-				WString fragment = itow(date.year);
-				while (fragment.Length() < 4) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 4;
-			}
-			else if (wcsncmp(reading, L"MMMM", 4) == 0)
-			{
-				result += GetLongMonthName(date.month);
-				reading += 4;
-			}
-			else if (wcsncmp(reading, L"MMM", 3) == 0)
-			{
-				result += GetShortMonthName(date.month);
-				reading += 3;
-			}
-			else if (wcsncmp(reading, L"MM", 2) == 0)
-			{
-				WString fragment = itow(date.month);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"dddd", 4) == 0)
-			{
-				result += GetLongDayOfWeekName(date.dayOfWeek);
-				reading += 4;
-			}
-			else if (wcsncmp(reading, L"ddd", 3) == 0)
-			{
-				result += GetShortDayOfWeekName(date.dayOfWeek);
-				reading += 3;
-			}
-			else if (wcsncmp(reading, L"dd", 2) == 0)
-			{
-				WString fragment = itow(date.day);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"hh", 2) == 0)
-			{
-				WString fragment = itow(date.hour > 12 ? date.hour - 12 : date.hour);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"HH", 2) == 0)
-			{
-				WString fragment = itow(date.hour);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"mm", 2) == 0)
-			{
-				WString fragment = itow(date.minute);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"ss", 2) == 0)
-			{
-				WString fragment = itow(date.second);
-				while (fragment.Length() < 2) fragment = L"0" + fragment;
-				result += fragment;
-				reading += 2;
-			}
-			else if (wcsncmp(reading, L"tt", 2) == 0)
-			{
-				result += date.hour > 12 ? L"PM" : L"AM";
-				reading += 2;
-			}
-			else
-			{
-				result += *reading;
-				reading++;
-			}
-		}
-		return result;
-#endif
-	}
-
-	WString Locale::FormatTime(const WString& format, DateTime time)const
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME st=DateTimeToSystemTime(time);
-		int length=GetTimeFormatEx(localeName.Buffer(), 0, &st, format.Buffer(), NULL, 0);
-		if(length==0) return L"";
-		Array<wchar_t> buffer(length);
-		GetTimeFormatEx(localeName.Buffer(), 0, &st, format.Buffer(),&buffer[0], (int)buffer.Count());
-		return &buffer[0];
-#elif defined VCZH_GCC
-		return FormatDate(format, time);
-#endif
-	}
-
-	WString Locale::FormatNumber(const WString& number)const
-	{
-#ifdef VCZH_MSVC
-		int length=GetNumberFormatEx(localeName.Buffer(), 0, number.Buffer(), NULL, NULL, 0);
-		if(length==0) return L"";
-		Array<wchar_t> buffer(length);
-		GetNumberFormatEx(localeName.Buffer(), 0, number.Buffer(), NULL, &buffer[0], (int)buffer.Count());
-		return &buffer[0];
-#elif defined VCZH_GCC
-		return number;
-#endif
-	}
-
-	WString Locale::FormatCurrency(const WString& currency)const
-	{
-#ifdef VCZH_MSVC
-		int length=GetCurrencyFormatEx(localeName.Buffer(), 0, currency.Buffer(), NULL, NULL, 0);
-		if(length==0) return L"";
-		Array<wchar_t> buffer(length);
-		GetCurrencyFormatEx(localeName.Buffer(), 0, currency.Buffer(), NULL, &buffer[0], (int)buffer.Count());
-		return &buffer[0];
-#elif defined VCZH_GCC
-		return currency;
-#endif
-	}
-
-	WString Locale::GetShortDayOfWeekName(vint dayOfWeek)const
-	{
-#if defined VCZH_MSVC
-		return FormatDate(L"ddd", DateTime::FromDateTime(2000, 1, 2+dayOfWeek));
-#elif defined VCZH_GCC
-		switch(dayOfWeek)
-		{
-		case 0: return L"Sun";
-		case 1: return L"Mon";
-		case 2:	return L"Tue";
-		case 3:	return L"Wed";
-		case 4:	return L"Thu";
-		case 5:	return L"Fri";
-		case 6:	return L"Sat";
-		}
-		return L"";
-#endif
-	}
-
-	WString Locale::GetLongDayOfWeekName(vint dayOfWeek)const
-	{
-#if defined VCZH_MSVC
-		return FormatDate(L"dddd", DateTime::FromDateTime(2000, 1, 2+dayOfWeek));
-#elif defined VCZH_GCC
-		switch(dayOfWeek)
-		{
-		case 0: return L"Sunday";
-		case 1: return L"Monday";
-		case 2:	return L"Tuesday";
-		case 3:	return L"Wednesday";
-		case 4:	return L"Thursday";
-		case 5:	return L"Friday";
-		case 6:	return L"Saturday";
-		}
-		return L"";
-#endif
-	}
-
-	WString Locale::GetShortMonthName(vint month)const
-	{
-#if defined VCZH_MSVC
-		return FormatDate(L"MMM", DateTime::FromDateTime(2000, month, 1));
-#elif defined VCZH_GCC
-		switch(month)
-		{
-		case 1: return L"Jan";
-		case 2: return L"Feb";
-		case 3: return L"Mar";
-		case 4: return L"Apr";
-		case 5: return L"May";
-		case 6: return L"Jun";
-		case 7: return L"Jul";
-		case 8: return L"Aug";
-		case 9: return L"Sep";
-		case 10: return L"Oct";
-		case 11: return L"Nov";
-		case 12: return L"Dec";
-		}
-		return L"";
-#endif
-	}
-
-	WString Locale::GetLongMonthName(vint month)const
-	{
-#if defined VCZH_MSVC
-		return FormatDate(L"MMMM", DateTime::FromDateTime(2000, month, 1));
-#elif defined VCZH_GCC
-		switch(month)
-		{
-		case 1: return L"January";
-		case 2: return L"February";
-		case 3: return L"March";
-		case 4: return L"April";
-		case 5: return L"May";
-		case 6: return L"June";
-		case 7: return L"July";
-		case 8: return L"August";
-		case 9: return L"September";
-		case 10: return L"October";
-		case 11: return L"November";
-		case 12: return L"December";
-		}
-		return L"";
-#endif
-	}
-
-#ifdef VCZH_MSVC
-	WString Locale::ToFullWidth(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_FULLWIDTH);
-	}
-
-	WString Locale::ToHalfWidth(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_HALFWIDTH);
-	}
-
-	WString Locale::ToHiragana(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_HIRAGANA);
-	}
-
-	WString Locale::ToKatagana(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_KATAKANA);
-	}
-#endif
-
-	WString Locale::ToLower(const WString& str)const
-	{
-#if defined VCZH_MSVC
-		return Transform(localeName, str, LCMAP_LOWERCASE);
-#elif defined VCZH_GCC
-		return wlower(str);
-#endif
-	}
-
-	WString Locale::ToUpper(const WString& str)const
-	{
-#if defined VCZH_MSVC
-		return Transform(localeName, str, LCMAP_UPPERCASE);
-#elif defined VCZH_GCC
-		return wupper(str);
-#endif
-	}
-
-	WString Locale::ToLinguisticLower(const WString& str)const
-	{
-#if defined VCZH_MSVC
-		return Transform(localeName, str, LCMAP_LOWERCASE | LCMAP_LINGUISTIC_CASING);
-#elif defined VCZH_GCC
-		return wlower(str);
-#endif
-	}
-
-	WString Locale::ToLinguisticUpper(const WString& str)const
-	{
-#if defined VCZH_MSVC
-		return Transform(localeName, str, LCMAP_UPPERCASE | LCMAP_LINGUISTIC_CASING);
-#elif defined VCZH_GCC
-		return wupper(str);
-#endif
-	}
-
-#ifdef VCZH_MSVC
-	WString Locale::ToSimplifiedChinese(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_SIMPLIFIED_CHINESE);
-	}
-
-	WString Locale::ToTraditionalChinese(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_TRADITIONAL_CHINESE);
-	}
-
-	WString Locale::ToTileCase(const WString& str)const
-	{
-		return Transform(localeName, str, LCMAP_TITLECASE);
-	}
-#endif
-
-	vint Locale::Compare(const WString& s1, const WString& s2, Normalization normalization)const
-	{
-#if defined VCZH_MSVC
-		switch(CompareStringEx(localeName.Buffer(), TranslateNormalization(normalization), s1.Buffer(), (int)s1.Length(), s2.Buffer(), (int)s2.Length(), NULL, NULL, NULL))
-		{
-		case CSTR_LESS_THAN: return -1;
-		case CSTR_GREATER_THAN: return 1;
-		default: return 0;
-		}
-#elif defined VCZH_GCC
-		switch(normalization)
-		{
-			case Normalization::None:
-				return wcscmp(s1.Buffer(), s2.Buffer());
-			case Normalization::IgnoreCase:
-				return wcscasecmp(s1.Buffer(), s2.Buffer());
-		}
-#endif
-	}
-
-	vint Locale::CompareOrdinal(const WString& s1, const WString& s2)const
-	{
-#if defined VCZH_MSVC
-		switch(CompareStringOrdinal(s1.Buffer(), (int)s1.Length(), s2.Buffer(), (int)s2.Length(), FALSE))
-		{
-		case CSTR_LESS_THAN: return -1;
-		case CSTR_GREATER_THAN: return 1;
-		default: return 0;
-		}
-#elif defined VCZH_GCC
-		return wcscmp(s1.Buffer(), s2.Buffer());
-#endif
-	}
-
-	vint Locale::CompareOrdinalIgnoreCase(const WString& s1, const WString& s2)const
-	{
-#if defined VCZH_MSVC
-		switch(CompareStringOrdinal(s1.Buffer(), (int)s1.Length(), s2.Buffer(), (int)s2.Length(), TRUE))
-		{
-		case CSTR_LESS_THAN: return -1;
-		case CSTR_GREATER_THAN: return 1;
-		default: return 0;
-		}
-#elif defined VCZH_GCC
-		return wcscasecmp(s1.Buffer(), s2.Buffer());
-#endif
-	}
-
-	collections::Pair<vint, vint> Locale::FindFirst(const WString& text, const WString& find, Normalization normalization)const
-	{
-#if defined VCZH_MSVC
-		int length=0;
-		int result=FindNLSStringEx(localeName.Buffer(), FIND_FROMSTART | TranslateNormalization(normalization), text.Buffer(), (int)text.Length(), find.Buffer(), (int)find.Length(), &length, NULL, NULL, NULL);
-		return result==-1?Pair<vint, vint>(-1, 0):Pair<vint, vint>(result, length);
-#elif defined VCZH_GCC
-		if(text.Length() < find.Length() || find.Length() == 0)
-		{
-			return Pair<vint, vint>(-1, 0);
-		}
-		const wchar_t* result = 0;
-		switch(normalization)
-		{
-			case Normalization::None:
-				{
-					const wchar_t* reading = text.Buffer();
-					while(*reading)
-					{
-						if (wcsncmp(reading, find.Buffer(), find.Length())==0)
-						{
-							result = reading;
-							break;
-						}
-						reading++;
-					}
-				}
-				break;
-			case Normalization::IgnoreCase:
-				{
-					const wchar_t* reading = text.Buffer();
-					while(*reading)
-					{
-						if (wcsncasecmp(reading, find.Buffer(), find.Length())==0)
-						{
-							result = reading;
-							break;
-						}
-						reading++;
-					}
-				}
-				break;
-		}
-		return result == nullptr ? Pair<vint, vint>(-1, 0) : Pair<vint, vint>(result - text.Buffer(), find.Length());
-#endif
-	}
-
-	collections::Pair<vint, vint> Locale::FindLast(const WString& text, const WString& find, Normalization normalization)const
-	{
-#if defined VCZH_MSVC
-		int length=0;
-		int result=FindNLSStringEx(localeName.Buffer(), FIND_FROMEND | TranslateNormalization(normalization), text.Buffer(), (int)text.Length(), find.Buffer(), (int)find.Length(), &length, NULL, NULL, NULL);
-		return result==-1?Pair<vint, vint>(-1, 0):Pair<vint, vint>(result, length);
-#elif defined VCZH_GCC
-		if(text.Length() < find.Length() || find.Length() == 0)
-		{
-			return Pair<vint, vint>(-1, 0);
-		}
-		const wchar_t* result = 0;
-		switch(normalization)
-		{
-			case Normalization::None:
-				{
-					const wchar_t* reading = text.Buffer();
-					while(*reading)
-					{
-						if (wcsncmp(reading, find.Buffer(), find.Length())==0)
-						{
-							result = reading;
-						}
-						reading++;
-					}
-				}
-				break;
-			case Normalization::IgnoreCase:
-				{
-					const wchar_t* reading = text.Buffer();
-					while(*reading)
-					{
-						if (wcsncasecmp(reading, find.Buffer(), find.Length())==0)
-						{
-							result = reading;
-						}
-						reading++;
-					}
-				}
-				break;
-		}
-		return result == nullptr ? Pair<vint, vint>(-1, 0) : Pair<vint, vint>(result - text.Buffer(), find.Length());
-#endif
-	}
-
-	bool Locale::StartsWith(const WString& text, const WString& find, Normalization normalization)const
-	{
-#if defined VCZH_MSVC
-		int result=FindNLSStringEx(localeName.Buffer(), FIND_STARTSWITH | TranslateNormalization(normalization), text.Buffer(), (int)text.Length(), find.Buffer(), (int)find.Length(), NULL, NULL, NULL, NULL);
-		return result!=-1;
-#elif defined VCZH_GCC
-		if(text.Length() < find.Length() || find.Length() == 0)
-		{
-			return false;
-		}
-		switch(normalization)
-		{
-			case Normalization::None:
-				return wcsncmp(text.Buffer(), find.Buffer(), find.Length()) == 0;
-			case Normalization::IgnoreCase:
-				return wcsncasecmp(text.Buffer(), find.Buffer(), find.Length()) == 0;
-		}
-#endif
-	}
-
-	bool Locale::EndsWith(const WString& text, const WString& find, Normalization normalization)const
-	{
-#if defined VCZH_MSVC
-		int result=FindNLSStringEx(localeName.Buffer(), FIND_ENDSWITH | TranslateNormalization(normalization), text.Buffer(), (int)text.Length(), find.Buffer(), (int)find.Length(), NULL, NULL, NULL, NULL);
-		return result!=-1;
-#elif defined VCZH_GCC
-		if(text.Length() < find.Length() || find.Length() == 0)
-		{
-			return false;
-		}
-		switch(normalization)
-		{
-			case Normalization::None:
-				return wcsncmp(text.Buffer() + text.Length() - find.Length(), find.Buffer(), find.Length()) == 0;
-			case Normalization::IgnoreCase:
-				return wcsncasecmp(text.Buffer() + text.Length() - find.Length(), find.Buffer(), find.Length()) == 0;
-		}
-#endif
 	}
 }
 
@@ -1851,836 +459,19 @@ Locale
 /***********************************************************************
 .\THREADING.CPP
 ***********************************************************************/
-#ifdef VCZH_MSVC
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+#if defined VCZH_ARM
+#elif defined VCZH_MSVC || defined VCZH_GCC
+#include <emmintrin.h>
+#endif
 
 namespace vl
 {
-	using namespace threading_internal;
-	using namespace collections;
-
-/***********************************************************************
-WaitableObject
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct WaitableData
-		{
-			HANDLE			handle;
-
-			WaitableData(HANDLE _handle)
-				:handle(_handle)
-			{
-			}
-		};
-	}
-
-	WaitableObject::WaitableObject()
-		:waitableData(0)
-	{
-	}
-
-	void WaitableObject::SetData(threading_internal::WaitableData* data)
-	{
-		waitableData=data;
-	}
-
-	bool WaitableObject::IsCreated()
-	{
-		return waitableData!=0;
-	}
-
-	bool WaitableObject::Wait()
-	{
-		return WaitForTime(INFINITE);
-	}
-
-	bool WaitableObject::WaitForTime(vint ms)
-	{
-		if(IsCreated())
-		{
-			if(WaitForSingleObject(waitableData->handle, (DWORD)ms)==WAIT_OBJECT_0)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	bool WaitableObject::WaitAll(WaitableObject** objects, vint count)
-	{
-		Array<HANDLE> handles(count);
-		for(vint i=0;i<count;i++)
-		{
-			handles[i]=objects[i]->waitableData->handle;
-		}
-		DWORD result=WaitForMultipleObjects((DWORD)count, &handles[0], TRUE, INFINITE);
-		return result==WAIT_OBJECT_0 || result==WAIT_ABANDONED_0;
-
-	}
-
-	bool WaitableObject::WaitAllForTime(WaitableObject** objects, vint count, vint ms)
-	{
-		Array<HANDLE> handles(count);
-		for(vint i=0;i<count;i++)
-		{
-			handles[i]=objects[i]->waitableData->handle;
-		}
-		DWORD result=WaitForMultipleObjects((DWORD)count, &handles[0], TRUE, (DWORD)ms);
-		return result==WAIT_OBJECT_0 || result==WAIT_ABANDONED_0;
-	}
-
-	vint WaitableObject::WaitAny(WaitableObject** objects, vint count, bool* abandoned)
-	{
-		Array<HANDLE> handles(count);
-		for(vint i=0;i<count;i++)
-		{
-			handles[i]=objects[i]->waitableData->handle;
-		}
-		DWORD result=WaitForMultipleObjects((DWORD)count, &handles[0], FALSE, INFINITE);
-		if(WAIT_OBJECT_0 <= result && result<WAIT_OBJECT_0+count)
-		{
-			*abandoned=false;
-			return result-WAIT_OBJECT_0;
-		}
-		else if(WAIT_ABANDONED_0 <= result && result<WAIT_ABANDONED_0+count)
-		{
-			*abandoned=true;
-			return result-WAIT_ABANDONED_0;
-		}
-		else
-		{
-			return -1;
-		}
-	}
-
-	vint WaitableObject::WaitAnyForTime(WaitableObject** objects, vint count, vint ms, bool* abandoned)
-	{
-		Array<HANDLE> handles(count);
-		for(vint i=0;i<count;i++)
-		{
-			handles[i]=objects[i]->waitableData->handle;
-		}
-		DWORD result=WaitForMultipleObjects((DWORD)count, &handles[0], FALSE, (DWORD)ms);
-		if(WAIT_OBJECT_0 <= result && result<WAIT_OBJECT_0+count)
-		{
-			*abandoned=false;
-			return result-WAIT_OBJECT_0;
-		}
-		else if(WAIT_ABANDONED_0 <= result && result<WAIT_ABANDONED_0+count)
-		{
-			*abandoned=true;
-			return result-WAIT_ABANDONED_0;
-		}
-		else
-		{
-			return -1;
-		}
-	}
-
-/***********************************************************************
-Thread
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ThreadData : public WaitableData
-		{
-			DWORD						id;
-
-			ThreadData()
-				:WaitableData(NULL)
-			{
-				id=-1;
-			}
-		};
-
-		class ProceduredThread : public Thread
-		{
-		private:
-			Thread::ThreadProcedure		procedure;
-			void*						argument;
-			bool						deleteAfterStopped;
-
-		protected:
-			void Run()
-			{
-				bool deleteAfterStopped = this->deleteAfterStopped;
-				ThreadLocalStorage::FixStorages();
-				try
-				{
-					procedure(this, argument);
-					threadState=Thread::Stopped;
-					ThreadLocalStorage::ClearStorages();
-				}
-				catch (...)
-				{
-					ThreadLocalStorage::ClearStorages();
-					throw;
-				}
-				if(deleteAfterStopped)
-				{
-					delete this;
-				}
-			}
-		public:
-			ProceduredThread(Thread::ThreadProcedure _procedure, void* _argument, bool _deleteAfterStopped)
-				:procedure(_procedure)
-				,argument(_argument)
-				,deleteAfterStopped(_deleteAfterStopped)
-			{
-			}
-		};
-
-		class LambdaThread : public Thread
-		{
-		private:
-			Func<void()>				procedure;
-			bool						deleteAfterStopped;
-
-		protected:
-			void Run()
-			{
-				bool deleteAfterStopped = this->deleteAfterStopped;
-				ThreadLocalStorage::FixStorages();
-				try
-				{
-					procedure();
-					threadState=Thread::Stopped;
-					ThreadLocalStorage::ClearStorages();
-				}
-				catch (...)
-				{
-					ThreadLocalStorage::ClearStorages();
-					throw;
-				}
-				if(deleteAfterStopped)
-				{
-					delete this;
-				}
-			}
-		public:
-			LambdaThread(const Func<void()>& _procedure, bool _deleteAfterStopped)
-				:procedure(_procedure)
-				,deleteAfterStopped(_deleteAfterStopped)
-			{
-			}
-		};
-	}
-
-	void InternalThreadProc(Thread* thread)
-	{
-		thread->Run();
-	}
-
-	DWORD WINAPI InternalThreadProcWrapper(LPVOID lpParameter)
-	{
-		InternalThreadProc((Thread*)lpParameter);
-		return 0;
-	}
-
-	Thread::Thread()
-	{
-		internalData=new ThreadData;
-		internalData->handle=CreateThread(NULL, 0, InternalThreadProcWrapper, this, CREATE_SUSPENDED, &internalData->id);
-		threadState=Thread::NotStarted;
-		SetData(internalData);
-	}
-
-	Thread::~Thread()
-	{
-		if (internalData)
-		{
-			Stop();
-			CloseHandle(internalData->handle);
-			delete internalData;
-		}
-	}
-
-	Thread* Thread::CreateAndStart(ThreadProcedure procedure, void* argument, bool deleteAfterStopped)
-	{
-		if(procedure)
-		{
-			Thread* thread=new ProceduredThread(procedure, argument, deleteAfterStopped);
-			if(thread->Start())
-			{
-				return thread;
-			}
-			else
-			{
-				delete thread;
-			}
-		}
-		return 0;
-	}
-
-	Thread* Thread::CreateAndStart(const Func<void()>& procedure, bool deleteAfterStopped)
-	{
-		Thread* thread=new LambdaThread(procedure, deleteAfterStopped);
-		if(thread->Start())
-		{
-			return thread;
-		}
-		else
-		{
-			delete thread;
-		}
-		return 0;
-	}
-
-	void Thread::Sleep(vint ms)
-	{
-		::Sleep((DWORD)ms);
-	}
-
-	
-	vint Thread::GetCPUCount()
-	{
-		SYSTEM_INFO info;
-		GetSystemInfo(&info);
-		return info.dwNumberOfProcessors;
-	}
-
-	vint Thread::GetCurrentThreadId()
-	{
-		return (vint)::GetCurrentThreadId();
-	}
-
-	bool Thread::Start()
-	{
-		if(threadState==Thread::NotStarted && internalData->handle!=NULL)
-		{
-			if(ResumeThread(internalData->handle)!=-1)
-			{
-				threadState=Thread::Running;
-				return true;
-			}
-		}
-		return false;
-	}
-
-	bool Thread::Stop()
-	{
-		if(internalData->handle!=NULL)
-		{
-			if (SuspendThread(internalData->handle) != -1)
-			{
-				threadState=Thread::Stopped;
-				return true;
-			}
-		}
-		return false;
-	}
-
-	Thread::ThreadState Thread::GetState()
-	{
-		return threadState;
-	}
-
-	void Thread::SetCPU(vint index)
-	{
-		SetThreadAffinityMask(internalData->handle, ((vint)1 << index));
-	}
-
-/***********************************************************************
-Mutex
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct MutexData : public WaitableData
-		{
-			MutexData(HANDLE _handle)
-				:WaitableData(_handle)
-			{
-			}
-		};
-	}
-
-	Mutex::Mutex()
-		:internalData(0)
-	{
-	}
-
-	Mutex::~Mutex()
-	{
-		if(internalData)
-		{
-			CloseHandle(internalData->handle);
-			delete internalData;
-		}
-	}
-
-	bool Mutex::Create(bool owned, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aOwned=owned?TRUE:FALSE;
-		LPCTSTR aName=name==L""?NULL:name.Buffer();
-		HANDLE handle=CreateMutex(NULL, aOwned, aName);
-		if(handle)
-		{
-			internalData=new MutexData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool Mutex::Open(bool inheritable, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aInteritable=inheritable?TRUE:FALSE;
-		HANDLE handle=OpenMutex(SYNCHRONIZE, aInteritable, name.Buffer());
-		if(handle)
-		{
-			internalData=new MutexData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool Mutex::Release()
-	{
-		if(IsCreated())
-		{
-			return ReleaseMutex(internalData->handle)!=0;
-		}
-		return false;
-	}
-
-/***********************************************************************
-Semaphore
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct SemaphoreData : public WaitableData
-		{
-			SemaphoreData(HANDLE _handle)
-				:WaitableData(_handle)
-			{
-			}
-		};
-	}
-
-	Semaphore::Semaphore()
-		:internalData(0)
-	{
-	}
-
-	Semaphore::~Semaphore()
-	{
-		if(internalData)
-		{
-			CloseHandle(internalData->handle);
-			delete internalData;
-		}
-	}
-
-	bool Semaphore::Create(vint initialCount, vint maxCount, const WString& name)
-	{
-		if(IsCreated())return false;
-		LONG aInitial=(LONG)initialCount;
-		LONG aMax=(LONG)maxCount;
-		LPCTSTR aName=name==L""?NULL:name.Buffer();
-		HANDLE handle=CreateSemaphore(NULL, aInitial, aMax, aName);
-		if(handle)
-		{
-			internalData=new SemaphoreData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool Semaphore::Open(bool inheritable, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aInteritable=inheritable?TRUE:FALSE;
-		HANDLE handle=OpenSemaphore(SYNCHRONIZE, aInteritable, name.Buffer());
-		if(handle)
-		{
-			internalData=new SemaphoreData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool Semaphore::Release()
-	{
-		if(IsCreated())
-		{
-			return Release(1)!=-1;
-		}
-		return false;
-	}
-
-	vint Semaphore::Release(vint count)
-	{
-		if(IsCreated())
-		{
-			LONG previous=-1;
-			if(ReleaseSemaphore(internalData->handle, (LONG)count, &previous)!=0)
-			{
-				return (vint)previous;
-			}
-		}
-		return -1;
-	}
-
-/***********************************************************************
-EventObject
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct EventData : public WaitableData
-		{
-			EventData(HANDLE _handle)
-				:WaitableData(_handle)
-			{
-			}
-		};
-	}
-
-	EventObject::EventObject()
-		:internalData(0)
-	{
-	}
-
-	EventObject::~EventObject()
-	{
-		if(internalData)
-		{
-			CloseHandle(internalData->handle);
-			delete internalData;
-		}
-	}
-
-	bool EventObject::CreateAutoUnsignal(bool signaled, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aSignaled=signaled?TRUE:FALSE;
-		LPCTSTR aName=name==L""?NULL:name.Buffer();
-		HANDLE handle=CreateEvent(NULL, FALSE, aSignaled, aName);
-		if(handle)
-		{
-			internalData=new EventData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool EventObject::CreateManualUnsignal(bool signaled, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aSignaled=signaled?TRUE:FALSE;
-		LPCTSTR aName=name==L""?NULL:name.Buffer();
-		HANDLE handle=CreateEvent(NULL, TRUE, aSignaled, aName);
-		if(handle)
-		{
-			internalData=new EventData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool EventObject::Open(bool inheritable, const WString& name)
-	{
-		if(IsCreated())return false;
-		BOOL aInteritable=inheritable?TRUE:FALSE;
-		HANDLE handle=OpenEvent(SYNCHRONIZE, aInteritable, name.Buffer());
-		if(handle)
-		{
-			internalData=new EventData(handle);
-			SetData(internalData);
-		}
-		return IsCreated();
-	}
-
-	bool EventObject::Signal()
-	{
-		if(IsCreated())
-		{
-			return SetEvent(internalData->handle)!=0;
-		}
-		return false;
-	}
-
-	bool EventObject::Unsignal()
-	{
-		if(IsCreated())
-		{
-			return ResetEvent(internalData->handle)!=0;
-		}
-		return false;
-	}
-
-/***********************************************************************
-ThreadPoolLite
-***********************************************************************/
-
-		struct ThreadPoolQueueProcArgument
-		{
-			void(*proc)(void*);
-			void* argument;
-		};
-
-		DWORD WINAPI ThreadPoolQueueProc(void* argument)
-		{
-			Ptr<ThreadPoolQueueProcArgument> proc=(ThreadPoolQueueProcArgument*)argument;
-			ThreadLocalStorage::FixStorages();
-			try
-			{
-				proc->proc(proc->argument);
-				ThreadLocalStorage::ClearStorages();
-			}
-			catch (...)
-			{
-				ThreadLocalStorage::ClearStorages();
-			}
-			return 0;
-		}
-
-		DWORD WINAPI ThreadPoolQueueFunc(void* argument)
-		{
-			Ptr<Func<void()>> proc=(Func<void()>*)argument;
-			ThreadLocalStorage::FixStorages();
-			try
-			{
-				(*proc.Obj())();
-				ThreadLocalStorage::ClearStorages();
-			}
-			catch (...)
-			{
-				ThreadLocalStorage::ClearStorages();
-			}
-			return 0;
-		}
-
-		ThreadPoolLite::ThreadPoolLite()
-		{
-		}
-
-		ThreadPoolLite::~ThreadPoolLite()
-		{
-		}
-
-		bool ThreadPoolLite::Queue(void(*proc)(void*), void* argument)
-		{
-			ThreadPoolQueueProcArgument* p=new ThreadPoolQueueProcArgument;
-			p->proc=proc;
-			p->argument=argument;
-			if(QueueUserWorkItem(&ThreadPoolQueueProc, p, WT_EXECUTEDEFAULT))
-			{
-				return true;
-			}
-			else
-			{
-				delete p;
-				return false;
-			}
-		}
-
-		bool ThreadPoolLite::Queue(const Func<void()>& proc)
-		{
-			Func<void()>* p=new Func<void()>(proc);
-			if(QueueUserWorkItem(&ThreadPoolQueueFunc, p, WT_EXECUTEDEFAULT))
-			{
-				return true;
-			}
-			else
-			{
-				delete p;
-				return false;
-			}
-		}
-
-/***********************************************************************
-CriticalSection
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct CriticalSectionData
-		{
-			CRITICAL_SECTION		criticalSection;
-		};
-	}
-
-	CriticalSection::Scope::Scope(CriticalSection& _criticalSection)
-		:criticalSection(&_criticalSection)
-	{
-		criticalSection->Enter();
-	}
-
-	CriticalSection::Scope::~Scope()
-	{
-		criticalSection->Leave();
-	}
-			
-	CriticalSection::CriticalSection()
-	{
-		internalData=new CriticalSectionData;
-		InitializeCriticalSection(&internalData->criticalSection);
-	}
-
-	CriticalSection::~CriticalSection()
-	{
-		DeleteCriticalSection(&internalData->criticalSection);
-		delete internalData;
-	}
-
-	bool CriticalSection::TryEnter()
-	{
-		return TryEnterCriticalSection(&internalData->criticalSection)!=0;
-	}
-
-	void CriticalSection::Enter()
-	{
-		EnterCriticalSection(&internalData->criticalSection);
-	}
-
-	void CriticalSection::Leave()
-	{
-		LeaveCriticalSection(&internalData->criticalSection);
-	}
-
-/***********************************************************************
-ReaderWriterLock
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ReaderWriterLockData
-		{
-			SRWLOCK			lock;
-		};
-	}
-
-	ReaderWriterLock::ReaderScope::ReaderScope(ReaderWriterLock& _lock)
-		:lock(&_lock)
-	{
-		lock->EnterReader();
-	}
-
-	ReaderWriterLock::ReaderScope::~ReaderScope()
-	{
-		lock->LeaveReader();
-	}
-
-	ReaderWriterLock::WriterScope::WriterScope(ReaderWriterLock& _lock)
-		:lock(&_lock)
-	{
-		lock->EnterWriter();
-	}
-
-	ReaderWriterLock::WriterScope::~WriterScope()
-	{
-		lock->LeaveWriter();
-	}
-
-	ReaderWriterLock::ReaderWriterLock()
-		:internalData(new threading_internal::ReaderWriterLockData)
-	{
-		InitializeSRWLock(&internalData->lock);
-	}
-
-	ReaderWriterLock::~ReaderWriterLock()
-	{
-		delete internalData;
-	}
-
-	bool ReaderWriterLock::TryEnterReader()
-	{
-		return TryAcquireSRWLockShared(&internalData->lock)!=0;
-	}
-
-	void ReaderWriterLock::EnterReader()
-	{
-		AcquireSRWLockShared(&internalData->lock);
-	}
-
-	void ReaderWriterLock::LeaveReader()
-	{
-		ReleaseSRWLockShared(&internalData->lock);
-	}
-
-	bool ReaderWriterLock::TryEnterWriter()
-	{
-		return TryAcquireSRWLockExclusive(&internalData->lock)!=0;
-	}
-
-	void ReaderWriterLock::EnterWriter()
-	{
-		AcquireSRWLockExclusive(&internalData->lock);
-	}
-
-	void ReaderWriterLock::LeaveWriter()
-	{
-		ReleaseSRWLockExclusive(&internalData->lock);
-	}
-
-/***********************************************************************
-ConditionVariable
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ConditionVariableData
-		{
-			CONDITION_VARIABLE			variable;
-		};
-	}
-
-	ConditionVariable::ConditionVariable()
-		:internalData(new threading_internal::ConditionVariableData)
-	{
-		InitializeConditionVariable(&internalData->variable);
-	}
-
-	ConditionVariable::~ConditionVariable()
-	{
-		delete internalData;
-	}
-
-	bool ConditionVariable::SleepWith(CriticalSection& cs)
-	{
-		return SleepConditionVariableCS(&internalData->variable, &cs.internalData->criticalSection, INFINITE)!=0;
-	}
-
-	bool ConditionVariable::SleepWithForTime(CriticalSection& cs, vint ms)
-	{
-		return SleepConditionVariableCS(&internalData->variable, &cs.internalData->criticalSection, (DWORD)ms)!=0;
-	}
-
-	bool ConditionVariable::SleepWithReader(ReaderWriterLock& lock)
-	{
-		return SleepConditionVariableSRW(&internalData->variable, &lock.internalData->lock, INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED)!=0;
-	}
-
-	bool ConditionVariable::SleepWithReaderForTime(ReaderWriterLock& lock, vint ms)
-	{
-		return SleepConditionVariableSRW(&internalData->variable, &lock.internalData->lock, (DWORD)ms, CONDITION_VARIABLE_LOCKMODE_SHARED)!=0;
-	}
-
-	bool ConditionVariable::SleepWithWriter(ReaderWriterLock& lock)
-	{
-		return SleepConditionVariableSRW(&internalData->variable, &lock.internalData->lock, INFINITE, 0)!=0;
-	}
-
-	bool ConditionVariable::SleepWithWriterForTime(ReaderWriterLock& lock, vint ms)
-	{
-		return SleepConditionVariableSRW(&internalData->variable, &lock.internalData->lock, (DWORD)ms, 0)!=0;
-	}
-
-	void ConditionVariable::WakeOnePending()
-	{
-		WakeConditionVariable(&internalData->variable);
-	}
-
-	void ConditionVariable::WakeAllPendings()
-	{
-		WakeAllConditionVariable(&internalData->variable);
-	}
 
 /***********************************************************************
 SpinLock
@@ -2696,76 +487,37 @@ SpinLock
 	{
 		spinLock->Leave();
 	}
-			
-	SpinLock::SpinLock()
-		:token(0)
-	{
-	}
-
-	SpinLock::~SpinLock()
-	{
-	}
 
 	bool SpinLock::TryEnter()
 	{
-		return _InterlockedExchange(&token, 1)==0;
+		return token.exchange(1) == 0;
 	}
 
 	void SpinLock::Enter()
 	{
-		while(_InterlockedCompareExchange(&token, 1, 0)!=0)
+		vint expected = 0;
+		while (!token.compare_exchange_strong(expected, 1))
 		{
-			while(token!=0) _mm_pause();
+			while (token != 0)
+			{
+#ifdef VCZH_ARM
+				__yield();
+#else
+				_mm_pause();
+#endif
+			}
 		}
 	}
 
 	void SpinLock::Leave()
 	{
-		_InterlockedExchange(&token, 0);
+		token.exchange(0);
 	}
 
 /***********************************************************************
 ThreadLocalStorage
 ***********************************************************************/
 
-#define KEY ((DWORD&)key)
-
-	ThreadLocalStorage::ThreadLocalStorage(Destructor _destructor)
-		:destructor(_destructor)
-	{
-		static_assert(sizeof(key) >= sizeof(DWORD), "ThreadLocalStorage's key storage is not large enouth.");
-		PushStorage(this);
-		KEY = TlsAlloc();
-		CHECK_ERROR(KEY != TLS_OUT_OF_INDEXES, L"vl::ThreadLocalStorage::ThreadLocalStorage()#Failed to alloc new thread local storage index.");
-	}
-
-	ThreadLocalStorage::~ThreadLocalStorage()
-	{
-		TlsFree(KEY);
-	}
-
-	void* ThreadLocalStorage::Get()
-	{
-		CHECK_ERROR(!disposed, L"vl::ThreadLocalStorage::Get()#Cannot access a disposed ThreadLocalStorage.");
-		return TlsGetValue(KEY);
-	}
-
-	void ThreadLocalStorage::Set(void* data)
-	{
-		CHECK_ERROR(!disposed, L"vl::ThreadLocalStorage::Set()#Cannot access a disposed ThreadLocalStorage.");
-		TlsSetValue(KEY, data);
-	}
-
-#undef KEY
-}
-#endif
-
-/***********************************************************************
-ThreadLocalStorage Common Implementations
-***********************************************************************/
-
-namespace vl
-{
 	void ThreadLocalStorage::Clear()
 	{
 		CHECK_ERROR(!disposed, L"vl::ThreadLocalStorage::Clear()#Cannot access a disposed ThreadLocalStorage.");
@@ -2840,925 +592,1545 @@ namespace vl
 
 
 /***********************************************************************
-.\THREADINGLINUX.CPP
+.\ENCODING\BASE64ENCODING.CPP
 ***********************************************************************/
-#ifdef VCZH_GCC
-#include <pthread.h>
-#include <fcntl.h>
-#include <semaphore.h>
-#include <errno.h>
-#if defined(__APPLE__) || defined(__APPLE_CC__)
-#include <CoreFoundation/CoreFoundation.h>
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
-	using namespace threading_internal;
-	using namespace collections;
+	namespace stream
+	{
+		const char8_t Utf8Base64Codes[] = u8"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/***********************************************************************
+Utf8Base64Encoder
+***********************************************************************/
+
+		void Utf8Base64Encoder::WriteBytesToCharArray(uint8_t* fromBytes, char8_t(&toChars)[Base64CycleChars], vint bytes)
+		{
+			switch (bytes)
+			{
+			case 1:
+				{
+					toChars[0] = Utf8Base64Codes[fromBytes[0] >> 2];
+					toChars[1] = Utf8Base64Codes[(fromBytes[0] % (1 << 2)) << 4];
+					toChars[2] = u8'=';
+					toChars[3] = u8'=';
+				}
+				break;
+			case 2:
+				{
+					toChars[0] = Utf8Base64Codes[fromBytes[0] >> 2];
+					toChars[1] = Utf8Base64Codes[((fromBytes[0] % (1 << 2)) << 4) | (fromBytes[1] >> 4)];
+					toChars[2] = Utf8Base64Codes[(fromBytes[1] % (1 << 4)) << 2];
+					toChars[3] = u8'=';
+				}
+				break;
+			case 3:
+				{
+					toChars[0] = Utf8Base64Codes[fromBytes[0] >> 2];
+					toChars[1] = Utf8Base64Codes[((fromBytes[0] % (1 << 2)) << 4) | (fromBytes[1] >> 4)];
+					toChars[2] = Utf8Base64Codes[((fromBytes[1] % (1 << 4)) << 2) | (fromBytes[2] >> 6)];
+					toChars[3] = Utf8Base64Codes[fromBytes[2] % (1 << 6)];
+				}
+				break;
+			default:
+				CHECK_FAIL(L"vl::stream::Utf8Base64Encoder::WriteBytesToCharArray(uint8_t*, char8_t(&)[Base64CycleChars], vint)#Parameter bytes should be 1, 2 or 3.");
+			}
+		}
+
+		bool Utf8Base64Encoder::WriteCycle(uint8_t*& reading, vint& _size)
+		{
+			if (_size <= 0) return false;
+			vint bytes = _size < Base64CycleBytes ? _size : Base64CycleBytes;
+
+			char8_t chars[Base64CycleChars];
+			WriteBytesToCharArray(reading, chars, bytes);
+			vint writtenBytes = stream->Write(chars, Base64CycleChars);
+			CHECK_ERROR(writtenBytes == Base64CycleChars, L"vl::stream::Utf8Base64Encoder::WriteCycle(uint8_t*&, vint&)#The underlying stream failed to accept enough base64 characters.");
+
+			reading += bytes;
+			_size -= bytes;
+			return true;
+		}
+
+		bool Utf8Base64Encoder::WriteCache(uint8_t*& reading, vint& _size)
+		{
+			if (cacheSize > 0 || _size < Base64CycleBytes)
+			{
+				vint copiedBytes = Base64CycleBytes - cacheSize;
+				if (copiedBytes > _size) copiedBytes = _size;
+				if (copiedBytes > 0)
+				{
+					memcpy(cache + cacheSize, reading, copiedBytes);
+					reading += copiedBytes;
+					_size -= copiedBytes;
+					cacheSize += copiedBytes;
+				}
+			}
+
+			if (cacheSize == 0) return _size > 0;
+			if (cacheSize == Base64CycleBytes)
+			{
+				uint8_t* cacheReading = cache;
+				return WriteCycle(cacheReading, cacheSize);
+			}
+			return true;
+		}
+
+		vint Utf8Base64Encoder::Write(void* _buffer, vint _size)
+		{
+			uint8_t* reading = (uint8_t*)_buffer;
+
+			// flush cache if any
+			if (!WriteCache(reading, _size)) goto FINISHED_WRITING;
+
+			// run Base64 encoding
+			while (_size >= Base64CycleBytes)
+			{
+				if (!WriteCycle(reading, _size)) goto FINISHED_WRITING;
+			}
+
+			// run the last Base64 encoding cycle and wrote a postfix to cache
+			WriteCache(reading, _size);
+
+		FINISHED_WRITING:
+			return reading - (uint8_t*)_buffer;
+		}
+
+		void Utf8Base64Encoder::Close()
+		{
+			if (cacheSize > 0)
+			{
+				char8_t chars[Base64CycleChars];
+				WriteBytesToCharArray(cache, chars, cacheSize);
+				vint writtenBytes = stream->Write(chars, Base64CycleChars);
+				CHECK_ERROR(writtenBytes == Base64CycleChars, L"vl::stream::Utf8Base64Encoder::Close()#The underlying stream failed to accept enough base64 characters.");
+
+				cacheSize = 0;
+			}
+			EncoderBase::Close();
+		}
+
+/***********************************************************************
+Utf8Base64Decoder
+***********************************************************************/
+
+		vint Utf8Base64Decoder::ReadBytesFromCharArray(char8_t(&fromChars)[Base64CycleChars], uint8_t* toBytes)
+		{
+			uint8_t nums[Base64CycleChars];
+			for (vint i = 0; i < Base64CycleChars; i++)
+			{
+				char8_t c = fromChars[i];
+				if (u8'A' <= c && c <= u8'Z') nums[i] = c - u8'A';
+				else if (u8'a' <= c && c <= u8'z') nums[i] = c - u8'a' + 26;
+				else if (u8'0' <= c && c <= u8'9') nums[i] = c - u8'0' + 52;
+				else switch (c)
+				{
+				case '+':nums[i] = 62; break;
+				case '/':nums[i] = 63; break;
+				case '=':nums[i] = 0; break;
+				default:
+					CHECK_FAIL(L"vl::stream::Utf8Base64Decoder::ReadBytesFromCharArray(char(&)[Base64CycleChars], uint8_t*)#Illegal Base64 character.");
+				}
+			}
+
+			toBytes[0] = (nums[0] << 2) | (nums[1] >> 4);
+			if (fromChars[2] == u8'=') return 1;
+			toBytes[1] = ((nums[1] % (1 << 4)) << 4) | (nums[2] >> 2);
+			if (fromChars[3] == u8'=') return 2;
+			toBytes[2] = ((nums[2] % (1 << 2)) << 6) | nums[3];
+			return 3;
+		}
+
+		vint Utf8Base64Decoder::ReadCycle(uint8_t*& writing, vint& _size)
+		{
+			char8_t chars[Base64CycleChars];
+			vint readChars = stream->Read((void*)chars, Base64CycleChars);
+			if (readChars == 0) return 0;
+			CHECK_ERROR(readChars == Base64CycleChars, L"vl::stream::Utf8Base64Decoder::ReadCycle(uint8_t*&, vint&)#The underlying stream failed to provide enough base64 characters.");
+
+			vint readBytes = ReadBytesFromCharArray(chars, writing);
+			writing += readBytes;
+			_size -= readBytes;
+			return readBytes;
+		}
+
+		void Utf8Base64Decoder::ReadCache(uint8_t*& writing, vint& _size)
+		{
+			if (cacheSize > 0)
+			{
+				vint copiedBytes = cacheSize;
+				if (copiedBytes > _size) copiedBytes = _size;
+				if (copiedBytes > 0)
+				{
+					memcpy(writing, cache, copiedBytes);
+					writing += copiedBytes;
+					_size -= copiedBytes;
+					cacheSize -= copiedBytes;
+					if (cacheSize > 0)
+					{
+						memmove(cache, cache + copiedBytes, cacheSize);
+					}
+				}
+			}
+		}
+
+		vint Utf8Base64Decoder::Read(void* _buffer, vint _size)
+		{
+			uint8_t* writing = (uint8_t*)_buffer;
+
+			// write cache to buffer if any
+			ReadCache(writing, _size);
+
+			// run Base64 decoding
+			while (_size >= Base64CycleBytes)
+			{
+				if (ReadCycle(writing, _size) == 0) goto FINISHED_READING;
+			}
+
+			// run the last Base64 decoding cycle and write a prefix to buffer
+			if (_size > 0)
+			{
+				uint8_t* cacheWriting = cache;
+				vint temp = 0;
+				if ((cacheSize = ReadCycle(cacheWriting, temp)) == 0) goto FINISHED_READING;
+				ReadCache(writing, _size);
+			}
+		FINISHED_READING:
+			return writing - (uint8_t*)_buffer;
+		}
+	}
+}
 
 
 /***********************************************************************
-Thread
+.\ENCODING\ENCODING.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
 ***********************************************************************/
 
-	namespace threading_internal
+
+namespace vl
+{
+	namespace stream
 	{
-		struct ThreadData
+/***********************************************************************
+EncoderBase
+***********************************************************************/
+
+		void EncoderBase::Setup(IStream* _stream)
 		{
-			pthread_t					id;
-			EventObject					ev;
-		};
+			stream = _stream;
+		}
 
-		class ProceduredThread : public Thread
+		void EncoderBase::Close()
 		{
-		private:
-			Thread::ThreadProcedure		procedure;
-			void*						argument;
-			bool						deleteAfterStopped;
+		}
 
-		protected:
-			void Run()
-			{
-				bool deleteAfterStopped = this->deleteAfterStopped;
-				ThreadLocalStorage::FixStorages();
-				try
-				{
-					procedure(this, argument);
-					threadState=Thread::Stopped;
-					internalData->ev.Signal();
-					ThreadLocalStorage::ClearStorages();
-				}
-				catch (...)
-				{
-					ThreadLocalStorage::ClearStorages();
-					throw;
-				}
-				if(deleteAfterStopped)
-				{
-					delete this;
-				}
-			}
-		public:
-			ProceduredThread(Thread::ThreadProcedure _procedure, void* _argument, bool _deleteAfterStopped)
-				:procedure(_procedure)
-				,argument(_argument)
-				,deleteAfterStopped(_deleteAfterStopped)
-			{
-			}
-		};
+/***********************************************************************
+DecoderBase
+***********************************************************************/
 
-		class LambdaThread : public Thread
+		void DecoderBase::Setup(IStream* _stream)
 		{
-		private:
-			Func<void()>				procedure;
-			bool						deleteAfterStopped;
+			stream = _stream;
+		}
 
-		protected:
-			void Run()
-			{
-				bool deleteAfterStopped = this->deleteAfterStopped;
-				ThreadLocalStorage::FixStorages();
-				try
-				{
-					procedure();
-					threadState=Thread::Stopped;
-					internalData->ev.Signal();
-					ThreadLocalStorage::ClearStorages();
-				}
-				catch (...)
-				{
-					ThreadLocalStorage::ClearStorages();
-					throw;
-				}
-				if(deleteAfterStopped)
-				{
-					delete this;
-				}
-			}
-		public:
-			LambdaThread(const Func<void()>& _procedure, bool _deleteAfterStopped)
-				:procedure(_procedure)
-				,deleteAfterStopped(_deleteAfterStopped)
-			{
-			}
-		};
-	}
-
-	void InternalThreadProc(Thread* thread)
-	{
-		thread->Run();
-	}
-
-	void* InternalThreadProcWrapper(void* lpParameter)
-	{
-		InternalThreadProc((Thread*)lpParameter);
-		return 0;
-	}
-
-	Thread::Thread()
-	{
-		internalData=new ThreadData;
-		internalData->ev.CreateManualUnsignal(false);
-		threadState=Thread::NotStarted;
-	}
-
-	Thread::~Thread()
-	{
-		if (internalData)
+		void DecoderBase::Close()
 		{
-			Stop();
-			if (threadState!=Thread::NotStarted)
-			{
-				pthread_detach(internalData->id);
-			}
-			delete internalData;
 		}
 	}
+}
 
-	Thread* Thread::CreateAndStart(ThreadProcedure procedure, void* argument, bool deleteAfterStopped)
+
+/***********************************************************************
+.\ENCODING\LZWENCODING.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace stream
 	{
-		if(procedure)
+		using namespace collections;
+		using namespace lzw;
+
+/***********************************************************************
+LzwBase
+***********************************************************************/
+
+		void LzwBase::UpdateIndexBits()
 		{
-			Thread* thread=new ProceduredThread(procedure, argument, deleteAfterStopped);
-			if(thread->Start())
+			if (nextIndex >=2 && (nextIndex & (nextIndex - 1)) == 0)
 			{
-				return thread;
+				indexBits++;
+			}
+		}
+
+		lzw::Code* LzwBase::CreateCode(lzw::Code* prefix, vuint8_t byte)
+		{
+			if (nextIndex < MaxDictionarySize)
+			{
+				Code* code = codeAllocator.Create();
+				code->byte = byte;
+				code->code = nextIndex;
+				code->parent = prefix;
+				code->size = prefix->size + 1;
+				prefix->children.Set(byte, code, mapAllocator);
+				nextIndex++;
+
+				return code;
 			}
 			else
 			{
-				delete thread;
+				return 0;
 			}
 		}
-		return 0;
-	}
 
-	Thread* Thread::CreateAndStart(const Func<void()>& procedure, bool deleteAfterStopped)
-	{
-		Thread* thread=new LambdaThread(procedure, deleteAfterStopped);
-		if(thread->Start())
+		LzwBase::LzwBase()
+			:codeAllocator(65536)
+			, mapAllocator(1048576)
 		{
-			return thread;
-		}
-		else
-		{
-			delete thread;
-		}
-		return 0;
-	}
+			root = codeAllocator.Create();
 
-	void Thread::Sleep(vint ms)
-	{
-		if (ms >= 1000)
-		{
-			sleep(ms / 1000);
-		}
-		if (ms % 1000)
-		{
-			usleep((ms % 1000) * 1000);
-		}
-	}
-	
-	vint Thread::GetCPUCount()
-	{
-		return (vint)sysconf(_SC_NPROCESSORS_ONLN);
-	}
-
-	vint Thread::GetCurrentThreadId()
-	{
-		return (vint)::pthread_self();
-	}
-
-	bool Thread::Start()
-	{
-		if(threadState==Thread::NotStarted)
-		{
-			if(pthread_create(&internalData->id, nullptr, &InternalThreadProcWrapper, this)==0)
+			for (vint i = 0; i < 256; i++)
 			{
-				threadState=Thread::Running;
-				return true;
+				UpdateIndexBits();
+				CreateCode(root, (vuint8_t)i);
 			}
 		}
-		return false;
-	}
 
-	bool Thread::Wait()
-	{
-		return internalData->ev.Wait();
-	}
-
-	bool Thread::Stop()
-	{
-		if (threadState==Thread::Running)
+		LzwBase::LzwBase(bool (&existingBytes)[256])
 		{
-			if(pthread_cancel(internalData->id)==0)
+			root = codeAllocator.Create();
+			for (vint i = 0; i < 256; i++)
 			{
-				threadState=Thread::Stopped;
-				internalData->ev.Signal();
-				return true;
+				if (existingBytes[i])
+				{
+					UpdateIndexBits();
+					CreateCode(root, (vuint8_t)i);
+				}
+			}
+
+			if (indexBits < 8)
+			{
+				eofIndex = nextIndex++;
 			}
 		}
-		return false;
-	}
 
-	Thread::ThreadState Thread::GetState()
-	{
-		return threadState;
-	}
+		LzwBase::~LzwBase()
+		{
+		}
 
 /***********************************************************************
-Mutex
+LzwEncoder
 ***********************************************************************/
 
-	namespace threading_internal
-	{
-		struct MutexData
+		void LzwEncoder::Flush()
 		{
-			Semaphore			sem;
-		};
-	};
+			vint written = 0;
+			vint bufferUsedSize = bufferUsedBits / 8;
+			if (bufferUsedBits % 8 != 0)
+			{
+				bufferUsedSize++;
+			}
+			while (written < bufferUsedSize)
+			{
+				vint size = stream->Write(buffer + written, bufferUsedSize - written);
+				CHECK_ERROR(size != 0, L"LzwEncoder::Flush()#Failed to flush the lzw buffer.");
+				written += size;
+			}
+			bufferUsedBits = 0;
+		}
 
-	Mutex::Mutex()
-	{
-		internalData = new MutexData;
-	}
+		vuint8_t highMarks[9] = { 0x00, 0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF };
+		vuint8_t lowMarks[9] = { 0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF };
 
-	Mutex::~Mutex()
-	{
-		delete internalData;
-	}
+		void LzwEncoder::WriteNumber(vint number, vint bitSize)
+		{
+			vint bitStart = 0;
+			vint bitStep = 8 - bufferUsedBits % 8;
+			if (bitStep > bitSize)
+			{
+				bitStep = bitSize;
+			}
+			while (bitStart < bitSize)
+			{
+				if(bufferUsedBits == BufferSize * 8)
+				{
+					Flush();
+				}
 
-	bool Mutex::Create(bool owned, const WString& name)
-	{
-		return internalData->sem.Create(owned ? 0 : 1, 1, name);
-	}
+				vint writeStart = bufferUsedBits % 8;
+				vint byteIndex = bufferUsedBits / 8;
+				vuint8_t byte = buffer[byteIndex];
+				byte &= highMarks[writeStart];
 
-	bool Mutex::Open(bool inheritable, const WString& name)
-	{
-		return internalData->sem.Open(inheritable, name);
-	}
+				vuint8_t content = (vuint8_t)((number >> bitStart)&lowMarks[bitStep]) << (8 - writeStart - bitStep);
+				byte |= content;
 
-	bool Mutex::Release()
-	{
-		return internalData->sem.Release();
-	}
+				buffer[byteIndex] = byte;
+				bufferUsedBits += bitStep;
 
-	bool Mutex::Wait()
-	{
-		return internalData->sem.Wait();
-	}
+				bitStart += bitStep;
+				vint remain = bitSize - bitStart;
+				bitStep = remain < 8 ? remain : 8;
+			}
+		}
+
+		LzwEncoder::LzwEncoder()
+		{
+			prefix = root;
+		}
+
+		LzwEncoder::LzwEncoder(bool (&existingBytes)[256])
+			:LzwBase(existingBytes)
+		{
+			prefix = root;
+		}
+
+		LzwEncoder::~LzwEncoder()
+		{
+		}
+
+		void LzwEncoder::Close()
+		{
+			if (prefix != root)
+			{
+				WriteNumber(prefix->code, indexBits);
+				prefix = root;
+			}
+
+			vint remain = 8 - bufferUsedBits % 8;
+			if (remain != 8 && remain >= indexBits)
+			{
+				CHECK_ERROR(eofIndex != -1, L"LzwEncoder::Close()#Internal error.");
+				WriteNumber(eofIndex, indexBits);
+			}
+			Flush();
+			EncoderBase::Close();
+		}
+
+		vint LzwEncoder::Write(void* _buffer, vint _size)
+		{
+			vuint8_t* bytes = (vuint8_t*)_buffer;
+			for (vint i = 0; i < _size; i++)
+			{
+				vuint8_t byte = bytes[i];
+				Code* next = prefix->children.Get(byte);
+				if (next)
+				{
+					prefix = next;
+				}
+				else
+				{
+					WriteNumber(prefix->code, indexBits);
+
+					if (nextIndex < MaxDictionarySize)
+					{
+						UpdateIndexBits();
+						CreateCode(prefix, byte);
+					}
+					prefix = root->children.Get(byte);
+				}
+			}
+			return _size;
+		}
 
 /***********************************************************************
-Semaphore
+LzwDecoder
 ***********************************************************************/
 
-	namespace threading_internal
-	{
-		struct SemaphoreData
+		bool LzwDecoder::ReadNumber(vint& number, vint bitSize)
 		{
-			sem_t			semUnnamed;
-			sem_t*			semNamed = nullptr;
-		};
-	}
-
-	Semaphore::Semaphore()
-		:internalData(0)
-	{
-	}
-
-	Semaphore::~Semaphore()
-	{
-		if (internalData)
-		{
-			if (internalData->semNamed)
+			number = 0;
+			if (inputBufferSize == -1)
 			{
-				sem_close(internalData->semNamed);
-			}
-			else
-			{
-				sem_destroy(&internalData->semUnnamed);
-			}
-			delete internalData;
-		}
-	}
-
-	bool Semaphore::Create(vint initialCount, vint maxCount, const WString& name)
-	{
-		if (internalData) return false;
-		if (initialCount > maxCount) return false;
-
-		internalData = new SemaphoreData;
-#if defined(__APPLE__)
-        
-		AString auuid;
-		if(name.Length() == 0)
-		{
-			CFUUIDRef cfuuid = CFUUIDCreate(kCFAllocatorDefault);
-			CFStringRef cfstr = CFUUIDCreateString(kCFAllocatorDefault, cfuuid);
-			auuid = CFStringGetCStringPtr(cfstr, kCFStringEncodingASCII);
-
-			CFRelease(cfstr);
-			CFRelease(cfuuid);
-		}
-		auuid = auuid.Insert(0, "/");
-		// OSX SEM_NAME_LENGTH = 31
-		if(auuid.Length() >= 30)
-			auuid = auuid.Sub(0, 30);
-        
-		if ((internalData->semNamed = sem_open(auuid.Buffer(), O_CREAT, O_RDWR, initialCount)) == SEM_FAILED)
-		{
-			delete internalData;
-			internalData = 0;
-			return false;
-		}
-        
-#else
-		if (name == L"")
-		{
-			if(sem_init(&internalData->semUnnamed, 0, (int)initialCount) == -1)
-			{
-				delete internalData;
-				internalData = 0;
 				return false;
 			}
-		}
-        	else
-        	{
-			AString astr = wtoa(name);
-            
-			if ((internalData->semNamed = sem_open(astr.Buffer(), O_CREAT, 0777, initialCount)) == SEM_FAILED)
+
+			vint remainBits = inputBufferSize * 8 - inputBufferUsedBits;
+			vint writtenBits = 0;
+			vint bitStep = 8 - inputBufferUsedBits % 8;
+			if (bitStep > bitSize)
 			{
-				delete internalData;
-				internalData = 0;
-				return false;
+				bitStep = bitSize;
+			}
+			while (writtenBits < bitSize)
+			{
+				if (remainBits == 0)
+				{
+					inputBufferSize = stream->Read(inputBuffer, BufferSize);
+					if (inputBufferSize == 0)
+					{
+						inputBufferSize = -1;
+						return false;
+					}
+					remainBits = inputBufferSize * 8;
+					inputBufferUsedBits = 0;
+				}
+
+				vuint8_t byte = inputBuffer[inputBufferUsedBits / 8];
+				byte >>= (8 - inputBufferUsedBits % 8 - bitStep);
+				byte &= lowMarks[bitStep];
+				number |= byte << writtenBits;
+
+				inputBufferUsedBits += bitStep;
+				remainBits -= bitStep;
+				writtenBits += bitStep;
+				vint remain = bitSize - writtenBits;
+				bitStep = remain < 8 ? remain : 8;
+			}
+
+			return true;
+		}
+
+		void LzwDecoder::PrepareOutputBuffer(vint size)
+		{
+			if (outputBuffer.Count() < size)
+			{
+				outputBuffer.Resize(size);
+			}
+			outputBufferSize = size;
+		}
+
+		void LzwDecoder::ExpandCodeToOutputBuffer(lzw::Code* code)
+		{
+			vuint8_t* outputByte = &outputBuffer[0] + code->size;
+			Code* current = code;
+			while (current != root)
+			{
+				*(--outputByte) = current->byte;
+				current = current->parent;
+			}
+			outputBufferUsedBytes = 0;
+		}
+
+		LzwDecoder::LzwDecoder()
+		{
+			for (vint i = 0; i < 256; i++)
+			{
+				dictionary.Add(root->children.Get((vuint8_t)i));
 			}
 		}
-#endif
 
-		Release(initialCount);
-		return true;
-	}
-
-	bool Semaphore::Open(bool inheritable, const WString& name)
-	{
-		if (internalData) return false;
-		if (inheritable) return false;
-
-		internalData = new SemaphoreData;
-		if (!(internalData->semNamed = sem_open(wtoa(name).Buffer(), 0)))
+		LzwDecoder::LzwDecoder(bool (&existingBytes)[256])
+			:LzwBase(existingBytes)
 		{
-            delete internalData;
-            internalData = 0;
-			return false;
-		}
-
-		return true;
-	}
-
-	bool Semaphore::Release()
-	{
-		return Release(1);
-	}
-
-	vint Semaphore::Release(vint count)
-	{
-		for (vint i = 0; i < count; i++)
-		{
-			if (internalData->semNamed)
+			for (vint i = 0; i < 256; i++)
 			{
-				sem_post(internalData->semNamed);
+				if (existingBytes[i])
+				{
+					dictionary.Add(root->children.Get((vuint8_t)i));
+				}
 			}
-			else
+			if (eofIndex != -1)
 			{
-				sem_post(&internalData->semUnnamed);
+				dictionary.Add(nullptr);
 			}
 		}
-		return true;
-	}
 
-	bool Semaphore::Wait()
-	{
-		if (internalData->semNamed)
+		LzwDecoder::~LzwDecoder()
 		{
-			return sem_wait(internalData->semNamed) == 0;
 		}
-		else
+
+		vint LzwDecoder::Read(void* _buffer, vint _size)
 		{
-			return sem_wait(&internalData->semUnnamed) == 0;
+			vint written = 0;
+			vuint8_t* bytes = (vuint8_t*)_buffer;
+			while (written < _size)
+			{
+				vint expect = _size - written;
+				vint remain = outputBufferSize - outputBufferUsedBytes;
+				if (remain == 0)
+				{
+					vint index = 0;
+					if (!ReadNumber(index, indexBits) || index == eofIndex)
+					{
+						break;
+					}
+
+					Code* prefix = 0;
+					if (index == dictionary.Count())
+					{
+						prefix = lastCode;
+						PrepareOutputBuffer(prefix->size + 1);
+						ExpandCodeToOutputBuffer(prefix);
+						outputBuffer[outputBufferSize - 1] = outputBuffer[0];
+					}
+					else
+					{
+						prefix = dictionary[index];
+						PrepareOutputBuffer(prefix->size);
+						ExpandCodeToOutputBuffer(prefix);
+					}
+					
+					if (nextIndex < MaxDictionarySize)
+					{
+						if (lastCode)
+						{
+							dictionary.Add(CreateCode(lastCode, outputBuffer[0]));
+						}
+						UpdateIndexBits();
+					}
+					lastCode = dictionary[index];
+				}
+				else
+				{
+					if (remain > expect)
+					{
+						remain = expect;
+					}
+					memcpy(bytes + written, &outputBuffer[outputBufferUsedBytes], remain);
+
+					outputBufferUsedBytes += remain;
+					written += remain;
+				}
+			}
+			return written;
 		}
-	}
 
 /***********************************************************************
-EventObject
+Helper Functions
 ***********************************************************************/
 
-	namespace threading_internal
-	{
-		struct EventData
+		vint CopyStream(stream::IStream& inputStream, stream::IStream& outputStream)
 		{
-			bool				autoReset;
-			volatile bool		signaled;
-			CriticalSection		mutex;
-			ConditionVariable	cond;
-			volatile vint		counter = 0;
-		};
-	}
-
-	EventObject::EventObject()
-	{
-		internalData = nullptr;
-	}
-
-	EventObject::~EventObject()
-	{
-		if (internalData)
-		{
-			delete internalData;
-		}
-	}
-
-	bool EventObject::CreateAutoUnsignal(bool signaled, const WString& name)
-	{
-		if (name!=L"") return false;
-		if (internalData) return false;
-
-		internalData = new EventData;
-		internalData->autoReset = true;
-		internalData->signaled = signaled;
-		return true;
-	}
-
-	bool EventObject::CreateManualUnsignal(bool signaled, const WString& name)
-	{
-		if (name!=L"") return false;
-		if (internalData) return false;
-
-		internalData = new EventData;
-		internalData->autoReset = false;
-		internalData->signaled = signaled;
-		return true;
-	}
-
-	bool EventObject::Signal()
-	{
-		if (!internalData) return false;
-
-		internalData->mutex.Enter();
-		internalData->signaled = true;
-		if (internalData->counter)
-		{
-			if (internalData->autoReset)
-			{
-				internalData->cond.WakeOnePending();
-				internalData->signaled = false;
-			}
-			else
-			{
-				internalData->cond.WakeAllPendings();
-			}
-		}
-		internalData->mutex.Leave();
-		return true;
-	}
-
-	bool EventObject::Unsignal()
-	{
-		if (!internalData) return false;
-
-		internalData->mutex.Enter();
-		internalData->signaled = false;
-		internalData->mutex.Leave();
-		return true;
-	}
-
-	bool EventObject::Wait()
-	{
-		if (!internalData) return false;
-
-		internalData->mutex.Enter();
-		if (internalData->signaled)
-		{
-			if (internalData->autoReset)
-			{
-				internalData->signaled = false;
-			}
-		}
-		else
-		{
-			internalData->counter++;
-			internalData->cond.SleepWith(internalData->mutex);
-			internalData->counter--;
-		}
-		internalData->mutex.Leave();
-		return true;
-	}
-
-/***********************************************************************
-ThreadPoolLite
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ThreadPoolTask
-		{
-			Func<void()>			task;
-			Ptr<ThreadPoolTask>		next;
-		};
-
-		struct ThreadPoolData
-		{
-			Semaphore				semaphore;
-			EventObject				taskFinishEvent;
-			Ptr<ThreadPoolTask>		taskBegin;
-			Ptr<ThreadPoolTask>*	taskEnd = nullptr;
-			volatile bool			stopping = false;
-			List<Thread*>			taskThreads;
-		};
-
-		SpinLock					threadPoolLock;
-		ThreadPoolData*				threadPoolData = nullptr;
-
-		void ThreadPoolProc(Thread* thread, void* argument)
-		{
+			vint totalSize = 0;
 			while (true)
 			{
-				Ptr<ThreadPoolTask> task;
-
-				threadPoolData->semaphore.Wait();
-				SPIN_LOCK(threadPoolLock)
+				char buffer[1024];
+				vint copied = inputStream.Read(buffer, (vint)sizeof(buffer));
+				if (copied == 0)
 				{
-					if (threadPoolData->taskBegin)
-					{
-						task = threadPoolData->taskBegin;
-						threadPoolData->taskBegin = task->next;
-					}
+					break;
+				}
+				totalSize += outputStream.Write(buffer, copied);
+			}
+			return totalSize;
+		}
 
-					if (!threadPoolData->taskBegin)
-					{
-						threadPoolData->taskEnd = &threadPoolData->taskBegin;
-						threadPoolData->taskFinishEvent.Signal();
-					}
+		const vint CompressionFragmentSize = 1048576;
+
+		void CompressStream(stream::IStream& inputStream, stream::IStream& outputStream)
+		{
+			Array<char> buffer(CompressionFragmentSize);
+			while (true)
+			{
+				vint size = inputStream.Read(&buffer[0], buffer.Count());
+				if (size == 0) break;
+
+				MemoryStream compressedStream;
+				{
+					LzwEncoder encoder;
+					EncoderStream encoderStream(compressedStream, encoder);
+					encoderStream.Write(&buffer[0], size);
 				}
 
-				if (task)
+				compressedStream.SeekFromBegin(0);
 				{
-					ThreadLocalStorage::FixStorages();
-					try
 					{
-						task->task();
-						ThreadLocalStorage::ClearStorages();
+						vint32_t bufferSize = (vint32_t)size;
+						outputStream.Write(&bufferSize, (vint)sizeof(bufferSize));
 					}
-					catch (...)
 					{
-						ThreadLocalStorage::ClearStorages();
+						vint32_t compressedSize = (vint32_t)compressedStream.Size();
+						outputStream.Write(&compressedSize, (vint)sizeof(compressedSize));
 					}
-				}
-				else if (threadPoolData->stopping)
-				{
-					return;
+					CopyStream(compressedStream, outputStream);
 				}
 			}
 		}
 
-		bool ThreadPoolQueue(const Func<void()>& proc)
+		void DecompressStream(stream::IStream& inputStream, stream::IStream& outputStream)
 		{
-			SPIN_LOCK(threadPoolLock)
+			vint totalSize = 0;
+			vint totalWritten = 0;
+			while (true)
 			{
-				if (!threadPoolData)
+				vint32_t bufferSize = 0;
+				if (inputStream.Read(&bufferSize, (vint)sizeof(bufferSize)) != sizeof(bufferSize))
 				{
-					threadPoolData = new ThreadPoolData;
-					threadPoolData->semaphore.Create(0, 65536);
-					threadPoolData->taskFinishEvent.CreateManualUnsignal(false);
-					threadPoolData->taskEnd = &threadPoolData->taskBegin;
-
-					for (vint i = 0; i < Thread::GetCPUCount() * 4; i++)
-					{
-						threadPoolData->taskThreads.Add(Thread::CreateAndStart(&ThreadPoolProc, nullptr, false));
-					}
+					break;
 				}
 
-				if (threadPoolData)
+				vint32_t compressedSize = 0;
+				CHECK_ERROR(inputStream.Read(&compressedSize, (vint)sizeof(compressedSize)) == sizeof(compressedSize), L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
+
+				Array<char> buffer(compressedSize);
+				CHECK_ERROR(inputStream.Read(&buffer[0], compressedSize) == compressedSize, L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
+
+				MemoryWrapperStream compressedStream(&buffer[0], compressedSize);
+				LzwDecoder decoder;
+				DecoderStream decoderStream(compressedStream, decoder);
+				totalWritten += CopyStream(decoderStream, outputStream);
+				totalSize += bufferSize;
+			}
+			CHECK_ERROR(outputStream.Size() == totalSize, L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
+		}
+	}
+}
+
+/***********************************************************************
+.\ENCODING\CHARFORMAT\BOMENCODING.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace stream
+	{
+/***********************************************************************
+BomEncoder
+***********************************************************************/
+
+		BomEncoder::BomEncoder(Encoding _encoding)
+			:encoding(_encoding)
+			,encoder(0)
+		{
+			switch(encoding)
+			{
+			case Mbcs:
+				encoder=new MbcsEncoder;
+				break;
+			case Utf8:
+				encoder=new Utf8Encoder;
+				break;
+			case Utf16:
+				encoder=new Utf16Encoder;
+				break;
+			case Utf16BE:
+				encoder=new Utf16BEEncoder;
+				break;
+			}
+		}
+
+		BomEncoder::~BomEncoder()
+		{
+			Close();
+		}
+
+		void BomEncoder::Setup(IStream* _stream)
+		{
+			switch(encoding)
+			{
+			case Mbcs:
+				break;
+			case Utf8:
+				_stream->Write((void*)"\xEF\xBB\xBF", 3);
+				break;
+			case Utf16:
+				_stream->Write((void*)"\xFF\xFE", 2);
+				break;
+			case Utf16BE:
+				_stream->Write((void*)"\xFE\xFF", 2);
+				break;
+			}
+			encoder->Setup(_stream);
+		}
+
+		void BomEncoder::Close()
+		{
+			if(encoder)
+			{
+				encoder->Close();
+				delete encoder;
+				encoder=0;
+			}
+		}
+
+		vint BomEncoder::Write(void* _buffer, vint _size)
+		{
+			return encoder->Write(_buffer, _size);
+		}
+
+/***********************************************************************
+BomDecoder
+***********************************************************************/
+
+		BomDecoder::BomStream::BomStream(IStream* _stream, char* _bom, vint _bomLength)
+			:stream(_stream)
+			,bomPosition(0)
+			,bomLength(_bomLength)
+		{
+			memcpy(bom, _bom, bomLength);
+		}
+
+		bool BomDecoder::BomStream::CanRead()const
+		{
+			return IsAvailable();
+		}
+
+		bool BomDecoder::BomStream::CanWrite()const
+		{
+			return false;
+		}
+
+		bool BomDecoder::BomStream::CanSeek()const
+		{
+			return false;
+		}
+
+		bool BomDecoder::BomStream::CanPeek()const
+		{
+			return false;
+		}
+
+		bool BomDecoder::BomStream::IsLimited()const
+		{
+			return stream!=0 && stream->IsLimited();
+		}
+
+		bool BomDecoder::BomStream::IsAvailable()const
+		{
+			return stream!=0 && stream->IsAvailable();
+		}
+
+		void BomDecoder::BomStream::Close()
+		{
+			stream=0;
+		}
+
+		pos_t BomDecoder::BomStream::Position()const
+		{
+			return IsAvailable()?bomPosition+stream->Position():-1;
+		}
+
+		pos_t BomDecoder::BomStream::Size()const
+		{
+			return -1;
+		}
+
+		void BomDecoder::BomStream::Seek(pos_t _size)
+		{
+			CHECK_FAIL(L"BomDecoder::BomStream::Seek(pos_t)#Operation not supported.");
+		}
+
+		void BomDecoder::BomStream::SeekFromBegin(pos_t _size)
+		{
+			CHECK_FAIL(L"BomDecoder::BomStream::SeekFromBegin(pos_t)#Operation not supported.");
+		}
+
+		void BomDecoder::BomStream::SeekFromEnd(pos_t _size)
+		{
+			CHECK_FAIL(L"BomDecoder::BomStream::SeekFromEnd(pos_t)#Operation not supported.");
+		}
+
+		vint BomDecoder::BomStream::Read(void* _buffer, vint _size)
+		{
+			vint result=0;
+			unsigned char* buffer=(unsigned char*)_buffer;
+			if(bomPosition<bomLength)
+			{
+				vint remain=bomLength-bomPosition;
+				result=remain<_size?remain:_size;
+				memcpy(buffer, bom+bomPosition, result);
+				buffer+=result;
+				bomPosition+=result;
+				_size-=result;
+			}
+			if(_size)
+			{
+				result+=stream->Read(buffer, _size);
+			}
+			return result;
+		}
+
+		vint BomDecoder::BomStream::Write(void* _buffer, vint _size)
+		{
+			CHECK_FAIL(L"BomDecoder::BomStream::Write(void*, vint)#Operation not supported.");
+		}
+
+		vint BomDecoder::BomStream::Peek(void* _buffer, vint _size)
+		{
+			CHECK_FAIL(L"BomDecoder::BomStream::Peek(void*, vint)#Operation not supported.");
+		}
+
+		BomDecoder::BomDecoder()
+			:decoder(0)
+		{
+		}
+
+		BomDecoder::~BomDecoder()
+		{
+			Close();
+		}
+
+		void BomDecoder::Setup(IStream* _stream)
+		{
+			char bom[3]={0};
+			vint length=_stream->Read(bom, sizeof(bom));
+			if(strncmp(bom, "\xEF\xBB\xBF", 3)==0)
+			{
+				decoder=new Utf8Decoder;
+				stream=new BomStream(_stream, bom+3, 0);
+			}
+			else if(strncmp(bom, "\xFF\xFE", 2)==0)
+			{
+				decoder=new Utf16Decoder;
+				stream=new BomStream(_stream, bom+2, 1);
+			}
+			else if(strncmp(bom, "\xFE\xFF", 2)==0)
+			{
+				decoder=new Utf16BEDecoder;
+				stream=new BomStream(_stream, bom+2, 1);
+			}
+			else
+			{
+				decoder=new MbcsDecoder;
+				stream=new BomStream(_stream, bom, 3);
+			}
+			decoder->Setup(stream);
+		}
+
+		void BomDecoder::Close()
+		{
+			if(decoder)
+			{
+				decoder->Close();
+				delete decoder;
+				decoder=0;
+				stream->Close();
+				delete stream;
+				stream=0;
+			}
+		}
+
+		vint BomDecoder::Read(void* _buffer, vint _size)
+		{
+			return decoder->Read(_buffer, _size);
+		}
+	}
+}
+
+
+/***********************************************************************
+.\ENCODING\CHARFORMAT\CHARFORMAT.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace stream
+	{
+/***********************************************************************
+Helper Functions
+***********************************************************************/
+
+		bool CanBeMbcs(unsigned char* buffer, vint size)
+		{
+			for(vint i=0;i<size;i++)
+			{
+				if(buffer[i]==0) return false;
+			}
+			return true;
+		}
+
+		bool CanBeUtf8(unsigned char* buffer, vint size)
+		{
+			for(vint i=0;i<size;i++)
+			{
+				unsigned char c=(unsigned char)buffer[i];
+				if(c==0)
 				{
-					if (threadPoolData->stopping)
+					return false;
+				}
+				else
+				{
+					vint count10xxxxxx=0;
+					if((c&0x80)==0x00) /* 0x0xxxxxxx */ count10xxxxxx=0;
+					else if((c&0xE0)==0xC0) /* 0x110xxxxx */ count10xxxxxx=1;
+					else if((c&0xF0)==0xE0) /* 0x1110xxxx */ count10xxxxxx=2;
+					else if((c&0xF8)==0xF0) /* 0x11110xxx */ count10xxxxxx=3;
+					else if((c&0xFC)==0xF8) /* 0x111110xx */ count10xxxxxx=4;
+					else if((c&0xFE)==0xFC) /* 0x1111110x */ count10xxxxxx=5;
+
+					if(size<=i+count10xxxxxx)
 					{
 						return false;
 					}
-
-					auto task = MakePtr<ThreadPoolTask>();
-					task->task = proc;
-					*threadPoolData->taskEnd = task;
-					threadPoolData->taskEnd = &task->next;
-					threadPoolData->semaphore.Release();
-					threadPoolData->taskFinishEvent.Unsignal();
+					else
+					{
+						for(vint j=0;j<count10xxxxxx;j++)
+						{
+							c=(unsigned char)buffer[i+j+1];
+							if((c&0xC0)!=0x80) /* 0x10xxxxxx */ return false;
+						}
+					}
+					i+=count10xxxxxx;
 				}
 			}
 			return true;
 		}
 
-		bool ThreadPoolStop(bool discardPendingTasks)
+		bool CanBeUtf16(unsigned char* buffer, vint size, bool& hitSurrogatePairs)
 		{
-			SPIN_LOCK(threadPoolLock)
+			hitSurrogatePairs = false;
+			if (size % 2 != 0) return false;
+			bool needTrail = false;
+			for (vint i = 0; i < size; i += 2)
 			{
-				if (!threadPoolData) return false;
-				if (threadPoolData->stopping) return false;
-
-				threadPoolData->stopping = true;
-				if (discardPendingTasks)
+				vuint16_t c = buffer[i] + (buffer[i + 1] << 8);
+				if (c == 0) return false;
+				vint type = 0;
+				if (0xD800 <= c && c <= 0xDBFF) type = 1;
+				else if (0xDC00 <= c && c <= 0xDFFF) type = 2;
+				if (needTrail)
 				{
-					threadPoolData->taskEnd = &threadPoolData->taskBegin;
-					threadPoolData->taskBegin = nullptr;
+					if (type == 2)
+					{
+						needTrail = false;
+					}
+					else
+					{
+						return false;
+					}
+				}
+				else
+				{
+					if (type == 1)
+					{
+						needTrail = true;
+						hitSurrogatePairs = true;
+					}
+					else if (type != 0)
+					{
+						return false;
+					}
+				}
+			}
+			return !needTrail;
+		}
+
+		bool CanBeUtf16BE(unsigned char* buffer, vint size, bool& hitSurrogatePairs)
+		{
+			hitSurrogatePairs = false;
+			if (size % 2 != 0) return false;
+			bool needTrail = false;
+			for (vint i = 0; i < size; i += 2)
+			{
+				vuint16_t c = buffer[i + 1] + (buffer[i] << 8);
+				if (c == 0) return false;
+				vint type = 0;
+				if (0xD800 <= c && c <= 0xDBFF) type = 1;
+				else if (0xDC00 <= c && c <= 0xDFFF) type = 2;
+				if (needTrail)
+				{
+					if (type == 2)
+					{
+						needTrail = false;
+					}
+					else
+					{
+						return false;
+					}
+				}
+				else
+				{
+					if (type == 1)
+					{
+						needTrail = true;
+						hitSurrogatePairs = true;
+					}
+					else if (type != 0)
+					{
+						return false;
+					}
+				}
+			}
+			return !needTrail;
+		}
+		
+/***********************************************************************
+TestEncoding
+***********************************************************************/
+
+		extern void TestEncodingInternal(
+			unsigned char* buffer,
+			vint size,
+			BomEncoder::Encoding& encoding,
+			bool containsBom,
+			bool utf16HitSurrogatePairs,
+			bool utf16BEHitSurrogatePairs,
+			bool roughMbcs,
+			bool roughUtf8,
+			bool roughUtf16,
+			bool roughUtf16BE
+		);
+
+		void TestEncoding(unsigned char* buffer, vint size, BomEncoder::Encoding& encoding, bool& containsBom)
+		{
+			if (size >= 3 && strncmp((char*)buffer, "\xEF\xBB\xBF", 3) == 0)
+			{
+				encoding = BomEncoder::Utf8;
+				containsBom = true;
+			}
+			else if (size >= 2 && strncmp((char*)buffer, "\xFF\xFE", 2) == 0)
+			{
+				encoding = BomEncoder::Utf16;
+				containsBom = true;
+			}
+			else if (size >= 2 && strncmp((char*)buffer, "\xFE\xFF", 2) == 0)
+			{
+				encoding = BomEncoder::Utf16BE;
+				containsBom = true;
+			}
+			else
+			{
+				encoding = BomEncoder::Mbcs;
+				containsBom = false;
+
+				bool utf16HitSurrogatePairs = false;
+				bool utf16BEHitSurrogatePairs = false;
+				bool roughMbcs = CanBeMbcs(buffer, size);
+				bool roughUtf8 = CanBeUtf8(buffer, size);
+				bool roughUtf16 = CanBeUtf16(buffer, size, utf16HitSurrogatePairs);
+				bool roughUtf16BE = CanBeUtf16BE(buffer, size, utf16BEHitSurrogatePairs);
+
+				vint roughCount = (roughMbcs ? 1 : 0) + (roughUtf8 ? 1 : 0) + (roughUtf16 ? 1 : 0) + (roughUtf16BE ? 1 : 0);
+				if (roughCount == 1)
+				{
+					if (roughUtf8) encoding = BomEncoder::Utf8;
+					else if (roughUtf16) encoding = BomEncoder::Utf16;
+					else if (roughUtf16BE) encoding = BomEncoder::Utf16BE;
+				}
+				else if (roughCount > 1)
+				{
+					TestEncodingInternal(buffer, size, encoding, containsBom, utf16HitSurrogatePairs, utf16BEHitSurrogatePairs, roughMbcs, roughUtf8, roughUtf16, roughUtf16BE);
+				}
+			}
+		}
+	}
+}
+
+
+/***********************************************************************
+.\ENCODING\CHARFORMAT\MBCSENCODING.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace stream
+	{
+/***********************************************************************
+MbcsDecoder::ReadString
+***********************************************************************/
+
+		extern bool IsMbcsLeadByte(char c);
+		extern void MbcsToWChar(wchar_t* wideBuffer, vint wideChars, vint wideReaded, char* mbcsBuffer, vint mbcsChars);
+
+		vint MbcsDecoder::ReadString(wchar_t* _buffer, vint chars)
+		{
+			char* source = new char[chars * 2];
+			char* reading = source;
+			vint readed = 0;
+			while (readed < chars)
+			{
+				if (stream->Read(reading, 1) != 1)
+				{
+					break;
+				}
+				if (IsMbcsLeadByte(*reading))
+				{
+					if (stream->Read(reading + 1, 1) != 1)
+					{
+						break;
+					}
+					reading += 2;
+				}
+				else
+				{
+					reading++;
+				}
+				readed++;
+			}
+
+			MbcsToWChar(_buffer, chars, readed, source, (vint)(reading - source));
+			delete[] source;
+			return readed;
+		}
+
+/***********************************************************************
+MbcsEncoder
+***********************************************************************/
+
+		vint MbcsEncoder::Write(void* _buffer, vint _size)
+		{
+			// prepare a buffer for input
+			vint availableChars = (cacheSize + _size) / sizeof(wchar_t);
+			vint availableBytes = availableChars * sizeof(wchar_t);
+			bool needToFree = false;
+			vuint8_t* unicode = nullptr;
+			if (cacheSize > 0)
+			{
+				unicode = new vuint8_t[cacheSize + _size];
+				memcpy(unicode, cacheBuffer, cacheSize);
+				memcpy((vuint8_t*)unicode + cacheSize, _buffer, _size);
+				needToFree = true;
+			}
+			else
+			{
+				unicode = (vuint8_t*)_buffer;
+			}
+
+#if defined VCZH_WCHAR_UTF16
+			if (availableChars > 0)
+			{
+				// a surrogate pair must be written as a whole thing
+				vuint16_t c = (vuint16_t)((wchar_t*)unicode)[availableChars - 1];
+				if ((c & 0xFC00U) == 0xD800U)
+				{
+					availableChars -= 1;
+					availableBytes -= sizeof(wchar_t);
+				}
+			}
+#endif
+
+			// write the buffer
+			if (availableChars > 0)
+			{
+				vint written = WriteString((wchar_t*)unicode, availableChars) * sizeof(wchar_t);
+				CHECK_ERROR(written == availableBytes, L"MbcsEncoder::Write(void*, vint)#Failed to write a complete string.");
+			}
+
+			// cache the remaining
+			cacheSize = cacheSize + _size - availableBytes;
+			if (cacheSize > 0)
+			{
+				CHECK_ERROR(cacheSize <= sizeof(char32_t), L"MbcsEncoder::Write(void*, vint)#Unwritten text is too large to cache.");
+				memcpy(cacheBuffer, unicode + availableBytes, cacheSize);
+			}
+
+			if (needToFree) delete[] unicode;
+			return _size;
+		}
+
+/***********************************************************************
+MbcsDecoder::WriteString
+***********************************************************************/
+
+		// implemented in platform dependent files
+
+/***********************************************************************
+MbcsDecoder
+***********************************************************************/
+
+		vint MbcsDecoder::Read(void* _buffer, vint _size)
+		{
+			vuint8_t* writing = (vuint8_t*)_buffer;
+			vint filledBytes = 0;
+
+			// feed the cache first
+			if (cacheSize > 0)
+			{
+				filledBytes = cacheSize < _size ? cacheSize : _size;
+				memcpy(writing, cacheBuffer, cacheSize);
+				_size -= filledBytes;
+				writing += filledBytes;
+
+				// adjust the cache if it is not fully consumed
+				cacheSize -= filledBytes;
+				if (cacheSize > 0)
+				{
+					memcpy(cacheBuffer, cacheBuffer + filledBytes, cacheSize);
 				}
 
-				threadPoolData->semaphore.Release(threadPoolData->taskThreads.Count());
+				if (_size == 0)
+				{
+					return filledBytes;
+				}
 			}
 
-			threadPoolData->taskFinishEvent.Wait();
-			for (vint i = 0; i < threadPoolData->taskThreads.Count(); i++)
+			// fill the buffer as many as possible
+			while (_size >= sizeof(wchar_t))
 			{
-				auto thread = threadPoolData->taskThreads[i];
-				thread->Wait();
-				delete thread;
+				vint availableChars = _size / sizeof(wchar_t);
+				vint readBytes = ReadString((wchar_t*)writing, availableChars) * sizeof(wchar_t);
+				if (readBytes == 0) break;
+				filledBytes += readBytes;
+				_size -= readBytes;
+				writing += readBytes;
 			}
-			threadPoolData->taskThreads.Clear();
 
-			SPIN_LOCK(threadPoolLock)
+			// cache the remaining wchar_t
+			if (_size < sizeof(wchar_t))
 			{
-				delete threadPoolData;
-				threadPoolData = nullptr;
+				wchar_t c;
+				vint readChars = ReadString(&c, 1) * sizeof(wchar_t);
+				if (readChars == sizeof(wchar_t))
+				{
+					vuint8_t* reading = (vuint8_t*)&c;
+					memcpy(writing, reading, _size);
+					filledBytes += _size;
+					cacheSize = sizeof(wchar_t) - _size;
+					memcpy(cacheBuffer, reading + _size, cacheSize);
+				}
 			}
-			return true;
+
+			return filledBytes;
 		}
 	}
-
-	ThreadPoolLite::ThreadPoolLite()
-	{
-	}
-
-	ThreadPoolLite::~ThreadPoolLite()
-	{
-	}
-
-	bool ThreadPoolLite::Queue(void(*proc)(void*), void* argument)
-	{
-		return ThreadPoolQueue([proc, argument](){proc(argument);});
-	}
-
-	bool ThreadPoolLite::Queue(const Func<void()>& proc)
-	{
-		return ThreadPoolQueue(proc);
-	}
-
-	bool ThreadPoolLite::Stop(bool discardPendingTasks)
-	{
-		return ThreadPoolStop(discardPendingTasks);
-	}
-
-/***********************************************************************
-CriticalSection
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct CriticalSectionData
-		{
-			pthread_mutex_t		mutex;
-		};
-	}
-
-	CriticalSection::CriticalSection()
-	{
-		internalData = new CriticalSectionData;
-		pthread_mutex_init(&internalData->mutex, nullptr);
-	}
-
-	CriticalSection::~CriticalSection()
-	{
-		pthread_mutex_destroy(&internalData->mutex);
-		delete internalData;
-	}
-
-	bool CriticalSection::TryEnter()
-	{
-		return pthread_mutex_trylock(&internalData->mutex) == 0;
-	}
-
-	void CriticalSection::Enter()
-	{
-		pthread_mutex_lock(&internalData->mutex);
-	}
-
-	void CriticalSection::Leave()
-	{
-		pthread_mutex_unlock(&internalData->mutex);
-	}
-
-	CriticalSection::Scope::Scope(CriticalSection& _criticalSection)
-		:criticalSection(&_criticalSection)
-	{
-		criticalSection->Enter();
-	}
-
-	CriticalSection::Scope::~Scope()
-	{
-		criticalSection->Leave();
-	}
-
-/***********************************************************************
-ReaderWriterLock
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ReaderWriterLockData
-		{
-			pthread_rwlock_t			rwlock;
-		};
-	}
-
-	ReaderWriterLock::ReaderWriterLock()
-	{
-		internalData = new ReaderWriterLockData;
-		pthread_rwlock_init(&internalData->rwlock, nullptr);
-	}
-
-	ReaderWriterLock::~ReaderWriterLock()
-	{
-		pthread_rwlock_destroy(&internalData->rwlock);
-		delete internalData;
-	}
-
-	bool ReaderWriterLock::TryEnterReader()
-	{
-		return pthread_rwlock_tryrdlock(&internalData->rwlock) == 0;
-	}
-
-	void ReaderWriterLock::EnterReader()
-	{
-		pthread_rwlock_rdlock(&internalData->rwlock);
-	}
-
-	void ReaderWriterLock::LeaveReader()
-	{
-		pthread_rwlock_unlock(&internalData->rwlock);
-	}
-
-	bool ReaderWriterLock::TryEnterWriter()
-	{
-		return pthread_rwlock_trywrlock(&internalData->rwlock) == 0;
-	}
-
-	void ReaderWriterLock::EnterWriter()
-	{
-		pthread_rwlock_wrlock(&internalData->rwlock);
-	}
-
-	void ReaderWriterLock::LeaveWriter()
-	{
-		pthread_rwlock_unlock(&internalData->rwlock);
-	}
-
-	ReaderWriterLock::ReaderScope::ReaderScope(ReaderWriterLock& _lock)
-		:lock(&_lock)
-	{
-		lock->EnterReader();
-	}
-
-	ReaderWriterLock::ReaderScope::~ReaderScope()
-	{
-		lock->LeaveReader();
-	}
-
-	ReaderWriterLock::WriterScope::WriterScope(ReaderWriterLock& _lock)
-		:lock(&_lock)
-	{
-		lock->EnterWriter();
-	}
-
-	ReaderWriterLock::WriterScope::~WriterScope()
-	{
-		lock->LeaveReader();
-	}
-
-/***********************************************************************
-ConditionVariable
-***********************************************************************/
-
-	namespace threading_internal
-	{
-		struct ConditionVariableData
-		{
-			pthread_cond_t			cond;
-		};
-	}
-
-	ConditionVariable::ConditionVariable()
-	{
-		internalData = new ConditionVariableData;
-		pthread_cond_init(&internalData->cond, nullptr);
-	}
-
-	ConditionVariable::~ConditionVariable()
-	{
-		pthread_cond_destroy(&internalData->cond);
-		delete internalData;
-	}
-
-	bool ConditionVariable::SleepWith(CriticalSection& cs)
-	{
-		return pthread_cond_wait(&internalData->cond, &cs.internalData->mutex) == 0;
-	}
-
-	void ConditionVariable::WakeOnePending()
-	{
-		pthread_cond_signal(&internalData->cond);
-	}
-
-	void ConditionVariable::WakeAllPendings()
-	{
-		pthread_cond_broadcast(&internalData->cond);
-	}
-
-/***********************************************************************
-SpinLock
-***********************************************************************/
-
-	SpinLock::Scope::Scope(SpinLock& _spinLock)
-		:spinLock(&_spinLock)
-	{
-		spinLock->Enter();
-	}
-
-	SpinLock::Scope::~Scope()
-	{
-		spinLock->Leave();
-	}
-			
-	SpinLock::SpinLock()
-		:token(0)
-	{
-	}
-
-	SpinLock::~SpinLock()
-	{
-	}
-
-	bool SpinLock::TryEnter()
-	{
-		return __sync_lock_test_and_set(&token, 1)==0;
-	}
-
-	void SpinLock::Enter()
-	{
-		while(__sync_val_compare_and_swap(&token, 0, 1)!=0)
-		{
-			while(token!=0) _mm_pause();
-		}
-	}
-
-	void SpinLock::Leave()
-	{
-		__sync_lock_test_and_set(&token, 0);
-	}
-
-/***********************************************************************
-ThreadLocalStorage
-***********************************************************************/
-
-#define KEY ((pthread_key_t&)key)
-
-	ThreadLocalStorage::ThreadLocalStorage(Destructor _destructor)
-		:destructor(_destructor)
-	{
-		static_assert(sizeof(key) >= sizeof(pthread_key_t), "ThreadLocalStorage's key storage is not large enouth.");
-		PushStorage(this);
-		auto error = pthread_key_create(&KEY, destructor);
-		CHECK_ERROR(error != EAGAIN && error != ENOMEM, L"vl::ThreadLocalStorage::ThreadLocalStorage()#Failed to create a thread local storage index.");
-	}
-
-	ThreadLocalStorage::~ThreadLocalStorage()
-	{
-		pthread_key_delete(KEY);
-	}
-
-	void* ThreadLocalStorage::Get()
-	{
-		CHECK_ERROR(!disposed, L"vl::ThreadLocalStorage::Get()#Cannot access a disposed ThreadLocalStorage.");
-		return pthread_getspecific(KEY);
-	}
-
-	void ThreadLocalStorage::Set(void* data)
-	{
-		CHECK_ERROR(!disposed, L"vl::ThreadLocalStorage::Set()#Cannot access a disposed ThreadLocalStorage.");
-		pthread_setspecific(KEY, data);
-	}
-
-#undef KEY
 }
-#endif
+
+
+/***********************************************************************
+.\ENCODING\CHARFORMAT\UTFENCODING.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace stream
+	{
+/***********************************************************************
+UtfGeneralEncoder
+***********************************************************************/
+
+		template<typename TNative, typename TExpect>
+		vint UtfGeneralEncoder<TNative, TExpect>::Write(void* _buffer, vint _size)
+		{
+			// prepare a buffer for input
+			vint availableChars = (cacheSize + _size) / sizeof(TExpect);
+			vint availableBytes = availableChars * sizeof(TExpect);
+			bool needToFree = false;
+			vuint8_t* unicode = nullptr;
+			if (cacheSize > 0)
+			{
+				unicode = new vuint8_t[cacheSize + _size];
+				memcpy(unicode, cacheBuffer, cacheSize);
+				memcpy((vuint8_t*)unicode + cacheSize, _buffer, _size);
+				needToFree = true;
+			}
+			else
+			{
+				unicode = (vuint8_t*)_buffer;
+			}
+
+			// write the buffer
+			if (availableChars > 0)
+			{
+				TStringRangeReader reader((TExpect*)unicode, availableChars);
+				while (TNative c = reader.Read())
+				{
+					vint written = stream->Write(&c, sizeof(c));
+					if (written != sizeof(c))
+					{
+						Close();
+						CHECK_FAIL(L"UtfGeneralEncoder<T>::Write(void*, vint)#Failed to write a complete string.");
+					}
+				}
+				auto cluster = reader.SourceCluster();
+				availableChars = cluster.index + cluster.size;
+				availableBytes = availableChars * sizeof(TExpect);
+			}
+
+			// cache the remaining
+			cacheSize = cacheSize + _size - availableBytes;
+			if (cacheSize > 0)
+			{
+				CHECK_ERROR(cacheSize <= sizeof(cacheBuffer), L"UtfGeneralEncoder<T>::Write(void*, vint)#Unwritten text is too large to cache.");
+				memcpy(cacheBuffer, unicode + availableBytes, cacheSize);
+			}
+
+			if (needToFree) delete[] unicode;
+			return _size;
+		}
+
+/***********************************************************************
+UtfGeneralDecoder
+***********************************************************************/
+
+		template<typename TNative, typename TExpect>
+		void UtfGeneralDecoder<TNative, TExpect>::Setup(IStream* _stream)
+		{
+			DecoderBase::Setup(_stream);
+			reader.Setup(_stream);
+		}
+
+		template<typename TNative, typename TExpect>
+		vint UtfGeneralDecoder<TNative, TExpect>::Read(void* _buffer, vint _size)
+		{
+			vuint8_t* writing = (vuint8_t*)_buffer;
+			vint filledBytes = 0;
+
+			// feed the cache first
+			if (cacheSize > 0)
+			{
+				filledBytes = cacheSize < _size ? cacheSize : _size;
+				memcpy(writing, cacheBuffer, cacheSize);
+				_size -= filledBytes;
+				writing += filledBytes;
+
+				// adjust the cache if it is not fully consumed
+				cacheSize -= filledBytes;
+				if (cacheSize > 0)
+				{
+					memcpy(cacheBuffer, cacheBuffer + filledBytes, cacheSize);
+				}
+
+				if (_size == 0)
+				{
+					return filledBytes;
+				}
+			}
+
+			// fill the buffer as many as possible
+			while (_size >= sizeof(TExpect))
+			{
+				vint availableChars = _size / sizeof(TExpect);
+				vint readBytes = 0;
+				for (vint i = 0; i < availableChars; i++)
+				{
+					TExpect c = reader.Read();
+					if (!c) break;
+					*((TExpect*)writing) = c;
+					writing += sizeof(TExpect);
+					readBytes += sizeof(TExpect);
+				}
+				if (readBytes == 0) break;
+				filledBytes += readBytes;
+				_size -= readBytes;
+			}
+
+			// cache the remaining TExpect
+			if (_size < sizeof(TExpect))
+			{
+				if (TExpect c = reader.Read())
+				{
+					vuint8_t* reading = (vuint8_t*)&c;
+					memcpy(writing, reading, _size);
+					filledBytes += _size;
+					cacheSize = sizeof(TExpect) - _size;
+					memcpy(cacheBuffer, reading + _size, cacheSize);
+				}
+			}
+
+			return filledBytes;
+		}
+
+/***********************************************************************
+UtfGeneralEncoder<T, T>
+***********************************************************************/
+
+		template<typename T>
+		vint UtfGeneralEncoder<T, T>::Write(void* _buffer, vint _size)
+		{
+			return stream->Write(_buffer, _size);
+		}
+
+/***********************************************************************
+UtfGeneralDecoder<T, T>
+***********************************************************************/
+
+		template<typename T>
+		vint UtfGeneralDecoder<T, T>::Read(void* _buffer, vint _size)
+		{
+			return stream->Read(_buffer, _size);
+		}
+
+/***********************************************************************
+Unicode General (extern templates)
+***********************************************************************/
+
+		template class UtfGeneralEncoder<wchar_t, wchar_t>;
+		template class UtfGeneralEncoder<wchar_t, char8_t>;
+		template class UtfGeneralEncoder<wchar_t, char16_t>;
+		template class UtfGeneralEncoder<wchar_t, char16be_t>;
+		template class UtfGeneralEncoder<wchar_t, char32_t>;
+
+		template class UtfGeneralEncoder<char8_t, wchar_t>;
+		template class UtfGeneralEncoder<char8_t, char8_t>;
+		template class UtfGeneralEncoder<char8_t, char16_t>;
+		template class UtfGeneralEncoder<char8_t, char16be_t>;
+		template class UtfGeneralEncoder<char8_t, char32_t>;
+
+		template class UtfGeneralEncoder<char16_t, wchar_t>;
+		template class UtfGeneralEncoder<char16_t, char8_t>;
+		template class UtfGeneralEncoder<char16_t, char16_t>;
+		template class UtfGeneralEncoder<char16_t, char16be_t>;
+		template class UtfGeneralEncoder<char16_t, char32_t>;
+
+		template class UtfGeneralEncoder<char16be_t, wchar_t>;
+		template class UtfGeneralEncoder<char16be_t, char8_t>;
+		template class UtfGeneralEncoder<char16be_t, char16_t>;
+		template class UtfGeneralEncoder<char16be_t, char16be_t>;
+		template class UtfGeneralEncoder<char16be_t, char32_t>;
+
+		template class UtfGeneralEncoder<char32_t, wchar_t>;
+		template class UtfGeneralEncoder<char32_t, char8_t>;
+		template class UtfGeneralEncoder<char32_t, char16_t>;
+		template class UtfGeneralEncoder<char32_t, char16be_t>;
+		template class UtfGeneralEncoder<char32_t, char32_t>;
+
+		template class UtfGeneralDecoder<wchar_t, wchar_t>;
+		template class UtfGeneralDecoder<wchar_t, char8_t>;
+		template class UtfGeneralDecoder<wchar_t, char16_t>;
+		template class UtfGeneralDecoder<wchar_t, char16be_t>;
+		template class UtfGeneralDecoder<wchar_t, char32_t>;
+
+		template class UtfGeneralDecoder<char8_t, wchar_t>;
+		template class UtfGeneralDecoder<char8_t, char8_t>;
+		template class UtfGeneralDecoder<char8_t, char16_t>;
+		template class UtfGeneralDecoder<char8_t, char16be_t>;
+		template class UtfGeneralDecoder<char8_t, char32_t>;
+
+		template class UtfGeneralDecoder<char16_t, wchar_t>;
+		template class UtfGeneralDecoder<char16_t, char8_t>;
+		template class UtfGeneralDecoder<char16_t, char16_t>;
+		template class UtfGeneralDecoder<char16_t, char16be_t>;
+		template class UtfGeneralDecoder<char16_t, char32_t>;
+
+		template class UtfGeneralDecoder<char16be_t, wchar_t>;
+		template class UtfGeneralDecoder<char16be_t, char8_t>;
+		template class UtfGeneralDecoder<char16be_t, char16_t>;
+		template class UtfGeneralDecoder<char16be_t, char16be_t>;
+		template class UtfGeneralDecoder<char16be_t, char32_t>;
+
+		template class UtfGeneralDecoder<char32_t, wchar_t>;
+		template class UtfGeneralDecoder<char32_t, char8_t>;
+		template class UtfGeneralDecoder<char32_t, char16_t>;
+		template class UtfGeneralDecoder<char32_t, char16be_t>;
+		template class UtfGeneralDecoder<char32_t, char32_t>;
+	}
+}
 
 
 /***********************************************************************
 .\STREAM\ACCESSOR.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 #include <string.h>
 
 namespace vl
@@ -3767,61 +2139,85 @@ namespace vl
 	{
 		using namespace collections;
 
+		template<typename T>
+		struct VCRLF_ {};
+
+		template<> struct VCRLF_<wchar_t> { static constexpr const wchar_t* Value = L"\r\n"; };
+		template<> struct VCRLF_<char8_t> { static constexpr const char8_t* Value = u8"\r\n"; };
+		template<> struct VCRLF_<char16_t> { static constexpr const char16_t* Value = u"\r\n"; };
+		template<> struct VCRLF_<char32_t> { static constexpr const char32_t* Value = U"\r\n"; };
+
+		template<typename T>
+		constexpr const T* VCRLF = VCRLF_<T>::Value;
+
+		template<typename T>
+		struct VEMPTYSTR_ {};
+
+		template<> struct VEMPTYSTR_<wchar_t> { static constexpr const wchar_t* Value = L""; };
+		template<> struct VEMPTYSTR_<char8_t> { static constexpr const char8_t* Value = u8""; };
+		template<> struct VEMPTYSTR_<char16_t> { static constexpr const char16_t* Value = u""; };
+		template<> struct VEMPTYSTR_<char32_t> { static constexpr const char32_t* Value = U""; };
+
+		template<typename T>
+		constexpr const T* VEMPTYSTR = VEMPTYSTR_<T>::Value;
+
 /***********************************************************************
-TextReader
+TextReader_<T>
 ***********************************************************************/
 
-		WString TextReader::ReadString(vint length)
+		template<typename T>
+		ObjectString<T> TextReader_<T>::ReadString(vint length)
 		{
-			wchar_t* buffer=new wchar_t[length+1];
-			vint i=0;
-			for(;i<length;i++)
+			T* buffer = new T[length + 1];
+			vint i = 0;
+			for (; i < length; i++)
 			{
-				if((buffer[i]=ReadChar())==L'\0')
+				if ((buffer[i] = ReadChar()) == 0)
 				{
 					break;
 				}
 			}
-			buffer[i]=L'\0';
-			WString result(buffer);
+			buffer[i] = 0;
+			ObjectString<T> result(buffer);
 			delete[] buffer;
 			return result;
 		}
 
-		WString TextReader::ReadLine()
+		template<typename T>
+		ObjectString<T> TextReader_<T>::ReadLine()
 		{
-			WString result;
-			auto buffer = new wchar_t[65537];
-			buffer[0]=L'\0';
-			vint i=0;
-			while(true)
+			ObjectString<T> result;
+			auto buffer = new T[65537];
+			buffer[0] = 0;
+			vint i = 0;
+			while (true)
 			{
-				wchar_t c=ReadChar();
-				if(c==L'\n' || c==L'\0')
+				T c = ReadChar();
+				if (c == L'\n' || c == 0)
 				{
-					buffer[i]=L'\0';
-					result+=buffer;
-					buffer[0]=L'\0';
-					i=0;
+					buffer[i] = 0;
+					result += buffer;
+					buffer[0] = 0;
+					i = 0;
 					break;
 				}
 				else
 				{
-					if(i==65536)
+					if (i == 65536)
 					{
-						buffer[i]=L'\0';
-						result+=buffer;
-						buffer[0]=L'\0';
-						i=0;
+						buffer[i] = 0;
+						result += buffer;
+						buffer[0] = 0;
+						i = 0;
 					}
-					buffer[i++]=c;
+					buffer[i++] = c;
 				}
 			}
-			result+=buffer;
+			result += buffer;
 			delete[] buffer;
-			if(result.Length()>0 && result[result.Length()-1]==L'\r')
+			if (result.Length() > 0 && result[result.Length() - 1] == L'\r')
 			{
-				return result.Left(result.Length()-1);
+				return result.Left(result.Length() - 1);
 			}
 			else
 			{
@@ -3829,92 +2225,311 @@ TextReader
 			}
 		}
 
-		WString TextReader::ReadToEnd()
+		template<typename T>
+		ObjectString<T> TextReader_<T>::ReadToEnd()
 		{
-			WString result;
-			auto buffer = new wchar_t[65537];
-			buffer[0]=L'\0';
-			vint i=0;
-			while(true)
+			ObjectString<T> result;
+			auto buffer = new T[65537];
+			buffer[0] = 0;
+			vint i = 0;
+			while (true)
 			{
-				wchar_t c=ReadChar();
-				if(c==L'\0')
+				T c = ReadChar();
+				if (c == 0)
 				{
-					buffer[i]=L'\0';
-					result+=buffer;
-					buffer[0]=L'\0';
-					i=0;
+					buffer[i] = 0;
+					result += buffer;
+					buffer[0] = 0;
+					i = 0;
 					break;
 				}
 				else
 				{
-					if(i==65536)
+					if (i == 65536)
 					{
-						buffer[i]=L'\0';
-						result+=buffer;
-						buffer[0]=L'\0';
-						i=0;
+						buffer[i] = 0;
+						result += buffer;
+						buffer[0] = 0;
+						i = 0;
 					}
-					buffer[i++]=c;
+					buffer[i++] = c;
 				}
 			}
-			result+=buffer;
+			result += buffer;
 			delete[] buffer;
 			return result;
 		}
 
 /***********************************************************************
-TextWriter
+TextWriter_<T>
 ***********************************************************************/
 
-		void TextWriter::WriteString(const wchar_t* string, vint charCount)
+		template<typename T>
+		void TextWriter_<T>::WriteString(const T* string, vint charCount)
 		{
-			while(*string)
+			while (*string)
 			{
 				WriteChar(*string++);
 			}
 		}
 
-		void TextWriter::WriteString(const wchar_t* string)
+		template<typename T>
+		void TextWriter_<T>::WriteString(const T* string)
 		{
-			WriteString(string, (vint)wcslen(string));
+			vint len = 0;
+			if constexpr (std::is_same_v<T, char>)
+			{
+				len = strlen(string);
+			}
+			else if constexpr (std::is_same_v<T, char8_t>)
+			{
+				len = strlen((const char*)string);
+			}
+			else if constexpr (std::is_same_v<T, wchar_t>)
+			{
+				len = wcslen(string);
+			}
+#if defined VCZH_WCHAR_UTF16
+			else if constexpr (std::is_same_v<T, char16_t>)
+			{
+				len = wcslen((const wchar_t*)string);
+			}
+#elif defined VCZH_WCHAR_UTF32
+			else if constexpr (std::is_same_v<T, char32_t>)
+			{
+				len = wcslen((const wchar_t*)string);
+			}
+#endif
+			else
+			{
+				len = ObjectString<T>::Unmanaged(string).Length();
+			}
+			WriteString(string, len);
 		}
 
-		void TextWriter::WriteString(const WString& string)
+		template<typename T>
+		void TextWriter_<T>::WriteString(const ObjectString<T>& string)
 		{
-			if(string.Length())
+			if (string.Length())
 			{
 				WriteString(string.Buffer(), string.Length());
 			}
 		}
 
-		void TextWriter::WriteLine(const wchar_t* string, vint charCount)
+		template<typename T>
+		void TextWriter_<T>::WriteLine(const T* string, vint charCount)
 		{
 			WriteString(string, charCount);
-			WriteString(L"\r\n", 2);
+			WriteString(VCRLF<T>, 2);
 		}
 
-		void TextWriter::WriteLine(const wchar_t* string)
+		template<typename T>
+		void TextWriter_<T>::WriteLine(const T* string)
 		{
 			WriteString(string);
-			WriteString(L"\r\n", 2);
+			WriteString(VCRLF<T>, 2);
 		}
 
-		void TextWriter::WriteLine(const WString& string)
+		template<typename T>
+		void TextWriter_<T>::WriteLine(const ObjectString<T>& string)
 		{
 			WriteString(string);
-			WriteString(L"\r\n", 2);
+			WriteString(VCRLF<T>, 2);
 		}
+
+/***********************************************************************
+StringReader_<T>
+***********************************************************************/
+
+		template<typename T>
+		void StringReader_<T>::PrepareIfLastCallIsReadLine()
+		{
+			if (lastCallIsReadLine)
+			{
+				lastCallIsReadLine = false;
+				if (current < string.Length() && string[current] == L'\r') current++;
+				if (current < string.Length() && string[current] == L'\n') current++;
+			}
+		}
+
+		template<typename T>
+		StringReader_<T>::StringReader_(const ObjectString<T>& _string)
+			: string(_string)
+			, current(0)
+			, lastCallIsReadLine(false)
+		{
+		}
+
+		template<typename T>
+		bool StringReader_<T>::IsEnd()
+		{
+			return current == string.Length();
+		}
+
+		template<typename T>
+		T StringReader_<T>::ReadChar()
+		{
+			PrepareIfLastCallIsReadLine();
+			if (IsEnd())
+			{
+				return 0;
+			}
+			else
+			{
+				return string[current++];
+			}
+		}
+
+		template<typename T>
+		ObjectString<T> StringReader_<T>::ReadString(vint length)
+		{
+			PrepareIfLastCallIsReadLine();
+			if (IsEnd())
+			{
+				return VEMPTYSTR<T>;
+			}
+			else
+			{
+				vint remain = string.Length() - current;
+				if (length > remain) length = remain;
+				ObjectString<T> result = string.Sub(current, length);
+				current += length;
+				return result;
+			}
+		}
+
+		template<typename T>
+		ObjectString<T> StringReader_<T>::ReadLine()
+		{
+			PrepareIfLastCallIsReadLine();
+			if (IsEnd())
+			{
+				return VEMPTYSTR<T>;
+			}
+			else
+			{
+				vint lineEnd = current;
+				while (lineEnd < string.Length())
+				{
+					T c = string[lineEnd];
+					if (c == L'\r' || c == L'\n') break;
+					lineEnd++;
+				}
+				ObjectString<T> result = string.Sub(current, lineEnd - current);
+				current = lineEnd;
+				lastCallIsReadLine = true;
+				return result;
+			}
+		}
+
+		template<typename T>
+		ObjectString<T> StringReader_<T>::ReadToEnd()
+		{
+			return ReadString(string.Length() - current);
+		}
+
+/***********************************************************************
+StreamReader_<T>
+***********************************************************************/
+
+		template<typename T>
+		StreamReader_<T>::StreamReader_(IStream& _stream)
+			: stream(&_stream)
+		{
+		}
+
+		template<typename T>
+		bool StreamReader_<T>::IsEnd()
+		{
+			return stream == nullptr;
+		}
+
+		template<typename T>
+		T StreamReader_<T>::ReadChar()
+		{
+			if (stream)
+			{
+				T buffer = 0;
+				if (stream->Read(&buffer, sizeof(buffer)) == 0)
+				{
+					stream = nullptr;
+					return 0;
+				}
+				else
+				{
+					return buffer;
+				}
+			}
+			else
+			{
+				return 0;
+			}
+		}
+
+/***********************************************************************
+StreamWriter_<T>
+***********************************************************************/
+
+		template<typename T>
+		StreamWriter_<T>::StreamWriter_(IStream& _stream)
+			:stream(&_stream)
+		{
+		}
+
+		template<typename T>
+		void StreamWriter_<T>::WriteChar(T c)
+		{
+			stream->Write(&c, sizeof(c));
+		}
+
+		template<typename T>
+		void StreamWriter_<T>::WriteString(const T* string, vint charCount)
+		{
+			stream->Write((void*)string, charCount * sizeof(*string));
+		}
+
+/***********************************************************************
+Extern Templates
+***********************************************************************/
+
+		template class TextReader_<wchar_t>;
+		template class TextReader_<char8_t>;
+		template class TextReader_<char16_t>;
+		template class TextReader_<char32_t>;
+
+		template class TextWriter_<wchar_t>;
+		template class TextWriter_<char8_t>;
+		template class TextWriter_<char16_t>;
+		template class TextWriter_<char32_t>;
+
+		template class StringReader_<wchar_t>;
+		template class StringReader_<char8_t>;
+		template class StringReader_<char16_t>;
+		template class StringReader_<char32_t>;
+
+		template class StreamReader_<wchar_t>;
+		template class StreamReader_<char8_t>;
+		template class StreamReader_<char16_t>;
+		template class StreamReader_<char32_t>;
+
+		template class StreamWriter_<wchar_t>;
+		template class StreamWriter_<char8_t>;
+		template class StreamWriter_<char16_t>;
+		template class StreamWriter_<char32_t>;
+
+/***********************************************************************
+Extern Templates
+***********************************************************************/
 
 		namespace monospace_tabling
 		{
 			void WriteBorderLine(TextWriter& writer, Array<vint>& columnWidths, vint columns)
 			{
 				writer.WriteChar(L'+');
-				for(vint i=0;i<columns;i++)
+				for (vint i = 0; i < columns; i++)
 				{
-					vint c=columnWidths[i];
-					for(vint j=0;j<c;j++)
+					vint c = columnWidths[i];
+					for (vint j = 0; j < c; j++)
 					{
 						writer.WriteChar(L'-');
 					}
@@ -3925,29 +2540,29 @@ TextWriter
 
 			void WriteContentLine(TextWriter& writer, Array<vint>& columnWidths, vint rowHeight, vint columns, Array<WString>& tableByRow, vint startRow)
 			{
-				vint cellStart=startRow*columns;
-				for(vint r=0;r<rowHeight;r++)
+				vint cellStart = startRow * columns;
+				for (vint r = 0; r < rowHeight; r++)
 				{
 					writer.WriteChar(L'|');
-					for(vint c=0;c<columns;c++)
+					for (vint c = 0; c < columns; c++)
 					{
-						const wchar_t* cell=tableByRow[cellStart+c].Buffer();
-						for(vint i=0;i<r;i++)
+						const wchar_t* cell = tableByRow[cellStart + c].Buffer();
+						for (vint i = 0; i < r; i++)
 						{
-							if(cell) cell=::wcsstr(cell, L"\r\n");
-							if(cell) cell+=2;
+							if (cell) cell = ::wcsstr(cell, L"\r\n");
+							if (cell) cell += 2;
 						}
 
 						writer.WriteChar(L' ');
-						vint length=0;
-						if(cell)
+						vint length = 0;
+						if (cell)
 						{
-							const wchar_t* end=::wcsstr(cell, L"\r\n");
-							length=end?end-cell:(vint)wcslen(cell);
+							const wchar_t* end = ::wcsstr(cell, L"\r\n");
+							length = end ? end - cell : (vint)wcslen(cell);
 							writer.WriteString(cell, length);
 						}
 
-						for(vint i=columnWidths[c]-2;i>=length;i--)
+						for (vint i = columnWidths[c] - 2; i >= length; i--)
 						{
 							writer.WriteChar(L' ');
 						}
@@ -3957,387 +2572,52 @@ TextWriter
 				}
 			}
 		}
-		using namespace monospace_tabling;
 
-		void TextWriter::WriteMonospacedEnglishTable(collections::Array<WString>& tableByRow, vint rows, vint columns)
+		void WriteMonospacedEnglishTable(TextWriter& writer, collections::Array<WString>& tableByRow, vint rows, vint columns)
 		{
 			Array<vint> rowHeights(rows);
 			Array<vint> columnWidths(columns);
-			for(vint i=0;i<rows;i++) rowHeights[i]=0;
-			for(vint j=0;j<columns;j++) columnWidths[j]=0;
+			for (vint i = 0; i < rows; i++) rowHeights[i] = 0;
+			for (vint j = 0; j < columns; j++) columnWidths[j] = 0;
 
-			for(vint i=0;i<rows;i++)
+			for (vint i = 0; i < rows; i++)
 			{
-				for(vint j=0;j<columns;j++)
+				for (vint j = 0; j < columns; j++)
 				{
-					WString text=tableByRow[i*columns+j];
-					const wchar_t* reading=text.Buffer();
-					vint width=0;
-					vint height=0;
+					WString text = tableByRow[i * columns + j];
+					const wchar_t* reading = text.Buffer();
+					vint width = 0;
+					vint height = 0;
 
-					while(reading)
+					while (reading)
 					{
 						height++;
-						const wchar_t* crlf=::wcsstr(reading, L"\r\n");
-						if(crlf)
+						const wchar_t* crlf = ::wcsstr(reading, L"\r\n");
+						if (crlf)
 						{
-							vint length=crlf-reading+2;
-							if(width<length) width=length;
-							reading=crlf+2;
+							vint length = crlf - reading + 2;
+							if (width < length) width = length;
+							reading = crlf + 2;
 						}
 						else
 						{
-							vint length=(vint)wcslen(reading)+2;
-							if(width<length) width=length;
-							reading=0;
+							vint length = ::wcslen(reading) + 2;
+							if (width < length) width = length;
+							reading = 0;
 						}
 					}
 
-					if(rowHeights[i]<height) rowHeights[i]=height;
-					if(columnWidths[j]<width) columnWidths[j]=width;
+					if (rowHeights[i] < height) rowHeights[i] = height;
+					if (columnWidths[j] < width) columnWidths[j] = width;
 				}
 			}
 
-			WriteBorderLine(*this, columnWidths, columns);
-			for(vint i=0;i<rows;i++)
+			monospace_tabling::WriteBorderLine(writer, columnWidths, columns);
+			for (vint i = 0; i < rows; i++)
 			{
-				WriteContentLine(*this, columnWidths, rowHeights[i], columns, tableByRow, i);
-				WriteBorderLine(*this, columnWidths, columns);
+				monospace_tabling::WriteContentLine(writer, columnWidths, rowHeights[i], columns, tableByRow, i);
+				monospace_tabling::WriteBorderLine(writer, columnWidths, columns);
 			}
-		}
-
-/***********************************************************************
-StringReader
-***********************************************************************/
-
-		void StringReader::PrepareIfLastCallIsReadLine()
-		{
-			if(lastCallIsReadLine)
-			{
-				lastCallIsReadLine=false;
-				if(current<string.Length() && string[current]==L'\r') current++;
-				if(current<string.Length() && string[current]==L'\n') current++;
-			}
-		}
-
-		StringReader::StringReader(const WString& _string)
-			:string(_string)
-			,current(0)
-			,lastCallIsReadLine(false)
-		{
-		}
-
-		bool StringReader::IsEnd()
-		{
-			return current==string.Length();
-		}
-
-		wchar_t StringReader::ReadChar()
-		{
-			PrepareIfLastCallIsReadLine();
-			if(IsEnd())
-			{
-				return L'\0';
-			}
-			else
-			{
-				return string[current++];
-			}
-		}
-
-		WString StringReader::ReadString(vint length)
-		{
-			PrepareIfLastCallIsReadLine();
-			if(IsEnd())
-			{
-				return L"";
-			}
-			else
-			{
-				vint remain=string.Length()-current;
-				if(length>remain) length=remain;
-				WString result=string.Sub(current, length);
-				current+=length;
-				return result;
-			}
-		}
-
-		WString StringReader::ReadLine()
-		{
-			PrepareIfLastCallIsReadLine();
-			if(IsEnd())
-			{
-				return L"";
-			}
-			else
-			{
-				vint lineEnd=current;
-				while(lineEnd<string.Length())
-				{
-					wchar_t c=string[lineEnd];
-					if(c==L'\r' || c==L'\n') break;
-					lineEnd++;
-				}
-				WString result=string.Sub(current, lineEnd-current);
-				current=lineEnd;
-				lastCallIsReadLine=true;
-				return result;
-			}
-		}
-
-		WString StringReader::ReadToEnd()
-		{
-			return ReadString(string.Length()-current);
-		}
-
-/***********************************************************************
-StreamReader
-***********************************************************************/
-
-		StreamReader::StreamReader(IStream& _stream)
-			:stream(&_stream)
-		{
-		}
-
-		bool StreamReader::IsEnd()
-		{
-			return stream==0;
-		}
-
-		wchar_t StreamReader::ReadChar()
-		{
-			if(stream)
-			{
-				wchar_t buffer=0;
-				if(stream->Read(&buffer, sizeof(buffer))==0)
-				{
-					stream=0;
-					return 0;
-				}
-				else
-				{
-					return buffer;
-				}
-			}
-			else
-			{
-				return L'\0';
-			}
-		}
-
-/***********************************************************************
-StreamWriter
-***********************************************************************/
-
-		StreamWriter::StreamWriter(IStream& _stream)
-			:stream(&_stream)
-		{
-		}
-
-		void StreamWriter::WriteChar(wchar_t c)
-		{
-			stream->Write(&c, sizeof(c));
-		}
-
-		void StreamWriter::WriteString(const wchar_t* string, vint charCount)
-		{
-			stream->Write((void*)string, charCount*sizeof(*string));
-		}
-
-/***********************************************************************
-EncoderStream
-***********************************************************************/
-
-		EncoderStream::EncoderStream(IStream& _stream, IEncoder& _encoder)
-			:stream(&_stream)
-			,encoder(&_encoder)
-			,position(0)
-		{
-			encoder->Setup(stream);
-		}
-
-		EncoderStream::~EncoderStream()
-		{
-			Close();
-		}
-
-		bool EncoderStream::CanRead()const
-		{
-			return false;
-		}
-
-		bool EncoderStream::CanWrite()const
-		{
-			return IsAvailable();
-		}
-
-		bool EncoderStream::CanSeek()const
-		{
-			return false;
-		}
-
-		bool EncoderStream::CanPeek()const
-		{
-			return false;
-		}
-
-		bool EncoderStream::IsLimited()const
-		{
-			return stream!=0 && stream->IsLimited();
-		}
-
-		bool EncoderStream::IsAvailable()const
-		{
-			return stream!=0 && stream->IsAvailable();
-		}
-
-		void EncoderStream::Close()
-		{
-			encoder->Close();
-			stream=0;
-		}
-
-		pos_t EncoderStream::Position()const
-		{
-			return IsAvailable()?position:-1;
-		}
-
-		pos_t EncoderStream::Size()const
-		{
-			return -1;
-		}
-
-		void EncoderStream::Seek(pos_t _size)
-		{
-			CHECK_FAIL(L"EncoderStream::Seek(pos_t)#Operation not supported.");
-		}
-
-		void EncoderStream::SeekFromBegin(pos_t _size)
-		{
-			CHECK_FAIL(L"EncoderStream::SeekFromBegin(pos_t)#Operation not supported.");
-		}
-
-		void EncoderStream::SeekFromEnd(pos_t _size)
-		{
-			CHECK_FAIL(L"EncoderStream::SeekFromEnd(pos_t)#Operation not supported.");
-		}
-
-		vint EncoderStream::Read(void* _buffer, vint _size)
-		{
-			CHECK_FAIL(L"EncoderStream::Read(void*, vint)#Operation not supported.");
-		}
-
-		vint EncoderStream::Write(void* _buffer, vint _size)
-		{
-			vint result=encoder->Write(_buffer, _size);
-			if(result>=0)
-			{
-				position+=result;
-			}
-			return result;
-		}
-
-		vint EncoderStream::Peek(void* _buffer, vint _size)
-		{
-			CHECK_FAIL(L"EncoderStream::Peek(void*, vint)#Operation not supported.");
-		}
-
-/***********************************************************************
-DecoderStream
-***********************************************************************/
-
-		DecoderStream::DecoderStream(IStream& _stream, IDecoder& _decoder)
-			:stream(&_stream)
-			,decoder(&_decoder)
-			,position(0)
-		{
-			decoder->Setup(stream);
-		}
-
-		DecoderStream::~DecoderStream()
-		{
-			Close();
-		}
-
-		bool DecoderStream::CanRead()const
-		{
-			return IsAvailable();
-		}
-
-		bool DecoderStream::CanWrite()const
-		{
-			return false;
-		}
-
-		bool DecoderStream::CanSeek()const
-		{
-			return false;
-		}
-
-		bool DecoderStream::CanPeek()const
-		{
-			return false;
-		}
-
-		bool DecoderStream::IsLimited()const
-		{
-			return stream!=0 && stream->IsLimited();
-		}
-
-		bool DecoderStream::IsAvailable()const
-		{
-			return stream!=0 && stream->IsAvailable();
-		}
-
-		void DecoderStream::Close()
-		{
-			decoder->Close();
-			stream=0;
-		}
-
-		pos_t DecoderStream::Position()const
-		{
-			return IsAvailable()?position:-1;
-		}
-
-		pos_t DecoderStream::Size()const
-		{
-			return -1;
-		}
-
-		void DecoderStream::Seek(pos_t _size)
-		{
-			CHECK_FAIL(L"DecoderStream::Seek(pos_t)#Operation not supported.");
-		}
-
-		void DecoderStream::SeekFromBegin(pos_t _size)
-		{
-			CHECK_FAIL(L"DecoderStream::SeekFromBegin(pos_t)#Operation not supported.");
-		}
-
-		void DecoderStream::SeekFromEnd(pos_t _size)
-		{
-			CHECK_FAIL(L"DecoderStream::SeekFromEnd(pos_t)#Operation not supported.");
-		}
-
-		vint DecoderStream::Read(void* _buffer, vint _size)
-		{
-			vint result=decoder->Read(_buffer, _size);
-			if(result>=0)
-			{
-				position+=result;
-			}
-			return result;
-		}
-
-		vint DecoderStream::Write(void* _buffer, vint _size)
-		{
-			CHECK_FAIL(L"DecoderStream::Write(void*, vint)#Operation not supported.");
-		}
-
-		vint DecoderStream::Peek(void* _buffer, vint _size)
-		{
-			CHECK_FAIL(L"DecoderStream::Peek(void*, vint)#Operation not supported.");
 		}
 	}
 }
@@ -4346,6 +2626,11 @@ DecoderStream
 /***********************************************************************
 .\STREAM\BROADCASTSTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -4438,9 +2723,11 @@ BroadcastStream
 
 		vint BroadcastStream::Write(void* _buffer, vint _size)
 		{
+			// TODO: (enumerable) foreach
 			for(vint i=0;i<streams.Count();i++)
 			{
-				streams[i]->Write(_buffer, _size);
+				vint written = streams[i]->Write(_buffer, _size);
+				CHECK_ERROR(written == _size, L"BroadcastStream::Write(void*, vint)#Failed to copy data to the output stream.");
 			}
 			position+=_size;
 			return _size;
@@ -4456,6 +2743,11 @@ BroadcastStream
 /***********************************************************************
 .\STREAM\CACHESTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -4758,1549 +3050,225 @@ CacheStream
 }
 
 /***********************************************************************
-.\STREAM\CHARFORMAT.CPP
+.\STREAM\ENCODINGSTREAM.CPP
 ***********************************************************************/
-#if defined VCZH_MSVC
-#include <windows.h>
-#elif defined VCZH_GCC
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
 	namespace stream
 	{
-
 /***********************************************************************
-CharEncoder
+EncoderStream
 ***********************************************************************/
 
-		CharEncoder::CharEncoder()
-			:stream(0)
-			,cacheSize(0)
+		EncoderStream::EncoderStream(IStream& _stream, IEncoder& _encoder)
+			:stream(&_stream)
+			,encoder(&_encoder)
+			,position(0)
 		{
+			encoder->Setup(stream);
 		}
 
-		void CharEncoder::Setup(IStream* _stream)
-		{
-			stream=_stream;
-		}
-
-		void CharEncoder::Close()
-		{
-		}
-
-		vint CharEncoder::Write(void* _buffer, vint _size)
-		{
-			const vint all=cacheSize+_size;
-			const vint chars=all/sizeof(wchar_t);
-			const vint bytes=chars*sizeof(wchar_t);
-			wchar_t* unicode=0;
-			bool needToFree=false;
-			vint result=0;
-
-			if(chars)
-			{
-				if(cacheSize>0)
-				{
-					unicode=new wchar_t[chars];
-					memcpy(unicode, cacheBuffer, cacheSize);
-					memcpy(((vuint8_t*)unicode)+cacheSize, _buffer, bytes-cacheSize);
-					needToFree=true;
-				}
-				else
-				{
-					unicode=(wchar_t*)_buffer;
-				}
-				result=WriteString(unicode, chars)*sizeof(wchar_t)-cacheSize;
-				cacheSize=0;
-			}
-
-			if(needToFree)
-			{
-				delete[] unicode;
-			}
-			if(all-bytes>0)
-			{
-				cacheSize=all-bytes;
-				memcpy(cacheBuffer, (vuint8_t*)_buffer+_size-cacheSize, cacheSize);
-				result+=cacheSize;
-			}
-			return result;
-		}
-
-/***********************************************************************
-CharDecoder
-***********************************************************************/
-
-		CharDecoder::CharDecoder()
-			:stream(0)
-			,cacheSize(0)
-		{
-		}
-
-		void CharDecoder::Setup(IStream* _stream)
-		{
-			stream=_stream;
-		}
-
-		void CharDecoder::Close()
-		{
-		}
-
-		vint CharDecoder::Read(void* _buffer, vint _size)
-		{
-			vuint8_t* unicode=(vuint8_t*)_buffer;
-			vint result=0;
-			{
-				vint index=0;
-				while(cacheSize>0 && _size>0)
-				{
-					*unicode++=cacheBuffer[index]++;
-					cacheSize--;
-					_size--;
-					result++;
-				}
-			}
-
-			const vint chars=_size/sizeof(wchar_t);
-			vint bytes=ReadString((wchar_t*)unicode, chars)*sizeof(wchar_t);
-			result+=bytes;
-			_size-=bytes;
-			unicode+=bytes;
-
-			if(_size>0)
-			{
-				wchar_t c;
-				if(ReadString(&c, 1)==1)
-				{
-					cacheSize=sizeof(wchar_t)-_size;
-					memcpy(unicode, &c, _size);
-					memcpy(cacheBuffer, (vuint8_t*)&c+_size, cacheSize);
-					result+=_size;
-				}
-			}
-			return result;
-		}
-
-/***********************************************************************
-Mbcs
-***********************************************************************/
-
-		vint MbcsEncoder::WriteString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			vint length=WideCharToMultiByte(CP_THREAD_ACP, 0, _buffer, (int)chars, NULL, NULL, NULL, NULL);
-			char* mbcs=new char[length];
-			WideCharToMultiByte(CP_THREAD_ACP, 0, _buffer, (int)chars, mbcs, (int)length, NULL, NULL);
-			vint result=stream->Write(mbcs, length);
-			delete[] mbcs;
-#elif defined VCZH_GCC
-			WString w(_buffer, chars);
-			AString a=wtoa(w);
-			vint length=a.Length();
-			vint result=stream->Write((void*)a.Buffer(), length);
-#endif
-			if(result==length)
-			{
-				return chars;
-			}
-			else
-			{
-				Close();
-				return 0;
-			}
-		}
-
-		vint MbcsDecoder::ReadString(wchar_t* _buffer, vint chars)
-		{
-			char* source=new char[chars*2];
-			char* reading=source;
-			vint readed=0;
-			while(readed<chars)
-			{
-				if(stream->Read(reading, 1)!=1)
-				{
-					break;
-				}
-#if defined VCZH_MSVC
-				if(IsDBCSLeadByte(*reading))
-#elif defined VCZH_GCC
-				if((vint8_t)*reading<0)
-#endif
-				{
-					if(stream->Read(reading+1, 1)!=1)
-					{
-						break;
-					}
-					reading+=2;
-				}
-				else
-				{
-					reading++;
-				}
-				readed++;
-			}
-#if defined VCZH_MSVC
-			MultiByteToWideChar(CP_THREAD_ACP, 0, source, (int)(reading-source), _buffer, (int)chars);
-#elif defined VCZH_GCC
-			AString a(source, (vint)(reading-source));
-			WString w=atow(a);
-			memcpy(_buffer, w.Buffer(), readed*sizeof(wchar_t));
-#endif
-			delete[] source;
-			return readed;
-		}
-
-/***********************************************************************
-Utf-16
-***********************************************************************/
-
-		vint Utf16Encoder::WriteString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			return stream->Write(_buffer, chars*sizeof(wchar_t))/sizeof(wchar_t);
-#elif defined VCZH_GCC
-			vint writed = 0;
-			vuint16_t utf16 = 0;
-			vuint8_t* utf16buf = (vuint8_t*)&utf16;
-			while (writed < chars)
-			{
-				wchar_t w = *_buffer++;
-				if (w < 0x10000)
-				{
-					utf16 = (vuint16_t)w;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-				}
-				else if (w < 0x110000)
-				{
-					wchar_t inc = w - 0x10000;
-
-					utf16 = (vuint16_t)(inc / 0x400) + 0xD800;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-
-					utf16 = (vuint16_t)(inc % 0x400) + 0xDC00;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-				}
-				else
-				{
-					break;
-				}
-				writed++;
-			}
-			if(writed!=chars)
-			{
-				Close();
-			}
-			return writed;
-#endif
-		}
-
-		vint Utf16Decoder::ReadString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			return stream->Read(_buffer, chars*sizeof(wchar_t))/sizeof(wchar_t);
-#elif defined VCZH_GCC
-			wchar_t* writing = _buffer;
-			while (writing - _buffer < chars)
-			{
-				vuint16_t utf16_1 = 0;
-				vuint16_t utf16_2 = 0;
-
-				if (stream->Read(&utf16_1, 2) != 2) break;
-				if (utf16_1 < 0xD800 || utf16_1 > 0xDFFF)
-				{
-					*writing++ = (wchar_t)utf16_1;
-				}
-				else if (utf16_1 < 0xDC00)
-				{
-					if (stream->Read(&utf16_2, 2) != 2) break;
-					if (0xDC00 <= utf16_2 && utf16_2 <= 0xDFFF)
-					{
-						*writing++ = (wchar_t)(utf16_1 - 0xD800) * 0x400 + (wchar_t)(utf16_2 - 0xDC00) + 0x10000;
-					}
-					else
-					{
-						break;
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-			return writing - _buffer;
-#endif
-		}
-
-/***********************************************************************
-Utf-16-be
-***********************************************************************/
-
-		vint Utf16BEEncoder::WriteString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			vint writed=0;
-			while(writed<chars)
-			{
-				if(stream->Write(((unsigned char*)_buffer)+1, 1)!=1)
-				{
-					break;
-				}
-				if(stream->Write(_buffer, 1)!=1)
-				{
-					break;
-				}
-				_buffer++;
-				writed++;
-			}
-			if(writed!=chars)
-			{
-				Close();
-			}
-			return writed;
-#elif defined VCZH_GCC
-			vint writed = 0;
-			vuint16_t utf16 = 0;
-			vuint8_t* utf16buf = (vuint8_t*)&utf16;
-			while (writed < chars)
-			{
-				wchar_t w = *_buffer++;
-				if (w < 0x10000)
-				{
-					utf16 = (vuint16_t)w;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-				}
-				else if (w < 0x110000)
-				{
-					wchar_t inc = w - 0x10000;
-
-					utf16 = (vuint16_t)(inc / 0x400) + 0xD800;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-
-					utf16 = (vuint16_t)(inc % 0x400) + 0xDC00;
-					if (stream->Write(&utf16buf[1], 1) != 1) break;
-					if (stream->Write(&utf16buf[0], 1) != 1) break;
-				}
-				else
-				{
-					break;
-				}
-				writed++;
-			}
-			if(writed!=chars)
-			{
-				Close();
-			}
-			return writed;
-#endif
-		}
-
-		vint Utf16BEDecoder::ReadString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			chars=stream->Read(_buffer, chars*sizeof(wchar_t))/sizeof(wchar_t);
-			unsigned char* unicode=(unsigned char*)_buffer;
-			for(vint i=0;i<chars;i++)
-			{
-				unsigned char t=unicode[0];
-				unicode[0]=unicode[1];
-				unicode[1]=t;
-				unicode++;
-			}
-			return chars;
-#elif defined VCZH_GCC
-			wchar_t* writing = _buffer;
-			while (writing - _buffer < chars)
-			{
-				vuint16_t utf16_1 = 0;
-				vuint16_t utf16_2 = 0;
-				vuint8_t* utf16buf = 0;
-				vuint8_t utf16buf_temp = 0;
-
-				if (stream->Read(&utf16_1, 2) != 2) break;
-
-				utf16buf = (vuint8_t*)&utf16_1;
-				utf16buf_temp = utf16buf[0];
-				utf16buf[0] = utf16buf[1];
-				utf16buf[1] = utf16buf_temp;
-
-				if (utf16_1 < 0xD800 || utf16_1 > 0xDFFF)
-				{
-					*writing++ = (wchar_t)utf16_1;
-				}
-				else if (utf16_1 < 0xDC00)
-				{
-					if (stream->Read(&utf16_2, 2) != 2) break;
-
-					utf16buf = (vuint8_t*)&utf16_2;
-					utf16buf_temp = utf16buf[0];
-					utf16buf[0] = utf16buf[1];
-					utf16buf[1] = utf16buf_temp;
-
-					if (0xDC00 <= utf16_2 && utf16_2 <= 0xDFFF)
-					{
-						*writing++ = (wchar_t)(utf16_1 - 0xD800) * 0x400 + (wchar_t)(utf16_2 - 0xDC00) + 0x10000;
-					}
-					else
-					{
-						break;
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-			return writing - _buffer;
-#endif
-		}
-
-/***********************************************************************
-Utf8
-***********************************************************************/
-
-		vint Utf8Encoder::WriteString(wchar_t* _buffer, vint chars)
-		{
-#if defined VCZH_MSVC
-			vint length=WideCharToMultiByte(CP_UTF8, 0, _buffer, (int)chars, NULL, NULL, NULL, NULL);
-			char* mbcs=new char[length];
-			WideCharToMultiByte(CP_UTF8, 0, _buffer, (int)chars, mbcs, (int)length, NULL, NULL);
-			vint result=stream->Write(mbcs, length);
-			delete[] mbcs;
-			if(result==length)
-			{
-				return chars;
-			}
-			else
-			{
-				Close();
-				return 0;
-			}
-#elif defined VCZH_GCC
-			vint writed = 0;
-			while (writed < chars)
-			{
-				wchar_t w = *_buffer++;
-				vuint8_t utf8[4];
-				if (w < 0x80)
-				{
-					utf8[0] = (vuint8_t)w;
-					if (stream->Write(utf8, 1) != 1) break;
-				}
-				else if (w < 0x800)
-				{
-					utf8[0] = 0xC0 + ((w & 0x7C0) >> 6);
-					utf8[1] = 0x80 + (w & 0x3F);
-					if (stream->Write(utf8, 2) != 2) break;
-				}
-				else if (w < 0x10000)
-				{
-					utf8[0] = 0xE0 + ((w & 0xF000) >> 12);
-					utf8[1] = 0x80 + ((w & 0xFC0) >> 6);
-					utf8[2] = 0x80 + (w & 0x3F);
-					if (stream->Write(utf8, 3) != 3) break;
-				}
-				else if (w < 0x110000) // only accept UTF-16 range
-				{
-					utf8[0] = 0xF0 + ((w & 0x1C0000) >> 18);
-					utf8[1] = 0x80 + ((w & 0x3F000) >> 12);
-					utf8[2] = 0x80 + ((w & 0xFC0) >> 6);
-					utf8[3] = 0x80 + (w & 0x3F);
-					if (stream->Write(utf8, 4) != 4) break;
-				}
-				else
-				{
-					break;
-				}
-				writed++;
-			}
-			if(writed!=chars)
-			{
-				Close();
-			}
-			return writed;
-#endif
-		}
-
-		Utf8Decoder::Utf8Decoder()
-#if defined VCZH_MSVC
-			:cache(0)
-			,cacheAvailable(false)
-#endif
-		{
-		}
-
-		vint Utf8Decoder::ReadString(wchar_t* _buffer, vint chars)
-		{
-			vuint8_t source[4];
-#if defined VCZH_MSVC
-			wchar_t target[2];
-#endif
-			wchar_t* writing=_buffer;
-			vint readed=0;
-			vint sourceCount=0;
-
-			while(readed<chars)
-			{
-#if defined VCZH_MSVC
-				if(cacheAvailable)
-				{
-					*writing++=cache;
-					cache=0;
-					cacheAvailable=false;
-				}
-				else
-				{
-#endif
-					if(stream->Read(source, 1)!=1)
-					{
-						break;
-					}
-					if((*source & 0xF0) == 0xF0)
-					{
-						if(stream->Read(source+1, 3)!=3)
-						{
-							break;
-						}
-						sourceCount=4;
-					}
-					else if((*source & 0xE0) == 0xE0)
-					{
-						if(stream->Read(source+1, 2)!=2)
-						{
-							break;
-						}
-						sourceCount=3;
-					}
-					else if((*source & 0xC0) == 0xC0)
-					{
-						if(stream->Read(source+1, 1)!=1)
-						{
-							break;
-						}
-						sourceCount=2;
-					}
-					else
-					{
-						sourceCount=1;
-					}
-#if defined VCZH_MSVC	
-					int targetCount=MultiByteToWideChar(CP_UTF8, 0, (char*)source, (int)sourceCount, target, 2);
-					if(targetCount==1)
-					{
-						*writing++=target[0];
-					}
-					else if(targetCount==2)
-					{
-						*writing++=target[0];
-						cache=target[1];
-						cacheAvailable=true;
-					}
-					else
-					{
-						break;
-					}
-				}
-#elif defined VCZH_GCC
-					if (sourceCount == 1)
-					{
-						*writing++ = (wchar_t)source[0];
-					}
-					else if (sourceCount == 2)
-					{
-						*writing++ = (((wchar_t)source[0] & 0x1F) << 6) + ((wchar_t)source[1] & 0x3F);
-					}
-					else if (sourceCount == 3)
-					{
-						*writing++ = (((wchar_t)source[0] & 0xF) << 12) + (((wchar_t)source[1] & 0x3F) << 6) + ((wchar_t)source[2] & 0x3F);
-					}
-					else if (sourceCount == 4)
-					{
-						*writing++ = (((wchar_t)source[0] & 0x7) << 18) + (((wchar_t)source[1] & 0x3F) << 12) + (((wchar_t)source[2] & 0x3F) << 6) + ((wchar_t)source[3] & 0x3F);
-					}
-					else
-					{
-						break;
-					}
-#endif
-				readed++;
-			}
-			return readed;
-		}
-
-/***********************************************************************
-BomEncoder
-***********************************************************************/
-
-		BomEncoder::BomEncoder(Encoding _encoding)
-			:encoding(_encoding)
-			,encoder(0)
-		{
-			switch(encoding)
-			{
-			case Mbcs:
-				encoder=new MbcsEncoder;
-				break;
-			case Utf8:
-				encoder=new Utf8Encoder;
-				break;
-			case Utf16:
-				encoder=new Utf16Encoder;
-				break;
-			case Utf16BE:
-				encoder=new Utf16BEEncoder;
-				break;
-			}
-		}
-
-		BomEncoder::~BomEncoder()
+		EncoderStream::~EncoderStream()
 		{
 			Close();
 		}
 
-		void BomEncoder::Setup(IStream* _stream)
+		bool EncoderStream::CanRead()const
 		{
-			switch(encoding)
-			{
-			case Mbcs:
-				break;
-			case Utf8:
-				_stream->Write((void*)"\xEF\xBB\xBF", 3);
-				break;
-			case Utf16:
-				_stream->Write((void*)"\xFF\xFE", 2);
-				break;
-			case Utf16BE:
-				_stream->Write((void*)"\xFE\xFF", 2);
-				break;
-			}
-			encoder->Setup(_stream);
+			return false;
 		}
 
-		void BomEncoder::Close()
-		{
-			if(encoder)
-			{
-				encoder->Close();
-				delete encoder;
-				encoder=0;
-			}
-		}
-
-		vint BomEncoder::Write(void* _buffer, vint _size)
-		{
-			return encoder->Write(_buffer, _size);
-		}
-
-/***********************************************************************
-BomDecoder
-***********************************************************************/
-
-		BomDecoder::BomStream::BomStream(IStream* _stream, char* _bom, vint _bomLength)
-			:stream(_stream)
-			,bomPosition(0)
-			,bomLength(_bomLength)
-		{
-			memcpy(bom, _bom, bomLength);
-		}
-
-		bool BomDecoder::BomStream::CanRead()const
+		bool EncoderStream::CanWrite()const
 		{
 			return IsAvailable();
 		}
 
-		bool BomDecoder::BomStream::CanWrite()const
+		bool EncoderStream::CanSeek()const
 		{
 			return false;
 		}
 
-		bool BomDecoder::BomStream::CanSeek()const
+		bool EncoderStream::CanPeek()const
 		{
 			return false;
 		}
 
-		bool BomDecoder::BomStream::CanPeek()const
-		{
-			return false;
-		}
-
-		bool BomDecoder::BomStream::IsLimited()const
+		bool EncoderStream::IsLimited()const
 		{
 			return stream!=0 && stream->IsLimited();
 		}
 
-		bool BomDecoder::BomStream::IsAvailable()const
+		bool EncoderStream::IsAvailable()const
 		{
 			return stream!=0 && stream->IsAvailable();
 		}
 
-		void BomDecoder::BomStream::Close()
+		void EncoderStream::Close()
 		{
+			encoder->Close();
 			stream=0;
 		}
 
-		pos_t BomDecoder::BomStream::Position()const
+		pos_t EncoderStream::Position()const
 		{
-			return IsAvailable()?bomPosition+stream->Position():-1;
+			return IsAvailable()?position:-1;
 		}
 
-		pos_t BomDecoder::BomStream::Size()const
+		pos_t EncoderStream::Size()const
 		{
 			return -1;
 		}
 
-		void BomDecoder::BomStream::Seek(pos_t _size)
+		void EncoderStream::Seek(pos_t _size)
 		{
-			CHECK_FAIL(L"BomDecoder::BomStream::Seek(pos_t)#Operation not supported.");
+			CHECK_FAIL(L"EncoderStream::Seek(pos_t)#Operation not supported.");
 		}
 
-		void BomDecoder::BomStream::SeekFromBegin(pos_t _size)
+		void EncoderStream::SeekFromBegin(pos_t _size)
 		{
-			CHECK_FAIL(L"BomDecoder::BomStream::SeekFromBegin(pos_t)#Operation not supported.");
+			CHECK_FAIL(L"EncoderStream::SeekFromBegin(pos_t)#Operation not supported.");
 		}
 
-		void BomDecoder::BomStream::SeekFromEnd(pos_t _size)
+		void EncoderStream::SeekFromEnd(pos_t _size)
 		{
-			CHECK_FAIL(L"BomDecoder::BomStream::SeekFromEnd(pos_t)#Operation not supported.");
+			CHECK_FAIL(L"EncoderStream::SeekFromEnd(pos_t)#Operation not supported.");
 		}
 
-		vint BomDecoder::BomStream::Read(void* _buffer, vint _size)
+		vint EncoderStream::Read(void* _buffer, vint _size)
 		{
-			vint result=0;
-			unsigned char* buffer=(unsigned char*)_buffer;
-			if(bomPosition<bomLength)
+			CHECK_FAIL(L"EncoderStream::Read(void*, vint)#Operation not supported.");
+		}
+
+		vint EncoderStream::Write(void* _buffer, vint _size)
+		{
+			vint result=encoder->Write(_buffer, _size);
+			if(result>=0)
 			{
-				vint remain=bomLength-bomPosition;
-				result=remain<_size?remain:_size;
-				memcpy(buffer, bom+bomPosition, result);
-				buffer+=result;
-				bomPosition+=result;
-				_size-=result;
-			}
-			if(_size)
-			{
-				result+=stream->Read(buffer, _size);
+				position+=result;
 			}
 			return result;
 		}
 
-		vint BomDecoder::BomStream::Write(void* _buffer, vint _size)
+		vint EncoderStream::Peek(void* _buffer, vint _size)
 		{
-			CHECK_FAIL(L"BomDecoder::BomStream::Write(void*, vint)#Operation not supported.");
+			CHECK_FAIL(L"EncoderStream::Peek(void*, vint)#Operation not supported.");
 		}
 
-		vint BomDecoder::BomStream::Peek(void* _buffer, vint _size)
+/***********************************************************************
+DecoderStream
+***********************************************************************/
+
+		DecoderStream::DecoderStream(IStream& _stream, IDecoder& _decoder)
+			:stream(&_stream)
+			,decoder(&_decoder)
+			,position(0)
 		{
-			CHECK_FAIL(L"BomDecoder::BomStream::Peek(void*, vint)#Operation not supported.");
+			decoder->Setup(stream);
 		}
 
-		BomDecoder::BomDecoder()
-			:decoder(0)
-		{
-		}
-
-		BomDecoder::~BomDecoder()
+		DecoderStream::~DecoderStream()
 		{
 			Close();
 		}
 
-		void BomDecoder::Setup(IStream* _stream)
+		bool DecoderStream::CanRead()const
 		{
-			char bom[3]={0};
-			vint length=_stream->Read(bom, sizeof(bom));
-			if(strncmp(bom, "\xEF\xBB\xBF", 3)==0)
-			{
-				decoder=new Utf8Decoder;
-				stream=new BomStream(_stream, bom+3, 0);
-			}
-			else if(strncmp(bom, "\xFF\xFE", 2)==0)
-			{
-				decoder=new Utf16Decoder;
-				stream=new BomStream(_stream, bom+2, 1);
-			}
-			else if(strncmp(bom, "\xFE\xFF", 2)==0)
-			{
-				decoder=new Utf16BEDecoder;
-				stream=new BomStream(_stream, bom+2, 1);
-			}
-			else
-			{
-				decoder=new MbcsDecoder;
-				stream=new BomStream(_stream, bom, 3);
-			}
-			decoder->Setup(stream);
+			return IsAvailable();
 		}
 
-		void BomDecoder::Close()
+		bool DecoderStream::CanWrite()const
 		{
-			if(decoder)
-			{
-				decoder->Close();
-				delete decoder;
-				decoder=0;
-				stream->Close();
-				delete stream;
-				stream=0;
-			}
-		}
-
-		vint BomDecoder::Read(void* _buffer, vint _size)
-		{
-			return decoder->Read(_buffer, _size);
-		}
-
-/***********************************************************************
-CharEncoder
-***********************************************************************/
-
-		bool CanBeMbcs(unsigned char* buffer, vint size)
-		{
-			for(vint i=0;i<size;i++)
-			{
-				if(buffer[i]==0) return false;
-			}
-			return true;
-		}
-
-		bool CanBeUtf8(unsigned char* buffer, vint size)
-		{
-			for(vint i=0;i<size;i++)
-			{
-				unsigned char c=(unsigned char)buffer[i];
-				if(c==0)
-				{
-					return false;
-				}
-				else
-				{
-					vint count10xxxxxx=0;
-					if((c&0x80)==0x00) /* 0x0xxxxxxx */ count10xxxxxx=0;
-					else if((c&0xE0)==0xC0) /* 0x110xxxxx */ count10xxxxxx=1;
-					else if((c&0xF0)==0xE0) /* 0x1110xxxx */ count10xxxxxx=2;
-					else if((c&0xF8)==0xF0) /* 0x11110xxx */ count10xxxxxx=3;
-					else if((c&0xFC)==0xF8) /* 0x111110xx */ count10xxxxxx=4;
-					else if((c&0xFE)==0xFC) /* 0x1111110x */ count10xxxxxx=5;
-
-					if(size<=i+count10xxxxxx)
-					{
-						return false;
-					}
-					else
-					{
-						for(vint j=0;j<count10xxxxxx;j++)
-						{
-							c=(unsigned char)buffer[i+j+1];
-							if((c&0xC0)!=0x80) /* 0x10xxxxxx */ return false;
-						}
-					}
-					i+=count10xxxxxx;
-				}
-			}
-			return true;
-		}
-
-		bool CanBeUtf16(unsigned char* buffer, vint size, bool& hitSurrogatePairs)
-		{
-			hitSurrogatePairs = false;
-			if (size % 2 != 0) return false;
-			bool needTrail = false;
-			for (vint i = 0; i < size; i += 2)
-			{
-				vuint16_t c = buffer[i] + (buffer[i + 1] << 8);
-				if (c == 0) return false;
-				vint type = 0;
-				if (0xD800 <= c && c <= 0xDBFF) type = 1;
-				else if (0xDC00 <= c && c <= 0xDFFF) type = 2;
-				if (needTrail)
-				{
-					if (type == 2)
-					{
-						needTrail = false;
-					}
-					else
-					{
-						return false;
-					}
-				}
-				else
-				{
-					if (type == 1)
-					{
-						needTrail = true;
-						hitSurrogatePairs = true;
-					}
-					else if (type != 0)
-					{
-						return false;
-					}
-				}
-			}
-			return !needTrail;
-		}
-
-		bool CanBeUtf16BE(unsigned char* buffer, vint size, bool& hitSurrogatePairs)
-		{
-			hitSurrogatePairs = false;
-			if (size % 2 != 0) return false;
-			bool needTrail = false;
-			for (vint i = 0; i < size; i += 2)
-			{
-				vuint16_t c = buffer[i + 1] + (buffer[i] << 8);
-				if (c == 0) return false;
-				vint type = 0;
-				if (0xD800 <= c && c <= 0xDBFF) type = 1;
-				else if (0xDC00 <= c && c <= 0xDFFF) type = 2;
-				if (needTrail)
-				{
-					if (type == 2)
-					{
-						needTrail = false;
-					}
-					else
-					{
-						return false;
-					}
-				}
-				else
-				{
-					if (type == 1)
-					{
-						needTrail = true;
-						hitSurrogatePairs = true;
-					}
-					else if (type != 0)
-					{
-						return false;
-					}
-				}
-			}
-			return !needTrail;
-		}
-
-#if defined VCZH_MSVC
-		template<vint Count>
-		bool GetEncodingResult(int(&tests)[Count], bool(&results)[Count], int test)
-		{
-			for (vint i = 0; i < Count; i++)
-			{
-				if (tests[i] & test)
-				{
-					if (results[i]) return true;
-				}
-			}
 			return false;
 		}
-#endif
 
-		void TestEncoding(unsigned char* buffer, vint size, BomEncoder::Encoding& encoding, bool& containsBom)
+		bool DecoderStream::CanSeek()const
 		{
-			if (size >= 3 && strncmp((char*)buffer, "\xEF\xBB\xBF", 3) == 0)
+			return false;
+		}
+
+		bool DecoderStream::CanPeek()const
+		{
+			return false;
+		}
+
+		bool DecoderStream::IsLimited()const
+		{
+			return stream!=0 && stream->IsLimited();
+		}
+
+		bool DecoderStream::IsAvailable()const
+		{
+			return stream!=0 && stream->IsAvailable();
+		}
+
+		void DecoderStream::Close()
+		{
+			decoder->Close();
+			stream=0;
+		}
+
+		pos_t DecoderStream::Position()const
+		{
+			return IsAvailable()?position:-1;
+		}
+
+		pos_t DecoderStream::Size()const
+		{
+			return -1;
+		}
+
+		void DecoderStream::Seek(pos_t _size)
+		{
+			CHECK_FAIL(L"DecoderStream::Seek(pos_t)#Operation not supported.");
+		}
+
+		void DecoderStream::SeekFromBegin(pos_t _size)
+		{
+			CHECK_FAIL(L"DecoderStream::SeekFromBegin(pos_t)#Operation not supported.");
+		}
+
+		void DecoderStream::SeekFromEnd(pos_t _size)
+		{
+			CHECK_FAIL(L"DecoderStream::SeekFromEnd(pos_t)#Operation not supported.");
+		}
+
+		vint DecoderStream::Read(void* _buffer, vint _size)
+		{
+			vint result=decoder->Read(_buffer, _size);
+			if(result>=0)
 			{
-				encoding = BomEncoder::Utf8;
-				containsBom = true;
+				position+=result;
 			}
-			else if (size >= 2 && strncmp((char*)buffer, "\xFF\xFE", 2) == 0)
-			{
-				encoding = BomEncoder::Utf16;
-				containsBom = true;
-			}
-			else if (size >= 2 && strncmp((char*)buffer, "\xFE\xFF", 2) == 0)
-			{
-				encoding = BomEncoder::Utf16BE;
-				containsBom = true;
-			}
-			else
-			{
-				encoding = BomEncoder::Mbcs;
-				containsBom = false;
+			return result;
+		}
 
-				bool utf16HitSurrogatePairs = false;
-				bool utf16BEHitSurrogatePairs = false;
-				bool roughMbcs = CanBeMbcs(buffer, size);
-				bool roughUtf8 = CanBeUtf8(buffer, size);
-				bool roughUtf16 = CanBeUtf16(buffer, size, utf16HitSurrogatePairs);
-				bool roughUtf16BE = CanBeUtf16BE(buffer, size, utf16BEHitSurrogatePairs);
+		vint DecoderStream::Write(void* _buffer, vint _size)
+		{
+			CHECK_FAIL(L"DecoderStream::Write(void*, vint)#Operation not supported.");
+		}
 
-				vint roughCount = (roughMbcs ? 1 : 0) + (roughUtf8 ? 1 : 0) + (roughUtf16 ? 1 : 0) + (roughUtf16BE ? 1 : 0);
-				if (roughCount == 1)
-				{
-					if (roughUtf8) encoding = BomEncoder::Utf8;
-					else if (roughUtf16) encoding = BomEncoder::Utf16;
-					else if (roughUtf16BE) encoding = BomEncoder::Utf16BE;
-				}
-				else if (roughCount > 1)
-				{
-#if defined VCZH_MSVC
-					int tests[] =
-					{
-						IS_TEXT_UNICODE_REVERSE_ASCII16,
-						IS_TEXT_UNICODE_REVERSE_STATISTICS,
-						IS_TEXT_UNICODE_REVERSE_CONTROLS,
-
-						IS_TEXT_UNICODE_ASCII16,
-						IS_TEXT_UNICODE_STATISTICS,
-						IS_TEXT_UNICODE_CONTROLS,
-
-						IS_TEXT_UNICODE_ILLEGAL_CHARS,
-						IS_TEXT_UNICODE_ODD_LENGTH,
-						IS_TEXT_UNICODE_NULL_BYTES,
-					};
-
-					const vint TestCount = sizeof(tests) / sizeof(*tests);
-					bool results[TestCount];
-					for (vint i = 0; i < TestCount; i++)
-					{
-						int test = tests[i];
-						results[i] = IsTextUnicode(buffer, (int)size, &test) != 0;
-					}
-
-					if (size % 2 == 0
-						&& !GetEncodingResult(tests, results, IS_TEXT_UNICODE_REVERSE_ASCII16)
-						&& !GetEncodingResult(tests, results, IS_TEXT_UNICODE_REVERSE_STATISTICS)
-						&& !GetEncodingResult(tests, results, IS_TEXT_UNICODE_REVERSE_CONTROLS)
-						)
-					{
-						for (vint i = 0; i < size; i += 2)
-						{
-							unsigned char c = buffer[i];
-							buffer[i] = buffer[i + 1];
-							buffer[i + 1] = c;
-						}
-						// 3 = (count of reverse group) = (count of unicode group)
-						for (vint i = 0; i < 3; i++)
-						{
-							int test = tests[i + 3];
-							results[i] = IsTextUnicode(buffer, (int)size, &test) != 0;
-						}
-						for (vint i = 0; i < size; i += 2)
-						{
-							unsigned char c = buffer[i];
-							buffer[i] = buffer[i + 1];
-							buffer[i + 1] = c;
-						}
-					}
-
-					if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_NOT_UNICODE_MASK))
-					{
-						if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_NOT_ASCII_MASK))
-						{
-							encoding = BomEncoder::Utf8;
-						}
-						else if (roughUtf8 || !roughMbcs)
-						{
-							encoding = BomEncoder::Utf8;
-						}
-					}
-					else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_ASCII16))
-					{
-						encoding = BomEncoder::Utf16;
-					}
-					else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_REVERSE_ASCII16))
-					{
-						encoding = BomEncoder::Utf16BE;
-					}
-					else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_CONTROLS))
-					{
-						encoding = BomEncoder::Utf16;
-					}
-					else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_REVERSE_CONTROLS))
-					{
-						encoding = BomEncoder::Utf16BE;
-					}
-					else
-					{
-						if (!roughUtf8)
-						{
-							if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_STATISTICS))
-							{
-								encoding = BomEncoder::Utf16;
-							}
-							else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_STATISTICS))
-							{
-								encoding = BomEncoder::Utf16BE;
-							}
-						}
-						else if (GetEncodingResult(tests, results, IS_TEXT_UNICODE_NOT_UNICODE_MASK))
-						{
-							encoding = BomEncoder::Utf8;
-						}
-						else if (roughUtf8 || !roughMbcs)
-						{
-							encoding = BomEncoder::Utf8;
-						}
-					}
-#elif defined VCZH_GCC
-					if (roughUtf16 && roughUtf16BE && !roughUtf8)
-					{
-						if (utf16BEHitSurrogatePairs && !utf16HitSurrogatePairs)
-						{
-							encoding = BomEncoder::Utf16BE;
-						}
-						else
-						{
-							encoding = BomEncoder::Utf16;
-						}
-					}
-					else
-					{
-						encoding = BomEncoder::Utf8;
-					}
-#endif
-				}
-			}
+		vint DecoderStream::Peek(void* _buffer, vint _size)
+		{
+			CHECK_FAIL(L"DecoderStream::Peek(void*, vint)#Operation not supported.");
 		}
 	}
 }
 
-
-/***********************************************************************
-.\STREAM\COMPRESSIONSTREAM.CPP
-***********************************************************************/
-
-namespace vl
-{
-	namespace stream
-	{
-		using namespace collections;
-		using namespace lzw;
-
-/***********************************************************************
-LzwBase
-***********************************************************************/
-
-		void LzwBase::UpdateIndexBits()
-		{
-			if (nextIndex >=2 && (nextIndex & (nextIndex - 1)) == 0)
-			{
-				indexBits++;
-			}
-		}
-
-		lzw::Code* LzwBase::CreateCode(lzw::Code* prefix, vuint8_t byte)
-		{
-			if (nextIndex < MaxDictionarySize)
-			{
-				Code* code = codeAllocator.Create();
-				code->byte = byte;
-				code->code = nextIndex;
-				code->parent = prefix;
-				code->size = prefix->size + 1;
-				prefix->children.Set(byte, code, mapAllocator);
-				nextIndex++;
-
-				return code;
-			}
-			else
-			{
-				return 0;
-			}
-		}
-
-		LzwBase::LzwBase()
-			:codeAllocator(65536)
-			, mapAllocator(1048576)
-		{
-			root = codeAllocator.Create();
-
-			for (vint i = 0; i < 256; i++)
-			{
-				UpdateIndexBits();
-				CreateCode(root, (vuint8_t)i);
-			}
-		}
-
-		LzwBase::LzwBase(bool (&existingBytes)[256])
-		{
-			root = codeAllocator.Create();
-			for (vint i = 0; i < 256; i++)
-			{
-				if (existingBytes[i])
-				{
-					UpdateIndexBits();
-					CreateCode(root, (vuint8_t)i);
-				}
-			}
-
-			if (indexBits < 8)
-			{
-				eofIndex = nextIndex++;
-			}
-		}
-
-		LzwBase::~LzwBase()
-		{
-		}
-
-/***********************************************************************
-LzwEncoder
-***********************************************************************/
-
-		void LzwEncoder::Flush()
-		{
-			vint written = 0;
-			vint bufferUsedSize = bufferUsedBits / 8;
-			if (bufferUsedBits % 8 != 0)
-			{
-				bufferUsedSize++;
-			}
-			while (written < bufferUsedSize)
-			{
-				vint size = stream->Write(buffer + written, bufferUsedSize - written);
-				CHECK_ERROR(size != 0, L"LzwEncoder::Flush()#Failed to flush the lzw buffer.");
-				written += size;
-			}
-			bufferUsedBits = 0;
-		}
-
-		vuint8_t highMarks[9] = { 0x00, 0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF };
-		vuint8_t lowMarks[9] = { 0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF };
-
-		void LzwEncoder::WriteNumber(vint number, vint bitSize)
-		{
-			vint bitStart = 0;
-			vint bitStep = 8 - bufferUsedBits % 8;
-			if (bitStep > bitSize)
-			{
-				bitStep = bitSize;
-			}
-			while (bitStart < bitSize)
-			{
-				if(bufferUsedBits == BufferSize * 8)
-				{
-					Flush();
-				}
-
-				vint writeStart = bufferUsedBits % 8;
-				vint byteIndex = bufferUsedBits / 8;
-				vuint8_t byte = buffer[byteIndex];
-				byte &= highMarks[writeStart];
-
-				vuint8_t content = (vuint8_t)((number >> bitStart)&lowMarks[bitStep]) << (8 - writeStart - bitStep);
-				byte |= content;
-
-				buffer[byteIndex] = byte;
-				bufferUsedBits += bitStep;
-
-				bitStart += bitStep;
-				vint remain = bitSize - bitStart;
-				bitStep = remain < 8 ? remain : 8;
-			}
-		}
-
-		LzwEncoder::LzwEncoder()
-		{
-			prefix = root;
-		}
-
-		LzwEncoder::LzwEncoder(bool (&existingBytes)[256])
-			:LzwBase(existingBytes)
-		{
-			prefix = root;
-		}
-
-		LzwEncoder::~LzwEncoder()
-		{
-		}
-
-		void LzwEncoder::Setup(IStream* _stream)
-		{
-			stream = _stream;
-		}
-
-		void LzwEncoder::Close()
-		{
-			if (prefix != root)
-			{
-				WriteNumber(prefix->code, indexBits);
-				prefix = root;
-			}
-
-			vint remain = 8 - bufferUsedBits % 8;
-			if (remain != 8 && remain >= indexBits)
-			{
-				CHECK_ERROR(eofIndex != -1, L"LzwEncoder::Close()#Internal error.");
-				WriteNumber(eofIndex, indexBits);
-			}
-			Flush();
-		}
-
-		vint LzwEncoder::Write(void* _buffer, vint _size)
-		{
-			vuint8_t* bytes = (vuint8_t*)_buffer;
-			for (vint i = 0; i < _size; i++)
-			{
-				vuint8_t byte = bytes[i];
-				Code* next = prefix->children.Get(byte);
-				if (next)
-				{
-					prefix = next;
-				}
-				else
-				{
-					WriteNumber(prefix->code, indexBits);
-
-					if (nextIndex < MaxDictionarySize)
-					{
-						UpdateIndexBits();
-						CreateCode(prefix, byte);
-					}
-					prefix = root->children.Get(byte);
-				}
-			}
-			return _size;
-		}
-
-/***********************************************************************
-LzwDecoder
-***********************************************************************/
-
-		bool LzwDecoder::ReadNumber(vint& number, vint bitSize)
-		{
-			number = 0;
-			if (inputBufferSize == -1)
-			{
-				return false;
-			}
-
-			vint remainBits = inputBufferSize * 8 - inputBufferUsedBits;
-			vint writtenBits = 0;
-			vint bitStep = 8 - inputBufferUsedBits % 8;
-			if (bitStep > bitSize)
-			{
-				bitStep = bitSize;
-			}
-			while (writtenBits < bitSize)
-			{
-				if (remainBits == 0)
-				{
-					inputBufferSize = stream->Read(inputBuffer, BufferSize);
-					if (inputBufferSize == 0)
-					{
-						inputBufferSize = -1;
-						return false;
-					}
-					remainBits = inputBufferSize * 8;
-					inputBufferUsedBits = 0;
-				}
-
-				vuint8_t byte = inputBuffer[inputBufferUsedBits / 8];
-				byte >>= (8 - inputBufferUsedBits % 8 - bitStep);
-				byte &= lowMarks[bitStep];
-				number |= byte << writtenBits;
-
-				inputBufferUsedBits += bitStep;
-				remainBits -= bitStep;
-				writtenBits += bitStep;
-				vint remain = bitSize - writtenBits;
-				bitStep = remain < 8 ? remain : 8;
-			}
-
-			return true;
-		}
-
-		void LzwDecoder::PrepareOutputBuffer(vint size)
-		{
-			if (outputBuffer.Count() < size)
-			{
-				outputBuffer.Resize(size);
-			}
-			outputBufferSize = size;
-		}
-
-		void LzwDecoder::ExpandCodeToOutputBuffer(lzw::Code* code)
-		{
-			vuint8_t* outputByte = &outputBuffer[0] + code->size;
-			Code* current = code;
-			while (current != root)
-			{
-				*(--outputByte) = current->byte;
-				current = current->parent;
-			}
-			outputBufferUsedBytes = 0;
-		}
-
-		LzwDecoder::LzwDecoder()
-		{
-			for (vint i = 0; i < 256; i++)
-			{
-				dictionary.Add(root->children.Get((vuint8_t)i));
-			}
-		}
-
-		LzwDecoder::LzwDecoder(bool (&existingBytes)[256])
-			:LzwBase(existingBytes)
-		{
-			for (vint i = 0; i < 256; i++)
-			{
-				if (existingBytes[i])
-				{
-					dictionary.Add(root->children.Get((vuint8_t)i));
-				}
-			}
-			if (eofIndex != -1)
-			{
-				dictionary.Add(0);
-			}
-		}
-
-		LzwDecoder::~LzwDecoder()
-		{
-		}
-
-		void LzwDecoder::Setup(IStream* _stream)
-		{
-			stream = _stream;
-		}
-
-		void LzwDecoder::Close()
-		{
-		}
-
-		vint LzwDecoder::Read(void* _buffer, vint _size)
-		{
-			vint written = 0;
-			vuint8_t* bytes = (vuint8_t*)_buffer;
-			while (written < _size)
-			{
-				vint expect = _size - written;
-				vint remain = outputBufferSize - outputBufferUsedBytes;
-				if (remain == 0)
-				{
-					vint index = 0;
-					if (!ReadNumber(index, indexBits) || index == eofIndex)
-					{
-						break;
-					}
-
-					Code* prefix = 0;
-					if (index == dictionary.Count())
-					{
-						prefix = lastCode;
-						PrepareOutputBuffer(prefix->size + 1);
-						ExpandCodeToOutputBuffer(prefix);
-						outputBuffer[outputBufferSize - 1] = outputBuffer[0];
-					}
-					else
-					{
-						prefix = dictionary[index];
-						PrepareOutputBuffer(prefix->size);
-						ExpandCodeToOutputBuffer(prefix);
-					}
-					
-					if (nextIndex < MaxDictionarySize)
-					{
-						if (lastCode)
-						{
-							dictionary.Add(CreateCode(lastCode, outputBuffer[0]));
-						}
-						UpdateIndexBits();
-					}
-					lastCode = dictionary[index];
-				}
-				else
-				{
-					if (remain > expect)
-					{
-						remain = expect;
-					}
-					memcpy(bytes + written, &outputBuffer[outputBufferUsedBytes], remain);
-
-					outputBufferUsedBytes += remain;
-					written += remain;
-				}
-			}
-			return written;
-		}
-
-/***********************************************************************
-Helper Functions
-***********************************************************************/
-
-		vint CopyStream(stream::IStream& inputStream, stream::IStream& outputStream)
-		{
-			vint totalSize = 0;
-			while (true)
-			{
-				char buffer[1024];
-				vint copied = inputStream.Read(buffer, (vint)sizeof(buffer));
-				if (copied == 0)
-				{
-					break;
-				}
-				totalSize += outputStream.Write(buffer, copied);
-			}
-			return totalSize;
-		}
-
-		const vint CompressionFragmentSize = 1048576;
-
-		void CompressStream(stream::IStream& inputStream, stream::IStream& outputStream)
-		{
-			Array<char> buffer(CompressionFragmentSize);
-			while (true)
-			{
-				vint size = inputStream.Read(&buffer[0], buffer.Count());
-				if (size == 0) break;
-
-				MemoryStream compressedStream;
-				{
-					LzwEncoder encoder;
-					EncoderStream encoderStream(compressedStream, encoder);
-					encoderStream.Write(&buffer[0], size);
-				}
-
-				compressedStream.SeekFromBegin(0);
-				{
-					{
-						vint32_t bufferSize = (vint32_t)size;
-						outputStream.Write(&bufferSize, (vint)sizeof(bufferSize));
-					}
-					{
-						vint32_t compressedSize = (vint32_t)compressedStream.Size();
-						outputStream.Write(&compressedSize, (vint)sizeof(compressedSize));
-					}
-					CopyStream(compressedStream, outputStream);
-				}
-			}
-		}
-
-		void DecompressStream(stream::IStream& inputStream, stream::IStream& outputStream)
-		{
-			vint totalSize = 0;
-			vint totalWritten = 0;
-			while (true)
-			{
-				vint32_t bufferSize = 0;
-				if (inputStream.Read(&bufferSize, (vint)sizeof(bufferSize)) != sizeof(bufferSize))
-				{
-					break;
-				}
-
-				vint32_t compressedSize = 0;
-				CHECK_ERROR(inputStream.Read(&compressedSize, (vint)sizeof(compressedSize)) == sizeof(compressedSize), L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
-
-				Array<char> buffer(compressedSize);
-				CHECK_ERROR(inputStream.Read(&buffer[0], compressedSize) == compressedSize, L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
-
-				MemoryWrapperStream compressedStream(&buffer[0], compressedSize);
-				LzwDecoder decoder;
-				DecoderStream decoderStream(compressedStream, decoder);
-				totalWritten += CopyStream(decoderStream, outputStream);
-				totalSize += bufferSize;
-			}
-			CHECK_ERROR(outputStream.Size() == totalSize, L"vl::stream::DecompressStream(MemoryStream&, MemoryStream&)#Incomplete input");
-		}
-	}
-}
 
 /***********************************************************************
 .\STREAM\FILESTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 #if defined VCZH_GCC
 #endif
 
@@ -6529,6 +3497,11 @@ FileStream
 /***********************************************************************
 .\STREAM\MEMORYSTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -6704,6 +3677,11 @@ MemoryStream
 /***********************************************************************
 .\STREAM\MEMORYWRAPPERSTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -6850,6 +3828,11 @@ MemoryWrapperStream
 /***********************************************************************
 .\STREAM\RECORDERSTREAM.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -6861,7 +3844,7 @@ RecorderStream
 
 		RecorderStream::RecorderStream(IStream& _in, IStream& _out)
 			:in(&_in)
-			,out(&_out)
+			, out(&_out)
 		{
 		}
 
@@ -6896,23 +3879,23 @@ RecorderStream
 
 		bool RecorderStream::IsAvailable()const
 		{
-			return in!=0 && out!=0 && in->IsAvailable() && out->IsAvailable();
+			return in != 0 && out != 0 && in->IsAvailable() && out->IsAvailable();
 		}
 
 		void RecorderStream::Close()
 		{
-			in=0;
-			out=0;
+			in = nullptr;
+			out = nullptr;
 		}
 
 		pos_t RecorderStream::Position()const
 		{
-			return IsAvailable()?in->Position():-1;
+			return IsAvailable() ? in->Position() : -1;
 		}
 
 		pos_t RecorderStream::Size()const
 		{
-			return IsAvailable()?in->Size():-1;
+			return IsAvailable() ? in->Size() : -1;
 		}
 
 		void RecorderStream::Seek(pos_t _size)
@@ -6932,8 +3915,9 @@ RecorderStream
 
 		vint RecorderStream::Read(void* _buffer, vint _size)
 		{
-			_size=in->Read(_buffer, _size);
-			out->Write(_buffer, _size);
+			_size = in->Read(_buffer, _size);
+			vint written = out->Write(_buffer, _size);
+			CHECK_ERROR(written == _size, L"RecorderStream::Read(void*, vint)#Failed to copy data to the output stream.");
 			return _size;
 		}
 

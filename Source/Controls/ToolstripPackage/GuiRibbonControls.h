@@ -19,13 +19,12 @@ namespace vl
 	{
 		namespace controls
 		{
-
-/***********************************************************************
-Ribbon Containers
-***********************************************************************/
-
 			class GuiRibbonTabPage;
 			class GuiRibbonGroup;
+
+/***********************************************************************
+Ribbon Tab
+***********************************************************************/
 
 			/// <summary>Ribbon tab control, for displaying ribbon tab pages.</summary>
 			class GuiRibbonTab : public GuiTab, public Description<GuiRibbonTab>
@@ -63,7 +62,7 @@ Ribbon Containers
 			};
 
 			/// <summary>Ribbon tab page control, adding to the Pages property of a <see cref="GuiRibbonTab"/>.</summary>
-			class GuiRibbonTabPage : public GuiTabPage, public Description<GuiRibbonTabPage>
+			class GuiRibbonTabPage : public GuiTabPage, public AggregatableDescription<GuiRibbonTabPage>
 			{
 				friend class GuiRibbonGroupCollection;
 			protected:
@@ -94,6 +93,10 @@ Ribbon Containers
 				collections::ObservableListBase<GuiRibbonGroup*>&	GetGroups();
 			};
 
+/***********************************************************************
+Ribbon Group
+***********************************************************************/
+
 			class GuiRibbonGroupItemCollection : public collections::ObservableListBase<GuiControl*>
 			{
 			protected:
@@ -109,7 +112,7 @@ Ribbon Containers
 			};
 
 			/// <summary>Ribbon group control, adding to the Groups property of a <see cref="GuiRibbonTabPage"/>.</summary>
-			class GuiRibbonGroup : public GuiControl, public Description<GuiRibbonGroup>
+			class GuiRibbonGroup : public GuiControl, protected compositions::GuiAltActionHostBase, public Description<GuiRibbonGroup>
 			{
 				friend class GuiRibbonGroupItemCollection;
 				GUI_SPECIFY_CONTROL_TEMPLATE_TYPE(RibbonGroupTemplate, GuiControl)
@@ -139,7 +142,9 @@ Ribbon Containers
 				GuiToolstripButton*									dropdownButton = nullptr;
 				GuiMenu*											dropdownMenu = nullptr;
 
-				void												OnBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+				bool												IsAltAvailable()override;
+				compositions::IGuiAltActionHost*					GetActivatingAltHost()override;
+				void												OnCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void												OnTextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void												OnBeforeSwitchingView(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments);
 				void												OnBeforeSubMenuOpening(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);

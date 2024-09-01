@@ -169,6 +169,7 @@ GuiCommonDatePickerLook
 
 			void GuiCommonDatePickerLook::SelectDay(vint day)
 			{
+				// TODO: (enumerable) foreach:indexed
 				for (vint i = 0; i < dateDays.Count(); i++)
 				{
 					const DateTime& dt = dateDays[i];
@@ -197,7 +198,7 @@ GuiCommonDatePickerLook
 					listYears->SetHorizontalAlwaysVisible(false);
 					for (vint i = YearFirst; i <= YearLast; i++)
 					{
-						listYears->GetItems().Add(new list::TextItem(itow(i)));
+						listYears->GetItems().Add(Ptr(new list::TextItem(itow(i))));
 					}
 					comboYear = new GuiComboBoxListControl(theme::ThemeName::ComboBox, listYears);
 					comboYear->SetAlt(L"Y");
@@ -266,10 +267,10 @@ GuiCommonDatePickerLook
 						dayTable->AddChild(cell);
 						cell->SetSite(1, i, 1, 1);
 
-						GuiSolidLabelElement* element = GuiSolidLabelElement::Create();
+						auto element = Ptr(GuiSolidLabelElement::Create());
 						element->SetAlignments(Alignment::Center, Alignment::Center);
 						element->SetColor(primaryTextColor);
-						labelDaysOfWeek[i] = element;
+						labelDaysOfWeek[i] = element.Obj();
 						cell->SetOwnedElement(element);
 					}
 
@@ -295,10 +296,10 @@ GuiCommonDatePickerLook
 							cell->AddChild(button->GetBoundsComposition());
 							buttonDays[j*DaysOfWeek + i] = button;
 
-							GuiSolidLabelElement* element = GuiSolidLabelElement::Create();
+							auto element = Ptr(GuiSolidLabelElement::Create());
 							element->SetAlignments(Alignment::Center, Alignment::Center);
 							element->SetText(L"0");
-							labelDays[j*DaysOfWeek + i] = element;
+							labelDays[j*DaysOfWeek + i] = element.Obj();
 
 							GuiBoundsComposition* elementBounds = new GuiBoundsComposition;
 							elementBounds->SetOwnedElement(element);
@@ -309,7 +310,7 @@ GuiCommonDatePickerLook
 					}
 				}
 				{
-					GuiSolidBackgroundElement* element = GuiSolidBackgroundElement::Create();
+					auto element = Ptr(GuiSolidBackgroundElement::Create());
 					element->SetColor(backgroundColor);
 					dayTable->SetOwnedElement(element);
 				}
@@ -344,7 +345,7 @@ GuiCommonDatePickerLook
 			void GuiCommonDatePickerLook::SetDateButtonTemplate(const TemplateProperty<GuiSelectableButtonTemplate>& value)
 			{
 				dateButtonTemplate = value;
-				FOREACH(GuiSelectableButton*, button, buttonDays)
+				for (auto button : buttonDays)
 				{
 					button->SetControlTemplate(value);
 				}
@@ -392,7 +393,7 @@ GuiCommonDatePickerLook
 					listMonths->GetItems().Clear();
 					for (vint i = 1; i <= 12; i++)
 					{
-						listMonths->GetItems().Add(new list::TextItem(dateLocale.GetLongMonthName(i)));
+						listMonths->GetItems().Add(Ptr(new list::TextItem(dateLocale.GetLongMonthName(i))));
 					}
 
 					SetDate(currentDate);
@@ -425,7 +426,7 @@ GuiCommonDatePickerLook
 					listYears->SetFont(value);
 					comboMonth->SetFont(value);
 					listMonths->SetFont(value);
-					FOREACH(GuiSolidLabelElement*, label, From(labelDaysOfWeek).Concat(labelDays))
+					for (auto label : From(labelDaysOfWeek).Concat(labelDays))
 					{
 						label->SetFont(value);
 					}
@@ -455,8 +456,6 @@ GuiCommonScrollViewLook
 				{
 					tableComposition->SetColumnOption(1, GuiCellOption::AbsoluteOption(0));
 				}
-
-				tableComposition->UpdateCellBounds();
 			}
 
 			void GuiCommonScrollViewLook::hScroll_OnVisibleChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
@@ -485,6 +484,7 @@ GuiCommonScrollViewLook
 
 				tableComposition = new GuiTableComposition;
 				AddChild(tableComposition);
+				tableComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 				tableComposition->SetAlignmentToParent(Margin(0, 0, 0, 0));
 				tableComposition->SetRowsAndColumns(2, 2);
 				tableComposition->SetRowOption(0, GuiCellOption::PercentageOption(1.0));
@@ -643,11 +643,11 @@ GuiCommonScrollBehavior
 				{
 					if (scrollTemplate->GetVisuallyEnabled())
 					{
-						if (arguments.x < partialView->GetBounds().x1)
+						if (arguments.x < partialView->GetCachedBounds().x1)
 						{
 							scrollTemplate->GetCommands()->BigDecrease();
 						}
-						else if (arguments.x >= partialView->GetBounds().x2)
+						else if (arguments.x >= partialView->GetCachedBounds().x2)
 						{
 							scrollTemplate->GetCommands()->BigIncrease();
 						}
@@ -663,11 +663,11 @@ GuiCommonScrollBehavior
 				{
 					if (scrollTemplate->GetVisuallyEnabled())
 					{
-						if (arguments.y < partialView->GetBounds().y1)
+						if (arguments.y < partialView->GetCachedBounds().y1)
 						{
 							scrollTemplate->GetCommands()->BigDecrease();
 						}
-						else if (arguments.y >= partialView->GetBounds().y2)
+						else if (arguments.y >= partialView->GetCachedBounds().y2)
 						{
 							scrollTemplate->GetCommands()->BigIncrease();
 						}
@@ -683,9 +683,9 @@ GuiCommonScrollBehavior
 				{
 					if (dragging)
 					{
-						auto bounds = partialView->GetParent()->GetBounds();
+						auto bounds = partialView->GetParent()->GetCachedBounds();
 						vint totalPixels = bounds.x2 - bounds.x1;
-						vint currentOffset = partialView->GetBounds().x1;
+						vint currentOffset = partialView->GetCachedBounds().x1;
 						vint newOffset = currentOffset + (arguments.x - location.x);
 						SetScroll(totalPixels, newOffset);
 					}
@@ -700,9 +700,9 @@ GuiCommonScrollBehavior
 				{
 					if (dragging)
 					{
-						auto bounds = partialView->GetParent()->GetBounds();
+						auto bounds = partialView->GetParent()->GetCachedBounds();
 						vint totalPixels = bounds.y2 - bounds.y1;
-						vint currentOffset = partialView->GetBounds().y1;
+						vint currentOffset = partialView->GetCachedBounds().y1;
 						vint newOffset = currentOffset + (arguments.y - location.y);
 						SetScroll(totalPixels, newOffset);
 					}
@@ -713,14 +713,14 @@ GuiCommonScrollBehavior
 
 			vint GuiCommonScrollBehavior::GetHorizontalTrackerHandlerPosition(compositions::GuiBoundsComposition* handle, vint totalSize, vint pageSize, vint position)
 			{
-				vint width = handle->GetParent()->GetBounds().Width() - handle->GetBounds().Width();
+				vint width = handle->GetParent()->GetCachedBounds().Width() - handle->GetCachedBounds().Width();
 				vint max = totalSize - pageSize;
 				return max == 0 ? 0 : width * position / max;
 			}
 
 			vint GuiCommonScrollBehavior::GetVerticalTrackerHandlerPosition(compositions::GuiBoundsComposition* handle, vint totalSize, vint pageSize, vint position)
 			{
-				vint height = handle->GetParent()->GetBounds().Height() - handle->GetBounds().Height();
+				vint height = handle->GetParent()->GetCachedBounds().Height() - handle->GetCachedBounds().Height();
 				vint max = totalSize - pageSize;
 				return max == 0 ? 0 : height * position / max;
 			}

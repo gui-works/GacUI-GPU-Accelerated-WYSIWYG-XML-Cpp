@@ -11,15 +11,42 @@ namespace vl
 GuiSideAlignedComposition
 ***********************************************************************/
 
-			GuiSideAlignedComposition::GuiSideAlignedComposition()
-				:direction(Top)
-				,maxLength(10)
-				,maxRatio(1.0)
+			Rect GuiSideAlignedComposition::Layout_CalculateBounds(Size parentSize)
 			{
-			}
-
-			GuiSideAlignedComposition::~GuiSideAlignedComposition()
-			{
+				Rect result;
+				if (auto parent = GetParent())
+				{
+					Rect bounds({}, parentSize);
+					vint w = (vint)(bounds.Width() * maxRatio);
+					vint h = (vint)(bounds.Height() * maxRatio);
+					if (w > maxLength) w = maxLength;
+					if (h > maxLength) h = maxLength;
+					switch (direction)
+					{
+					case Left:
+					{
+						bounds.x2 = bounds.x1 + w;
+					}
+					break;
+					case Top:
+					{
+						bounds.y2 = bounds.y1 + h;
+					}
+					break;
+					case Right:
+					{
+						bounds.x1 = bounds.x2 - w;
+					}
+					break;
+					case Bottom:
+					{
+						bounds.y1 = bounds.y2 - h;
+					}
+					break;
+					}
+					result = bounds;
+				}
+				return result;
 			}
 
 			GuiSideAlignedComposition::Direction GuiSideAlignedComposition::GetDirection()
@@ -29,8 +56,11 @@ GuiSideAlignedComposition
 
 			void GuiSideAlignedComposition::SetDirection(Direction value)
 			{
-				direction = value;
-				InvokeOnCompositionStateChanged();
+				if (direction != value)
+				{
+					direction = value;
+					InvokeOnCompositionStateChanged();
+				}
 			}
 
 			vint GuiSideAlignedComposition::GetMaxLength()
@@ -41,8 +71,11 @@ GuiSideAlignedComposition
 			void GuiSideAlignedComposition::SetMaxLength(vint value)
 			{
 				if (value < 0) value = 0;
-				maxLength = value;
-				InvokeOnCompositionStateChanged();
+				if (maxLength != value)
+				{
+					maxLength = value;
+					InvokeOnCompositionStateChanged();
+				}
 			}
 
 			double GuiSideAlignedComposition::GetMaxRatio()
@@ -52,72 +85,42 @@ GuiSideAlignedComposition
 
 			void GuiSideAlignedComposition::SetMaxRatio(double value)
 			{
-				maxRatio =
-					value < 0 ? 0 :
-					value>1 ? 1 :
-					value;
-				InvokeOnCompositionStateChanged();
-			}
-
-			bool GuiSideAlignedComposition::IsSizeAffectParent()
-			{
-				return false;
-			}
-
-			Rect GuiSideAlignedComposition::GetBounds()
-			{
-				Rect result;
-				GuiGraphicsComposition* parent = GetParent();
-				if (parent)
+				if (value < 0) value = 0; else if (value > 1) value = 1;
+				if (maxRatio != value)
 				{
-					Rect bounds = parent->GetBounds();
-					vint w = (vint)(bounds.Width()*maxRatio);
-					vint h = (vint)(bounds.Height()*maxRatio);
-					if (w > maxLength) w = maxLength;
-					if (h > maxLength) h = maxLength;
-					switch (direction)
-					{
-					case Left:
-						{
-							bounds.x2 = bounds.x1 + w;
-						}
-						break;
-					case Top:
-						{
-							bounds.y2 = bounds.y1 + h;
-						}
-						break;
-					case Right:
-						{
-							bounds.x1 = bounds.x2 - w;
-						}
-						break;
-					case Bottom:
-						{
-							bounds.y1 = bounds.y2 - h;
-						}
-						break;
-					}
-					result = bounds;
+					maxRatio = value;
+					InvokeOnCompositionStateChanged();
 				}
-				UpdatePreviousBounds(result);
-				return result;
 			}
 
 /***********************************************************************
 GuiPartialViewComposition
 ***********************************************************************/
 
-			GuiPartialViewComposition::GuiPartialViewComposition()
-				:wRatio(0.0)
-				,wPageSize(1.0)
-				,hRatio(0.0)
-				,hPageSize(1.0)
+			Rect GuiPartialViewComposition::Layout_CalculateBounds(Size parentSize)
 			{
-			}
+				Rect result;
+				if (auto parent = GetParent())
+				{
+					Rect bounds({}, parentSize);
+					vint w = bounds.Width();
+					vint h = bounds.Height();
+					vint pw = (vint)(wPageSize * w);
+					vint ph = (vint)(hPageSize * h);
 
-			GuiPartialViewComposition::~GuiPartialViewComposition()
-			{
+					vint ow = preferredMinSize.x - pw;
+					if (ow < 0) ow = 0;
+					vint oh = preferredMinSize.y - ph;
+					if (oh < 0) oh = 0;
+
+					w -= ow;
+					h -= oh;
+					pw += ow;
+					ph += oh;
+
+					result = Rect(Point((vint)(wRatio * w), (vint)(hRatio * h)), Size(pw, ph));
+				}
+				return result;
 			}
 
 			double GuiPartialViewComposition::GetWidthRatio()
@@ -142,59 +145,38 @@ GuiPartialViewComposition
 
 			void GuiPartialViewComposition::SetWidthRatio(double value)
 			{
-				wRatio = value;
-				InvokeOnCompositionStateChanged();
+				if (wRatio != value)
+				{
+					wRatio = value;
+					InvokeOnCompositionStateChanged();
+				}
 			}
 
 			void GuiPartialViewComposition::SetWidthPageSize(double value)
 			{
-				wPageSize = value;
-				InvokeOnCompositionStateChanged();
+				if (wPageSize != value)
+				{
+					wPageSize = value;
+					InvokeOnCompositionStateChanged();
+				}
 			}
 
 			void GuiPartialViewComposition::SetHeightRatio(double value)
 			{
-				hRatio = value;
-				InvokeOnCompositionStateChanged();
+				if (hRatio != value)
+				{
+					hRatio = value;
+					InvokeOnCompositionStateChanged();
+				}
 			}
 
 			void GuiPartialViewComposition::SetHeightPageSize(double value)
 			{
-				hPageSize = value;
-				InvokeOnCompositionStateChanged();
-			}
-
-			bool GuiPartialViewComposition::IsSizeAffectParent()
-			{
-				return false;
-			}
-
-			Rect GuiPartialViewComposition::GetBounds()
-			{
-				Rect result;
-				GuiGraphicsComposition* parent = GetParent();
-				if (parent)
+				if (hPageSize != value)
 				{
-					Rect bounds = parent->GetBounds();
-					vint w = bounds.Width();
-					vint h = bounds.Height();
-					vint pw = (vint)(wPageSize*w);
-					vint ph = (vint)(hPageSize*h);
-
-					vint ow = preferredMinSize.x - pw;
-					if (ow < 0) ow = 0;
-					vint oh = preferredMinSize.y - ph;
-					if (oh < 0) oh = 0;
-
-					w -= ow;
-					h -= oh;
-					pw += ow;
-					ph += oh;
-
-					result = Rect(Point((vint)(wRatio*w), (vint)(hRatio*h)), Size(pw, ph));
+					hPageSize = value;
+					InvokeOnCompositionStateChanged();
 				}
-				UpdatePreviousBounds(result);
-				return result;
 			}
 		}
 	}

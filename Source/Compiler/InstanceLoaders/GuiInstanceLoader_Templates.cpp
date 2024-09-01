@@ -35,7 +35,7 @@ GuiCommonDatePickerLookLoader
 					return typeName;
 				}
 
-				void GetRequiredPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetRequiredPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					if (CanCreate(typeInfo))
 					{
@@ -45,12 +45,12 @@ GuiCommonDatePickerLookLoader
 					}
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
-					GetRequiredPropertyNames(typeInfo, propertyNames);
+					GetRequiredPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _BackgroundColor || propertyInfo.propertyName == _PrimaryTextColor || propertyInfo.propertyName == _SecondaryTextColor)
 					{
@@ -58,7 +58,7 @@ GuiCommonDatePickerLookLoader
 						info->usage = GuiInstancePropertyInfo::ConstructorArgument;
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				bool CanCreate(const TypeInfo& typeInfo)override
@@ -76,21 +76,21 @@ GuiCommonDatePickerLookLoader
 						if (indexBackgroundColor != -1 && indexPrimaryTextColor != -1 && indexSecondaryTextColor != -1)
 						{
 							auto type = TypeInfoRetriver<GuiCommonDatePickerLook*>::CreateTypeInfo();
-							auto createExpr = MakePtr<WfNewClassExpression>();
+							auto createExpr = Ptr(new WfNewClassExpression);
 							createExpr->type = GetTypeFromTypeInfo(type.Obj());
 							createExpr->arguments.Add(arguments.GetByIndex(indexBackgroundColor)[0].expression);
 							createExpr->arguments.Add(arguments.GetByIndex(indexPrimaryTextColor)[0].expression);
 							createExpr->arguments.Add(arguments.GetByIndex(indexSecondaryTextColor)[0].expression);
 
-							auto refVariable = MakePtr<WfReferenceExpression>();
+							auto refVariable = Ptr(new WfReferenceExpression);
 							refVariable->name.value = variableName.ToString();
 
-							auto assignExpr = MakePtr<WfBinaryExpression>();
+							auto assignExpr = Ptr(new WfBinaryExpression);
 							assignExpr->op = WfBinaryOperator::Assign;
 							assignExpr->first = refVariable;
 							assignExpr->second = createExpr;
 
-							auto assignStat = MakePtr<WfExpressionStatement>();
+							auto assignStat = Ptr(new WfExpressionStatement);
 							assignStat->expression = assignExpr;
 							return assignStat;
 						}
@@ -121,7 +121,7 @@ GuiCommonScrollViewLookLoader
 					return typeName;
 				}
 
-				void GetRequiredPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetRequiredPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					if (CanCreate(typeInfo))
 					{
@@ -129,20 +129,31 @@ GuiCommonScrollViewLookLoader
 					}
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
-					GetRequiredPropertyNames(typeInfo, propertyNames);
+					GetRequiredPropertyNames(precompileContext, typeInfo, propertyNames);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == _DefaultScrollSize)
 					{
-						auto info = GuiInstancePropertyInfo::Assign(TypeInfoRetriver<vint>::CreateTypeInfo());
+						Ptr<GuiInstancePropertyInfo> info;
+						switch (precompileContext.targetCpuArchitecture)
+						{
+						case GuiResourceCpuArchitecture::x86:
+							info = GuiInstancePropertyInfo::Assign(TypeInfoRetriver<vint32_t>::CreateTypeInfo());
+							break;
+						case GuiResourceCpuArchitecture::x64:
+							info = GuiInstancePropertyInfo::Assign(TypeInfoRetriver<vint64_t>::CreateTypeInfo());
+							break;
+						default:
+							CHECK_FAIL(L"The target CPU architecture is unspecified.");
+						}
 						info->usage = GuiInstancePropertyInfo::ConstructorArgument;
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				bool CanCreate(const TypeInfo& typeInfo)override
@@ -158,19 +169,19 @@ GuiCommonScrollViewLookLoader
 						if (indexDefaultScrollSize != -1)
 						{
 							auto type = TypeInfoRetriver<GuiCommonScrollViewLook*>::CreateTypeInfo();
-							auto createExpr = MakePtr<WfNewClassExpression>();
+							auto createExpr = Ptr(new WfNewClassExpression);
 							createExpr->type = GetTypeFromTypeInfo(type.Obj());
 							createExpr->arguments.Add(arguments.GetByIndex(indexDefaultScrollSize)[0].expression);
 
-							auto refVariable = MakePtr<WfReferenceExpression>();
+							auto refVariable = Ptr(new WfReferenceExpression);
 							refVariable->name.value = variableName.ToString();
 
-							auto assignExpr = MakePtr<WfBinaryExpression>();
+							auto assignExpr = Ptr(new WfBinaryExpression);
 							assignExpr->op = WfBinaryOperator::Assign;
 							assignExpr->first = refVariable;
 							assignExpr->second = createExpr;
 
-							auto assignStat = MakePtr<WfExpressionStatement>();
+							auto assignStat = Ptr(new WfExpressionStatement);
 							assignStat->expression = assignExpr;
 							return assignStat;
 						}
@@ -185,8 +196,8 @@ Initialization
 
 			void LoadTemplates(IGuiInstanceLoaderManager* manager)
 			{
-				manager->SetLoader(new GuiCommonDatePickerLookLoader);
-				manager->SetLoader(new GuiCommonScrollViewLookLoader);
+				manager->SetLoader(Ptr(new GuiCommonDatePickerLookLoader));
+				manager->SetLoader(Ptr(new GuiCommonScrollViewLookLoader));
 			}
 		}
 	}

@@ -20,12 +20,11 @@ https://github.com/vczh-libraries
 #if defined( _MSC_VER)
 #pragma warning(push)
 #pragma warning(disable:4250)
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wparentheses-equality"
 #elif defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wparentheses-equality"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
 #endif
 
 /***********************************************************************
@@ -49,6 +48,8 @@ namespace vl
 			IMPL_CPP_TYPE_INFO(darkskin::ComboBoxTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::CustomControlTemplate)
 			IMPL_CPP_TYPE_INFO(darkskin::CustomControlTemplateConstructor)
+			IMPL_CPP_TYPE_INFO(darkskin::CustomFrameWindowTemplate)
+			IMPL_CPP_TYPE_INFO(darkskin::CustomFrameWindowTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::DateButtonTemplate)
 			IMPL_CPP_TYPE_INFO(darkskin::DateButtonTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::DatePickerTemplate)
@@ -137,6 +138,8 @@ namespace vl
 			IMPL_CPP_TYPE_INFO(darkskin::ShortcutKeyTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::SinglelineTextBoxTemplate)
 			IMPL_CPP_TYPE_INFO(darkskin::SinglelineTextBoxTemplateConstructor)
+			IMPL_CPP_TYPE_INFO(darkskin::SystemFrameWindowTemplate)
+			IMPL_CPP_TYPE_INFO(darkskin::SystemFrameWindowTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::TabHeaderButtonTemplate)
 			IMPL_CPP_TYPE_INFO(darkskin::TabHeaderButtonTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::TabHeaderTemplate)
@@ -173,9 +176,8 @@ namespace vl
 			IMPL_CPP_TYPE_INFO(darkskin::VScrollTemplateConstructor)
 			IMPL_CPP_TYPE_INFO(darkskin::VTrackerTemplate)
 			IMPL_CPP_TYPE_INFO(darkskin::VTrackerTemplateConstructor)
-			IMPL_CPP_TYPE_INFO(darkskin::WindowTemplate)
-			IMPL_CPP_TYPE_INFO(darkskin::WindowTemplateConstructor)
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 #define _ ,
 			BEGIN_CLASS_MEMBER(::darkskin::BottomScrollButtonTemplate)
 				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiButtonTemplate)
@@ -210,6 +212,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_5)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_6)
+				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::ButtonTemplateConstructor)
 
@@ -237,6 +240,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_7)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_8)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_9)
+				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::CheckBoxTemplateConstructor)
 
@@ -275,6 +279,61 @@ namespace vl
 				CLASS_MEMBER_METHOD(__vwsn_darkskin_CustomControlTemplate_Initialize, { L"__vwsn_this_" })
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 			END_CLASS_MEMBER(::darkskin::CustomControlTemplateConstructor)
+
+			BEGIN_CLASS_MEMBER(::darkskin::CustomFrameWindowTemplate)
+				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiWindowTemplate)
+				CLASS_MEMBER_BASE(::darkskin::CustomFrameWindowTemplateConstructor)
+				CLASS_MEMBER_CONSTRUCTOR(::darkskin::CustomFrameWindowTemplate*(), NO_PARAMETER)
+			END_CLASS_MEMBER(::darkskin::CustomFrameWindowTemplate)
+
+			BEGIN_CLASS_MEMBER(::darkskin::CustomFrameWindowTemplateConstructor)
+				CLASS_MEMBER_BASE(::vl::reflection::DescriptableObject)
+				CLASS_MEMBER_CONSTRUCTOR(::vl::Ptr<::darkskin::CustomFrameWindowTemplateConstructor>(), NO_PARAMETER)
+				CLASS_MEMBER_METHOD(__vwsn_darkskin_CustomFrameWindowTemplate_Initialize, { L"__vwsn_this_" })
+				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_10)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_11)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_12)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_13)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_14)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_15)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_16)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_17)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_18)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_19)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_20)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_21)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_22)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_23)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_24)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_25)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_26)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_27)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_28)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_29)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_30)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_31)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_32)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_33)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_34)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_35)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_36)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_37)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_38)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_5)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_6)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_7)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_8)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_9)
+				CLASS_MEMBER_FIELD(container)
+				CLASS_MEMBER_FIELD(contentTable)
+				CLASS_MEMBER_FIELD(frameTable)
+				CLASS_MEMBER_FIELD(self)
+			END_CLASS_MEMBER(::darkskin::CustomFrameWindowTemplateConstructor)
 
 			BEGIN_CLASS_MEMBER(::darkskin::DateButtonTemplate)
 				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiSelectableButtonTemplate)
@@ -317,6 +376,7 @@ namespace vl
 				CLASS_MEMBER_BASE(::vl::reflection::DescriptableObject)
 				CLASS_MEMBER_CONSTRUCTOR(::vl::Ptr<::darkskin::DocumentLabelTemplateConstructor>(), NO_PARAMETER)
 				CLASS_MEMBER_METHOD(__vwsn_darkskin_DocumentLabelTemplate_Initialize, { L"__vwsn_this_" })
+				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::DocumentLabelTemplateConstructor)
 
@@ -332,6 +392,7 @@ namespace vl
 				CLASS_MEMBER_METHOD(__vwsn_darkskin_DocumentTextBoxTemplate_Initialize, { L"__vwsn_this_" })
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
 				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::DocumentTextBoxTemplateConstructor)
@@ -669,6 +730,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_7)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_8)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_9)
+				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::RadioButtonTemplateConstructor)
 
@@ -759,7 +821,7 @@ namespace vl
 			END_CLASS_MEMBER(::darkskin::RibbonGroupExpandButtonTemplateConstructor)
 
 			BEGIN_CLASS_MEMBER(::darkskin::RibbonGroupMenuTemplate)
-				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiMenuTemplate)
+				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiRibbonGroupMenuTemplate)
 				CLASS_MEMBER_BASE(::darkskin::RibbonGroupMenuTemplateConstructor)
 				CLASS_MEMBER_CONSTRUCTOR(::darkskin::RibbonGroupMenuTemplate*(), NO_PARAMETER)
 			END_CLASS_MEMBER(::darkskin::RibbonGroupMenuTemplate)
@@ -771,7 +833,12 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_5)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_6)
 				CLASS_MEMBER_FIELD(container)
+				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::RibbonGroupMenuTemplateConstructor)
 
 			BEGIN_CLASS_MEMBER(::darkskin::RibbonGroupTemplate)
@@ -810,6 +877,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
 				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::RibbonIconLabelTemplateConstructor)
@@ -953,6 +1021,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_5)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_6)
 				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::RibbonSmallIconLabelTemplateConstructor)
@@ -1033,6 +1102,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_10)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_11)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_12)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
@@ -1121,9 +1191,25 @@ namespace vl
 				CLASS_MEMBER_METHOD(__vwsn_darkskin_SinglelineTextBoxTemplate_Initialize, { L"__vwsn_this_" })
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
 				CLASS_MEMBER_FIELD(container)
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::SinglelineTextBoxTemplateConstructor)
+
+			BEGIN_CLASS_MEMBER(::darkskin::SystemFrameWindowTemplate)
+				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiWindowTemplate)
+				CLASS_MEMBER_BASE(::darkskin::SystemFrameWindowTemplateConstructor)
+				CLASS_MEMBER_CONSTRUCTOR(::darkskin::SystemFrameWindowTemplate*(), NO_PARAMETER)
+			END_CLASS_MEMBER(::darkskin::SystemFrameWindowTemplate)
+
+			BEGIN_CLASS_MEMBER(::darkskin::SystemFrameWindowTemplateConstructor)
+				CLASS_MEMBER_BASE(::vl::reflection::DescriptableObject)
+				CLASS_MEMBER_CONSTRUCTOR(::vl::Ptr<::darkskin::SystemFrameWindowTemplateConstructor>(), NO_PARAMETER)
+				CLASS_MEMBER_METHOD(__vwsn_darkskin_SystemFrameWindowTemplate_Initialize, { L"__vwsn_this_" })
+				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
+				CLASS_MEMBER_FIELD(container)
+			END_CLASS_MEMBER(::darkskin::SystemFrameWindowTemplateConstructor)
 
 			BEGIN_CLASS_MEMBER(::darkskin::TabHeaderButtonTemplate)
 				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiSelectableButtonTemplate)
@@ -1292,6 +1378,7 @@ namespace vl
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
+				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
 				CLASS_MEMBER_FIELD(container)
 			END_CLASS_MEMBER(::darkskin::ToolstripMenuTemplateConstructor)
 
@@ -1364,6 +1451,7 @@ namespace vl
 				CLASS_MEMBER_METHOD(__vwsn_darkskin_ToolstripTemplate_Initialize, { L"__vwsn_this_" })
 				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
 				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
+				CLASS_MEMBER_FIELD(container)
 			END_CLASS_MEMBER(::darkskin::ToolstripTemplateConstructor)
 
 			BEGIN_CLASS_MEMBER(::darkskin::TooltipTemplate)
@@ -1483,50 +1571,6 @@ namespace vl
 				CLASS_MEMBER_FIELD(self)
 			END_CLASS_MEMBER(::darkskin::VTrackerTemplateConstructor)
 
-			BEGIN_CLASS_MEMBER(::darkskin::WindowTemplate)
-				CLASS_MEMBER_BASE(::vl::presentation::templates::GuiWindowTemplate)
-				CLASS_MEMBER_BASE(::darkskin::WindowTemplateConstructor)
-				CLASS_MEMBER_CONSTRUCTOR(::darkskin::WindowTemplate*(), NO_PARAMETER)
-			END_CLASS_MEMBER(::darkskin::WindowTemplate)
-
-			BEGIN_CLASS_MEMBER(::darkskin::WindowTemplateConstructor)
-				CLASS_MEMBER_BASE(::vl::reflection::DescriptableObject)
-				CLASS_MEMBER_CONSTRUCTOR(::vl::Ptr<::darkskin::WindowTemplateConstructor>(), NO_PARAMETER)
-				CLASS_MEMBER_METHOD(__vwsn_darkskin_WindowTemplate_Initialize, { L"__vwsn_this_" })
-				CLASS_MEMBER_FIELD(__vwsn_precompile_0)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_1)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_10)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_11)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_12)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_13)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_14)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_15)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_16)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_17)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_18)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_19)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_2)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_20)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_21)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_22)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_23)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_24)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_25)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_26)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_27)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_3)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_4)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_5)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_6)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_7)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_8)
-				CLASS_MEMBER_FIELD(__vwsn_precompile_9)
-				CLASS_MEMBER_FIELD(container)
-				CLASS_MEMBER_FIELD(contentTable)
-				CLASS_MEMBER_FIELD(frameTable)
-				CLASS_MEMBER_FIELD(self)
-			END_CLASS_MEMBER(::darkskin::WindowTemplateConstructor)
-
 #undef _
 			class DarkSkinTypeLoader : public Object, public ITypeLoader
 			{
@@ -1543,6 +1587,8 @@ namespace vl
 					ADD_TYPE_INFO(::darkskin::ComboBoxTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::CustomControlTemplate)
 					ADD_TYPE_INFO(::darkskin::CustomControlTemplateConstructor)
+					ADD_TYPE_INFO(::darkskin::CustomFrameWindowTemplate)
+					ADD_TYPE_INFO(::darkskin::CustomFrameWindowTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::DateButtonTemplate)
 					ADD_TYPE_INFO(::darkskin::DateButtonTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::DatePickerTemplate)
@@ -1631,6 +1677,8 @@ namespace vl
 					ADD_TYPE_INFO(::darkskin::ShortcutKeyTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::SinglelineTextBoxTemplate)
 					ADD_TYPE_INFO(::darkskin::SinglelineTextBoxTemplateConstructor)
+					ADD_TYPE_INFO(::darkskin::SystemFrameWindowTemplate)
+					ADD_TYPE_INFO(::darkskin::SystemFrameWindowTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::TabHeaderButtonTemplate)
 					ADD_TYPE_INFO(::darkskin::TabHeaderButtonTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::TabHeaderTemplate)
@@ -1667,8 +1715,6 @@ namespace vl
 					ADD_TYPE_INFO(::darkskin::VScrollTemplateConstructor)
 					ADD_TYPE_INFO(::darkskin::VTrackerTemplate)
 					ADD_TYPE_INFO(::darkskin::VTrackerTemplateConstructor)
-					ADD_TYPE_INFO(::darkskin::WindowTemplate)
-					ADD_TYPE_INFO(::darkskin::WindowTemplateConstructor)
 				}
 
 				void Unload(ITypeManager* manager)
@@ -1676,13 +1722,14 @@ namespace vl
 				}
 			};
 #endif
+#endif
 
 			bool LoadDarkSkinTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				if (auto manager = GetGlobalTypeManager())
 				{
-					return manager->AddTypeLoader(MakePtr<DarkSkinTypeLoader>());
+					return manager->AddTypeLoader(Ptr(new DarkSkinTypeLoader));
 				}
 #endif
 				return false;
@@ -1693,9 +1740,9 @@ namespace vl
 
 #if defined( _MSC_VER)
 #pragma warning(pop)
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
 #elif defined(__clang__)
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
 #endif
 

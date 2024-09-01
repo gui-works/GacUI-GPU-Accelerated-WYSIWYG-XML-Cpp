@@ -9,7 +9,7 @@ Interfaces:
 #ifndef VCZH_PRESENTATION_COMPOSITION_INCLUDEFORWARD
 #define VCZH_PRESENTATION_COMPOSITION_INCLUDEFORWARD
 
-#include "GuiGraphicsBasicComposition.h"
+#include "../Application/GraphicsCompositions/GuiGraphicsBoundsComposition.h"
 #include "GuiGraphicsAxis.h"
 
 namespace vl
@@ -18,6 +18,8 @@ namespace vl
 	{
 		namespace compositions
 		{
+			class GuiWindowComposition;
+
 			class GuiTableComposition;
 			class GuiCellComposition;
 			class GuiTableSplitterCompositionBase;
@@ -44,8 +46,14 @@ namespace vl
 			class GuiSharedSizeRootComposition;
 
 			class GuiRepeatCompositionBase;
+			class GuiNonVirtialRepeatCompositionBase;
 			class GuiRepeatStackComposition;
 			class GuiRepeatFlowComposition;
+			class GuiVirtualRepeatCompositionBase;
+			class GuiRepeatFreeHeightItemComposition;
+			class GuiRepeatFixedHeightItemComposition;
+			class GuiRepeatFixedSizeMultiColumnItemComposition;
+			class GuiRepeatFixedHeightMultiColumnItemComposition;
 		}
 	}
 }

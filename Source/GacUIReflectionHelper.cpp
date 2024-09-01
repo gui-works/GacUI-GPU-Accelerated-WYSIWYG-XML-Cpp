@@ -2,13 +2,27 @@
 
 namespace vl
 {
+	namespace presentation
+	{
+		namespace helper_types
+		{
+
+/***********************************************************************
+LocalizedStrings
+***********************************************************************/
+
+			WString LocalizedStrings::FirstOrEmpty(const collections::LazyList<WString>& formats)
+			{
+				return formats.First(WString::Empty);
+			}
+		}
+	}
+
 	namespace reflection
 	{
 		namespace description
 		{
-			using namespace parsing;
-			using namespace parsing::tabling;
-			using namespace parsing::xml;
+			using namespace glr::xml;
 			using namespace stream;
 			using namespace collections;
 			using namespace presentation;
@@ -39,11 +53,6 @@ Serialization (Color)
 				return true;
 			}
 
-			IBoxedValue::CompareResult TypedValueSerializerProvider<Color>::Compare(const presentation::Color& a, const presentation::Color& b)
-			{
-				return TypedValueSerializerProvider<vuint32_t>::Compare(a.value, b.value);
-			}
-
 /***********************************************************************
 Serialization (DocumentFontSize)
 ***********************************************************************/
@@ -65,11 +74,6 @@ Serialization (DocumentFontSize)
 				return true;
 			}
 
-			IBoxedValue::CompareResult TypedValueSerializerProvider<DocumentFontSize>::Compare(const presentation::DocumentFontSize& a, const presentation::DocumentFontSize& b)
-			{
-				return TypedValueSerializerProvider<WString>::Compare(a.ToString(), b.ToString());
-			}
-
 /***********************************************************************
 Serialization (GlobalStringKey)
 ***********************************************************************/
@@ -89,11 +93,6 @@ Serialization (GlobalStringKey)
 			{
 				output = GlobalStringKey::Get(input);
 				return true;
-			}
-
-			IBoxedValue::CompareResult TypedValueSerializerProvider<GlobalStringKey>::Compare(const presentation::GlobalStringKey& a, const presentation::GlobalStringKey& b)
-			{
-				return TypedValueSerializerProvider<WString>::Compare(a.ToString(), b.ToString());
 			}
 
 /***********************************************************************
@@ -146,6 +145,7 @@ External Functions (Compositions)
 			{
 				Group<WString, IGuiAltAction*> group;
 				host->CollectAltActions(group);
+				// TODO: (enumerable) Linq:SelectMany
 				for (vint i = 0; i < group.Count(); i++)
 				{
 					CopyFrom(actions, group.GetByIndex(i), true);

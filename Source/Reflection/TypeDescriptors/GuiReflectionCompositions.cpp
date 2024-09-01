@@ -11,7 +11,7 @@ namespace vl
 			using namespace presentation::compositions;
 			using namespace presentation::controls;
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 #define _ ,
 
@@ -103,6 +103,7 @@ Type Declaration (Extra)
 			BEGIN_ENUM_ITEM(FlowAlignment)
 				ENUM_CLASS_ITEM(Left)
 				ENUM_CLASS_ITEM(Center)
+				ENUM_CLASS_ITEM(Right)
 				ENUM_CLASS_ITEM(Extend)
 			END_ENUM_ITEM(FlowAlignment)
 
@@ -120,6 +121,12 @@ Type Declaration (Extra)
 				ENUM_CLASS_ITEM(Both)
 			END_ENUM_ITEM(ResponsiveDirection)
 
+			BEGIN_ENUM_ITEM(VirtualRepeatEnsureItemVisibleResult)
+				ENUM_CLASS_ITEM(ItemNotExists)
+				ENUM_CLASS_ITEM(Moved)
+				ENUM_CLASS_ITEM(NotMoved)
+			END_ENUM_ITEM(VirtualRepeatEnsureItemVisibleResult)
+
 			BEGIN_INTERFACE_MEMBER_NOPROXY(IGuiShortcutKeyItem)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Manager)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Name)
@@ -129,15 +136,15 @@ Type Declaration (Extra)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ItemCount)
 
 				CLASS_MEMBER_METHOD(GetItem, {L"index"})
+				CLASS_MEMBER_METHOD(TryGetShortcut, { L"ctrl" _ L"shift" _ L"alt" _ L"ket" })
+				CLASS_MEMBER_METHOD(CreateNewShortcut, { L"ctrl" _ L"shift" _ L"alt" _ L"ket" })
+				CLASS_MEMBER_METHOD(CreateShortcutIfNotExist, { L"ctrl" _ L"shift" _ L"alt" _ L"ket" })
+				CLASS_MEMBER_METHOD(DestroyShortcut, { L"ctrl" _ L"shift" _ L"alt" _ L"ket" })
 			END_INTERFACE_MEMBER(IGuiShortcutKeyManager)
 
 			BEGIN_CLASS_MEMBER(GuiShortcutKeyManager)
 				CLASS_MEMBER_BASE(IGuiShortcutKeyManager)
 				CLASS_MEMBER_CONSTRUCTOR(GuiShortcutKeyManager*(), NO_PARAMETER)
-
-				CLASS_MEMBER_METHOD(CreateShortcut, {L"ctrl" _ L"shift" _ L"alt" _ L"ket"})
-				CLASS_MEMBER_METHOD(DestroyShortcut, {L"ctrl" _ L"shift" _ L"alt" _ L"ket"})
-				CLASS_MEMBER_METHOD(TryGetShortcut, {L"ctrl" _ L"shift" _ L"alt" _ L"ket"})
 			END_CLASS_MEMBER(GuiShortcutKeyManager)
 
 			BEGIN_INTERFACE_MEMBER_NOPROXY(IGuiAltAction)
@@ -185,7 +192,6 @@ Type Declaration (Class)
 ***********************************************************************/
 
 			BEGIN_CLASS_MEMBER(GuiGraphicsComposition)
-
 				CLASS_MEMBER_EXTERNALMETHOD(SafeDelete, NO_PARAMETER, void(GuiGraphicsComposition::*)(), vl::presentation::compositions::SafeDeleteComposition)
 
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(leftButtonDown)
@@ -206,8 +212,6 @@ Type Declaration (Class)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(previewKey)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(keyDown)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(keyUp)
-				CLASS_MEMBER_GUIEVENT_COMPOSITION(systemKeyDown)
-				CLASS_MEMBER_GUIEVENT_COMPOSITION(systemKeyUp)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(previewCharInput)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(charInput)
 				CLASS_MEMBER_GUIEVENT_COMPOSITION(gotFocus)
@@ -219,8 +223,8 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Parent)
 				CLASS_MEMBER_PROPERTY_FAST(OwnedElement)
 				CLASS_MEMBER_PROPERTY_FAST(Visible)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(EventuallyVisible)
 				CLASS_MEMBER_PROPERTY_FAST(MinSizeLimitation)
-				CLASS_MEMBER_PROPERTY_READONLY_FAST(GlobalBounds)
 				CLASS_MEMBER_PROPERTY_FAST(TransparentToMouse)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(AssociatedControl)
 				CLASS_MEMBER_PROPERTY_FAST(AssociatedCursor)
@@ -228,13 +232,9 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(RelatedControl)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(RelatedControlHost)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(RelatedCursor)
-				CLASS_MEMBER_PROPERTY_FAST(Margin)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(RelatedHitTestResult)
 				CLASS_MEMBER_PROPERTY_FAST(InternalMargin)
 				CLASS_MEMBER_PROPERTY_FAST(PreferredMinSize)
-				CLASS_MEMBER_PROPERTY_READONLY_FAST(ClientArea)
-				CLASS_MEMBER_PROPERTY_READONLY_FAST(MinPreferredClientSize)
-				CLASS_MEMBER_PROPERTY_READONLY_FAST(PreferredBounds)
-				CLASS_MEMBER_PROPERTY_READONLY_FAST(Bounds)
 
 				CLASS_MEMBER_METHOD_RENAME(GetChildren, Children, NO_PARAMETER)
 				CLASS_MEMBER_PROPERTY_READONLY(Children, GetChildren)
@@ -244,28 +244,27 @@ Type Declaration (Class)
 				CLASS_MEMBER_METHOD(RemoveChild, {L"child"})
 				CLASS_MEMBER_METHOD(MoveChild, {L"child" _ L"newIndex"})
 				CLASS_MEMBER_METHOD(Render, {L"size"})
-				CLASS_MEMBER_METHOD(FindComposition, {L"location" _ L"forMouseEvent"})
-				CLASS_MEMBER_METHOD(ForceCalculateSizeImmediately, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(IsSizeAffectParent, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(FindVisibleComposition, {L"location" _ L"forMouseEvent"})
+
+				CLASS_MEMBER_GUIEVENT(CachedMinSizeChanged)
+				CLASS_MEMBER_GUIEVENT(CachedBoundsChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(CachedMinSize, CachedMinSizeChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(CachedMinClientSize, CachedMinSizeChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(CachedBounds, CachedBoundsChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(CachedClientArea, CachedBoundsChanged)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(GlobalBounds)
 			END_CLASS_MEMBER(GuiGraphicsComposition)
 
-			BEGIN_CLASS_MEMBER(GuiGraphicsSite)
-				CLASS_MEMBER_BASE(GuiGraphicsComposition)
-
-				CLASS_MEMBER_PROPERTY_GUIEVENT_READONLY_FAST(Bounds)
-			END_CLASS_MEMBER(GuiGraphicsSite)
-
 			BEGIN_CLASS_MEMBER(GuiWindowComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiWindowComposition*(), NO_PARAMETER)
 			END_CLASS_MEMBER(GuiWindowComposition)
 
 			BEGIN_CLASS_MEMBER(GuiBoundsComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiBoundsComposition*(), NO_PARAMETER)
 
-				CLASS_MEMBER_PROPERTY_FAST(SizeAffectParent)
-				CLASS_MEMBER_PROPERTY_EVENT_FAST(Bounds, BoundsChanged)
+				CLASS_MEMBER_PROPERTY_FAST(ExpectedBounds)
 				CLASS_MEMBER_PROPERTY_FAST(AlignmentToParent)
 				
 				CLASS_MEMBER_METHOD(IsAlignedToParent, NO_PARAMETER)
@@ -287,10 +286,9 @@ Type Declaration (Class)
 			END_CLASS_MEMBER(GuiStackComposition)
 
 			BEGIN_CLASS_MEMBER(GuiStackItemComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiStackItemComposition*(), NO_PARAMETER)
 
-				CLASS_MEMBER_PROPERTY_EVENT_FAST(Bounds, BoundsChanged)
 				CLASS_MEMBER_PROPERTY_FAST(ExtraMargin)
 			END_CLASS_MEMBER(GuiStackItemComposition)
 
@@ -316,12 +314,10 @@ Type Declaration (Class)
 				CLASS_MEMBER_METHOD(SetRowOption, {L"row" _ L"option"})
 				CLASS_MEMBER_METHOD(GetColumnOption, {L"column"})
 				CLASS_MEMBER_METHOD(SetColumnOption, {L"column" _ L"option"})
-				CLASS_MEMBER_METHOD(GetCellArea, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(UpdateCellBounds, NO_PARAMETER)
 			END_CLASS_MEMBER(GuiTableComposition)
 
 			BEGIN_CLASS_MEMBER(GuiCellComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiCellComposition*(), NO_PARAMETER)
 
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(TableParent)
@@ -334,7 +330,7 @@ Type Declaration (Class)
 			END_CLASS_MEMBER(GuiCellComposition)
 
 			BEGIN_CLASS_MEMBER(GuiTableSplitterCompositionBase)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(TableParent)
 			END_CLASS_MEMBER(GuiRowSplitterComposition)
@@ -363,19 +359,20 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_FAST(ColumnPadding)
 				CLASS_MEMBER_PROPERTY_FAST(Axis)
 				CLASS_MEMBER_PROPERTY_FAST(Alignment)
+
+				CLASS_MEMBER_METHOD(InsertFlowItem, { L"index" _ L"item" })
 			END_CLASS_MEMBER(GuiFlowComposition)
 
 			BEGIN_CLASS_MEMBER(GuiFlowItemComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiFlowItemComposition*(), NO_PARAMETER)
 
-				CLASS_MEMBER_PROPERTY_EVENT_FAST(Bounds, BoundsChanged)
 				CLASS_MEMBER_PROPERTY_FAST(ExtraMargin)
 				CLASS_MEMBER_PROPERTY_FAST(FlowOption)
 			END_CLASS_MEMBER(GuiFlowItemComposition)
 
 			BEGIN_CLASS_MEMBER(GuiSideAlignedComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiSideAlignedComposition*(), NO_PARAMETER)
 				
 				CLASS_MEMBER_PROPERTY_FAST(Direction)
@@ -384,7 +381,7 @@ Type Declaration (Class)
 			END_CLASS_MEMBER(GuiSideAlignedComposition)
 
 			BEGIN_CLASS_MEMBER(GuiPartialViewComposition)
-				CLASS_MEMBER_BASE(GuiGraphicsSite)
+				CLASS_MEMBER_BASE(GuiGraphicsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiPartialViewComposition*(), NO_PARAMETER)
 				
 				CLASS_MEMBER_PROPERTY_FAST(WidthRatio)
@@ -400,31 +397,76 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_FAST(Group)
 				CLASS_MEMBER_PROPERTY_FAST(SharedWidth)
 				CLASS_MEMBER_PROPERTY_FAST(SharedHeight)
-			END_CLASS_MEMBER(GuiSubComponentMeasurer)
+			END_CLASS_MEMBER(GuiSharedSizeItemComposition)
 
 			BEGIN_CLASS_MEMBER(GuiSharedSizeRootComposition)
 				CLASS_MEMBER_BASE(GuiBoundsComposition)
 				CLASS_MEMBER_CONSTRUCTOR(GuiSharedSizeRootComposition*(), NO_PARAMETER)
-			END_CLASS_MEMBER(GuiSubComponentMeasurerSource)
+			END_CLASS_MEMBER(GuiSharedSizeRootComposition)
 
 			BEGIN_CLASS_MEMBER(GuiRepeatCompositionBase)
-				CLASS_MEMBER_GUIEVENT(ItemInserted)
-				CLASS_MEMBER_GUIEVENT(ItemRemoved)
 				CLASS_MEMBER_PROPERTY_FAST(ItemTemplate)
 				CLASS_MEMBER_PROPERTY_FAST(ItemSource)
+				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(Context)
 			END_CLASS_MEMBER(GuiRepeatCompositionBase)
+
+			BEGIN_CLASS_MEMBER(GuiNonVirtialRepeatCompositionBase)
+				CLASS_MEMBER_BASE(GuiBoundsComposition)
+				CLASS_MEMBER_BASE(GuiRepeatCompositionBase)
+				CLASS_MEMBER_GUIEVENT(ItemInserted)
+				CLASS_MEMBER_GUIEVENT(ItemRemoved)
+			END_CLASS_MEMBER(GuiNonVirtialRepeatCompositionBase)
 
 			BEGIN_CLASS_MEMBER(GuiRepeatStackComposition)
 				CLASS_MEMBER_BASE(GuiStackComposition)
-				CLASS_MEMBER_BASE(GuiRepeatCompositionBase)
+				CLASS_MEMBER_BASE(GuiNonVirtialRepeatCompositionBase)
 				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatStackComposition*(), NO_PARAMETER)
 			END_CLASS_MEMBER(GuiRepeatStackComposition)
 
 			BEGIN_CLASS_MEMBER(GuiRepeatFlowComposition)
 				CLASS_MEMBER_BASE(GuiFlowComposition)
-				CLASS_MEMBER_BASE(GuiRepeatCompositionBase)
+				CLASS_MEMBER_BASE(GuiNonVirtialRepeatCompositionBase)
 				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatFlowComposition*(), NO_PARAMETER)
 			END_CLASS_MEMBER(GuiRepeatFlowComposition)
+
+			BEGIN_CLASS_MEMBER(GuiVirtualRepeatCompositionBase)
+				CLASS_MEMBER_BASE(GuiBoundsComposition)
+				CLASS_MEMBER_BASE(GuiRepeatCompositionBase)
+				CLASS_MEMBER_GUIEVENT(AdoptedSizeInvalidated)
+				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(Axis)
+				CLASS_MEMBER_PROPERTY_FAST(UseMinimumTotalSize)
+				CLASS_MEMBER_PROPERTY_GUIEVENT_READONLY_FAST(TotalSize)
+				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(ViewLocation)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(AdoptedSize, AdoptedSizeInvalidated)
+				CLASS_MEMBER_METHOD(GetVisibleStyle, { L"itemIndex" })
+				CLASS_MEMBER_METHOD(GetVisibleIndex, { L"style" })
+				CLASS_MEMBER_METHOD(ResetLayout, { L"recreateVisibleStyles" })
+				CLASS_MEMBER_METHOD(InvalidateLayout, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(FindItemByRealKeyDirection, { L"itemIndex" _ L"key" })
+				CLASS_MEMBER_METHOD(FindItemByVirtualKeyDirection, { L"itemIndex" _ L"key" })
+				CLASS_MEMBER_METHOD(EnsureItemVisible, { L"itemIndex" })
+				CLASS_MEMBER_METHOD(GetAdoptedSize, { L"expectedSize" })
+			END_CLASS_MEMBER(GuiNonVirtialRepeatCompositionBase)
+
+			BEGIN_CLASS_MEMBER(GuiRepeatFreeHeightItemComposition)
+				CLASS_MEMBER_BASE(GuiVirtualRepeatCompositionBase)
+				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatFreeHeightItemComposition*(), NO_PARAMETER)
+			END_CLASS_MEMBER(GuiRepeatFreeHeightItemComposition)
+
+			BEGIN_CLASS_MEMBER(GuiRepeatFixedHeightItemComposition)
+				CLASS_MEMBER_BASE(GuiVirtualRepeatCompositionBase)
+				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatFixedHeightItemComposition*(), NO_PARAMETER)
+			END_CLASS_MEMBER(GuiRepeatFixedHeightItemComposition)
+
+			BEGIN_CLASS_MEMBER(GuiRepeatFixedSizeMultiColumnItemComposition)
+				CLASS_MEMBER_BASE(GuiVirtualRepeatCompositionBase)
+				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatFixedSizeMultiColumnItemComposition*(), NO_PARAMETER)
+			END_CLASS_MEMBER(GuiRepeatFixedSizeMultiColumnItemComposition)
+
+			BEGIN_CLASS_MEMBER(GuiRepeatFixedHeightMultiColumnItemComposition)
+				CLASS_MEMBER_BASE(GuiVirtualRepeatCompositionBase)
+				CLASS_MEMBER_CONSTRUCTOR(GuiRepeatFixedHeightMultiColumnItemComposition*(), NO_PARAMETER)
+			END_CLASS_MEMBER(GuiRepeatFixedHeightMultiColumnItemComposition)
 
 			BEGIN_CLASS_MEMBER(GuiResponsiveCompositionBase)
 				CLASS_MEMBER_BASE(GuiBoundsComposition)
@@ -499,11 +541,11 @@ Type Loader
 
 			bool LoadGuiCompositionTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager=GetGlobalTypeManager();
 				if(manager)
 				{
-					Ptr<ITypeLoader> loader=new GuiCompositionTypeLoader;
+					auto loader=Ptr(new GuiCompositionTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

@@ -1,15 +1,12 @@
 #include "GuiParserManager.h"
-#include "../Controls/GuiApplication.h"
 
 namespace vl
 {
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace controls;
-		using namespace parsing::tabling;
-		using namespace parsing::xml;
-		using namespace parsing::json;
+		using namespace glr::xml;
+		using namespace glr::json;
 		using namespace regex;
 
 /***********************************************************************
@@ -23,11 +20,39 @@ IGuiParserManager
 			return parserManager;
 		}
 
+		class GuiParser_Xml : public IGuiParser<XmlDocument>
+		{
+		protected:
+			glr::xml::Parser							parser;
+
+		public:
+			Ptr<XmlDocument> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(parser, errors);
+				auto ast = XmlParseDocument(text, parser);
+				parser.OnError.Remove(handler);
+				return ast;
+			}
+		};
+
+		class GuiParser_Json : public IGuiParser<JsonNode>
+		{
+		protected:
+			glr::json::Parser							parser;
+
+		public:
+			Ptr<JsonNode> ParseInternal(const WString& text, List<glr::ParsingError>& errors) override
+			{
+				auto handler = glr::InstallDefaultErrorMessageGenerator(parser, errors);
+				auto ast = JsonParse(text, parser);
+				parser.OnError.Remove(handler);
+				return ast;
+			}
+		};
+
 		class GuiParserManager : public Object, public IGuiParserManager, public IGuiPlugin
 		{
 		protected:
-			Dictionary<WString, Ptr<Table>>				tables;
-			Dictionary<WString, Func<Ptr<Table>()>>		loaders;
 			SpinLock									lock;
 
 			Dictionary<WString, Ptr<IGuiGeneralParser>>	parsers;
@@ -37,46 +62,22 @@ IGuiParserManager
 			{
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				parserManager=this;
-				SetParsingTable(L"XML", &XmlLoadTable);
-				SetParsingTable(L"JSON", &JsonLoadTable);
-				SetTableParser(L"XML", L"XML", &XmlParseDocument);
-				SetTableParser(L"JSON", L"JSON", &JsonParse);
-			}
-
-			void Unload()override
-			{
-				parserManager=0;
-			}
-
-			Ptr<Table> GetParsingTable(const WString& name)override
-			{
-				SPIN_LOCK(lock)
+				if (controllerUnrelatedPlugins)
 				{
-					vint index=tables.Keys().IndexOf(name);
-					if(index!=-1)
-					{
-						return tables.Values()[index];
-					}
-
-					index=loaders.Keys().IndexOf(name);
-					if(index!=-1)
-					{
-						Ptr<Table> table=loaders.Values()[index]();
-						tables.Add(name, table);
-						return table;
-					}
+					parserManager = this;
+					SetParser(L"XML", Ptr(new GuiParser_Xml()));
+					SetParser(L"JSON", Ptr(new GuiParser_Json()));
 				}
-				return 0;
 			}
 
-			bool SetParsingTable(const WString& name, Func<Ptr<Table>()> loader)override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				if(loaders.Keys().Contains(name)) return false;
-				loaders.Add(name, loader);
-				return true;
+				if (controllerUnrelatedPlugins)
+				{
+					parserManager = nullptr;
+				}
 			}
 
 			Ptr<IGuiGeneralParser> GetParser(const WString& name)override

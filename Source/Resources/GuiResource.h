@@ -10,6 +10,7 @@ Interfaces:
 #define VCZH_PRESENTATION_RESOURCES_GUIRESOURCE
 
 #include "../NativeWindow/GuiNativeWindow.h"
+#include "GuiPluginManager.h"
 
 namespace vl
 {
@@ -23,6 +24,7 @@ namespace vl
 		class GuiResourceItem;
 		class GuiResourceFolder;
 		class GuiResource;
+		class GuiResourcePathResolver;
 
 /***********************************************************************
 Helper Functions
@@ -48,8 +50,8 @@ Helper Functions
 		/// <param name="path">The extracted path.</param>
 		extern bool									IsResourceUrl(const WString& text, WString& protocol, WString& path);
 
-		extern void									HexToBinary(stream::IStream& stream, const WString& hexText);
-		extern WString								BinaryToHex(stream::IStream& stream);
+		extern void									HexToBinary(stream::IStream& binaryStream, const WString& hexText);
+		extern WString								BinaryToHex(stream::IStream& binaryStream);
 
 /***********************************************************************
 Global String Key
@@ -74,13 +76,7 @@ Global String Key
 			vint									key = -1;
 
 		public:
-			static vint Compare(GlobalStringKey a, GlobalStringKey b){ return a.key - b.key; }
-			bool operator==(GlobalStringKey g)const{ return key == g.key; }
-			bool operator!=(GlobalStringKey g)const{ return key != g.key; }
-			bool operator<(GlobalStringKey g)const{ return key < g.key; }
-			bool operator<=(GlobalStringKey g)const{ return key <= g.key; }
-			bool operator>(GlobalStringKey g)const{ return key > g.key; }
-			bool operator>=(GlobalStringKey g)const{ return key >= g.key; }
+			GUI_DEFINE_COMPARE_OPERATORS(GlobalStringKey)
 
 			static GlobalStringKey					Get(const WString& string);
 			vint									ToKey()const;
@@ -140,6 +136,56 @@ Resource String
 		};
 
 /***********************************************************************
+Resource Precompile Context
+***********************************************************************/
+
+		/// <summary>
+		/// CPU architecture
+		/// </summary>
+		enum class GuiResourceCpuArchitecture
+		{
+			x86,
+			x64,
+			Unspecified,
+		};
+
+		/// <summary>
+		/// Resource usage
+		/// </summary>
+		enum class GuiResourceUsage
+		{
+			DataOnly,
+			InstanceClass,
+		};
+
+		/// <summary>Provide a context for resource precompiling</summary>
+		struct GuiResourcePrecompileContext
+		{
+			typedef collections::Dictionary<Ptr<DescriptableObject>, Ptr<DescriptableObject>>	PropertyMap;
+
+			/// <summary>The target CPU architecture.</summary>
+			GuiResourceCpuArchitecture							targetCpuArchitecture = GuiResourceCpuArchitecture::Unspecified;
+			/// <summary>Progress callback.</summary>
+			workflow::IWfCompilerCallback*						compilerCallback = nullptr;
+			/// <summary>The folder to contain compiled objects.</summary>
+			Ptr<GuiResourceFolder>								targetFolder;
+			/// <summary>The root resource object.</summary>
+			GuiResource*										rootResource = nullptr;
+			/// <summary>Indicate the pass index of this precompiling pass.</summary>
+			vint												passIndex = -1;
+			/// <summary>The path resolver. This is only for delay load resource.</summary>
+			Ptr<GuiResourcePathResolver>						resolver;
+			/// <summary>Additional properties for resource item contents</summary>
+			PropertyMap											additionalProperties;
+		};
+
+		/// <summary>Provide a context for resource initializing</summary>
+		struct GuiResourceInitializeContext : GuiResourcePrecompileContext
+		{
+			GuiResourceUsage									usage;
+		};
+
+/***********************************************************************
 Resource Structure
 ***********************************************************************/
 
@@ -187,21 +233,19 @@ Resource Structure
 			GuiResourceLocation(const WString& _resourcePath, const WString& _filePath);
 			GuiResourceLocation(Ptr<GuiResourceNodeBase> node);
 
-			bool operator==(const GuiResourceLocation& b)const { return resourcePath == b.resourcePath && filePath == b.filePath; }
-			bool operator!=(const GuiResourceLocation& b)const { return !(*this == b); }
+			GUI_DEFINE_COMPARE_OPERATORS(GuiResourceLocation)
 		};
 
 		struct GuiResourceTextPos
 		{
 			GuiResourceLocation						originalLocation;
-			vint									row = parsing::ParsingTextPos::UnknownValue;
-			vint									column = parsing::ParsingTextPos::UnknownValue;
+			vint									row = glr::ParsingTextPos::UnknownValue;
+			vint									column = glr::ParsingTextPos::UnknownValue;
 
 			GuiResourceTextPos() = default;
-			GuiResourceTextPos(GuiResourceLocation location, parsing::ParsingTextPos position);
+			GuiResourceTextPos(GuiResourceLocation location, glr::ParsingTextPos position);
 
-			bool operator==(const GuiResourceTextPos& b)const { return originalLocation == b.originalLocation && row == b.row && column == b.column; }
-			bool operator!=(const GuiResourceTextPos& b)const { return !(*this == b); }
+			GUI_DEFINE_COMPARE_OPERATORS(GuiResourceTextPos)
 		};
 
 		struct GuiResourceError
@@ -218,19 +262,15 @@ Resource Structure
 			GuiResourceError(GuiResourceLocation _location, const WString& _message);
 			GuiResourceError(GuiResourceLocation _location, GuiResourceTextPos _position, const WString& _message);
 
-			bool operator==(const GuiResourceError& b)const { return location == b.location && position == b.position && message == b.message; }
-			bool operator!=(const GuiResourceError& b)const { return !(*this == b); }
+			GUI_DEFINE_COMPARE_OPERATORS(GuiResourceError)
 
-			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<Ptr<parsing::ParsingError>>& parsingErrors);
-			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<Ptr<parsing::ParsingError>>& parsingErrors, parsing::ParsingTextPos offset);
-			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<Ptr<parsing::ParsingError>>& parsingErrors, GuiResourceTextPos offset);
+			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<glr::ParsingError>& parsingErrors);
+			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<glr::ParsingError>& parsingErrors, glr::ParsingTextPos offset);
+			static void								Transform(GuiResourceLocation _location, GuiResourceError::List& errors, collections::List<glr::ParsingError>& parsingErrors, GuiResourceTextPos offset);
 			static void								SortAndLog(List& errors, collections::List<WString>& output, const WString& workingDirectory = WString::Empty);
 		};
 
 		class DocumentModel;
-		class GuiResourcePathResolver;
-		struct GuiResourcePrecompileContext;
-		struct GuiResourceInitializeContext;
 		class IGuiResourcePrecompileCallback;
 		
 		/// <summary>Resource item.</summary>
@@ -263,7 +303,7 @@ Resource Structure
 			Ptr<GuiImageData>						AsImage();
 			/// <summary>Get the contained object as an xml.</summary>
 			/// <returns>The contained object.</returns>
-			Ptr<parsing::xml::XmlDocument>			AsXml();
+			Ptr<glr::xml::XmlDocument>				AsXml();
 			/// <summary>Get the contained object as a string.</summary>
 			/// <returns>The contained object.</returns>
 			Ptr<GuiTextData>						AsString();
@@ -294,8 +334,8 @@ Resource Structure
 			ItemMap									items;
 			FolderMap								folders;
 
-			void									LoadResourceFolderFromXml(DelayLoadingList& delayLoadings, const WString& containingFolder, Ptr<parsing::xml::XmlElement> folderXml, GuiResourceError::List& errors);
-			void									SaveResourceFolderToXml(Ptr<parsing::xml::XmlElement> xmlParent);
+			void									LoadResourceFolderFromXml(DelayLoadingList& delayLoadings, const WString& containingFolder, Ptr<glr::xml::XmlElement> folderXml, GuiResourceError::List& errors);
+			void									SaveResourceFolderToXml(Ptr<glr::xml::XmlElement> xmlParent);
 			void									CollectTypeNames(collections::List<WString>& typeNames);
 			void									LoadResourceFolderFromBinary(DelayLoadingList& delayLoadings, stream::internal::ContextFreeReader& reader, collections::List<WString>& typeNames, GuiResourceError::List& errors);
 			void									SaveResourceFolderToBinary(stream::internal::ContextFreeWriter& writer, collections::List<WString>& typeNames);
@@ -372,12 +412,6 @@ Resource Structure
 Resource
 ***********************************************************************/
 
-		enum class GuiResourceUsage
-		{
-			DataOnly,
-			InstanceClass,
-		};
-
 		/// <summary>Resource metadata.</summary>
 		class GuiResourceMetadata : public Object
 		{
@@ -386,8 +420,8 @@ Resource
 			WString									version;
 			collections::List<WString>				dependencies;
 
-			void									LoadFromXml(Ptr<parsing::xml::XmlDocument> xml, GuiResourceLocation location, GuiResourceError::List& errors);
-			Ptr<parsing::xml::XmlDocument>			SaveToXml();
+			void									LoadFromXml(Ptr<glr::xml::XmlDocument> xml, GuiResourceLocation location, GuiResourceError::List& errors);
+			Ptr<glr::xml::XmlDocument>				SaveToXml();
 		};
 		
 		/// <summary>Resource. A resource is a root resource folder that does not have a name.</summary>
@@ -419,7 +453,7 @@ Resource
 			/// <param name="filePath">The file path of the resource.</param>
 			/// <param name="workingDirectory">The working directory for loading external resources.</param>
 			/// <param name="errors">All collected errors during loading a resource.</param>
-			static Ptr<GuiResource>					LoadFromXml(Ptr<parsing::xml::XmlDocument> xml, const WString& filePath, const WString& workingDirectory, GuiResourceError::List& errors);
+			static Ptr<GuiResource>					LoadFromXml(Ptr<glr::xml::XmlDocument> xml, const WString& filePath, const WString& workingDirectory, GuiResourceError::List& errors);
 
 			/// <summary>Load a resource from an xml file. If the xml file refers other files, they will be loaded as well.</summary>
 			/// <returns>The loaded resource.</returns>
@@ -429,28 +463,28 @@ Resource
 
 			/// <summary>Save the resource to xml.</summary>
 			/// <returns>The xml.</returns>
-			Ptr<parsing::xml::XmlDocument>			SaveToXml();
+			Ptr<glr::xml::XmlDocument>				SaveToXml();
 			
 			/// <summary>Load a precompiled resource from a stream.</summary>
 			/// <returns>The loaded resource.</returns>
-			/// <param name="stream">The stream.</param>
+			/// <param name="binaryStream">The stream.</param>
 			/// <param name="errors">All collected errors during loading a resource.</param>
-			static Ptr<GuiResource>					LoadPrecompiledBinary(stream::IStream& stream, GuiResourceError::List& errors);
+			static Ptr<GuiResource>					LoadPrecompiledBinary(stream::IStream& binaryStream, GuiResourceError::List& errors);
 
 			/// <summary>Load a precompiled resource from a stream. This function will hit an assert if there are errors.</summary>
 			/// <returns>The loaded resource.</returns>
-			/// <param name="stream">The stream.</param>
-			static Ptr<GuiResource>					LoadPrecompiledBinary(stream::IStream& stream);
+			/// <param name="binaryStream">The stream.</param>
+			static Ptr<GuiResource>					LoadPrecompiledBinary(stream::IStream& binaryStream);
 			
 			/// <summary>Save the precompiled resource to a stream.</summary>
-			/// <param name="stream">The stream.</param>
-			void									SavePrecompiledBinary(stream::IStream& stream);
+			/// <param name="binaryStream">The stream.</param>
+			void									SavePrecompiledBinary(stream::IStream& binaryStream);
 
 			/// <summary>Precompile this resource to improve performance.</summary>
 			/// <returns>The resource folder contains all precompiled result. The folder will be added to the resource if there is no error.</returns>
 			/// <param name="callback">A callback to receive progress.</param>
 			/// <param name="errors">All collected errors during precompiling a resource.</param>
-			Ptr<GuiResourceFolder>					Precompile(IGuiResourcePrecompileCallback* callback, GuiResourceError::List& errors);
+			Ptr<GuiResourceFolder>					Precompile(GuiResourceCpuArchitecture targetCpuArchitecture, IGuiResourcePrecompileCallback* callback, GuiResourceError::List& errors);
 
 			/// <summary>Initialize a precompiled resource.</summary>
 			/// <param name="usage">In which role an application is initializing this resource.</param>
@@ -468,7 +502,7 @@ Resource
 			/// <summary>Get a contained xml using a path like "Packages\Application\Name". If the path does not exists or the type does not match, an exception will be thrown.</summary>
 			/// <returns>The containd resource object.</returns>
 			/// <param name="path">The path.</param>
-			Ptr<parsing::xml::XmlDocument>			GetXmlByPath(const WString& path);
+			Ptr<glr::xml::XmlDocument>				GetXmlByPath(const WString& path);
 			/// <summary>Get a contained string object using a path like "Packages\Application\Name". If the path does not exists or the type does not match, an exception will be thrown.</summary>
 			/// <returns>The containd resource object.</returns>
 			/// <param name="path">The path.</param>
@@ -553,38 +587,19 @@ Resource Type Resolver
 			
 			/// <summary>Get the precompiler for the type resolver.</summary>
 			/// <returns>Returns null if the type resolve does not support precompiling.</returns>
-			virtual IGuiResourceTypeResolver_Precompile*		Precompile(){ return 0; }
+			virtual IGuiResourceTypeResolver_Precompile*		Precompile(){ return nullptr; }
 			/// <summary>Get the initializer for the type resolver.</summary>
 			/// <returns>Returns null if the type resolve does not support initializing.</returns>
-			virtual IGuiResourceTypeResolver_Initialize*		Initialize(){ return 0; }
+			virtual IGuiResourceTypeResolver_Initialize*		Initialize(){ return nullptr; }
 			/// <summary>Get the object for convert the resource between xml and object.</summary>
 			/// <returns>Returns null if the type resolver does not have this ability.</returns>
-			virtual IGuiResourceTypeResolver_DirectLoadXml*		DirectLoadXml(){ return 0; }
+			virtual IGuiResourceTypeResolver_DirectLoadXml*		DirectLoadXml(){ return nullptr; }
 			/// <summary>Get the object for convert the resource between stream and object.</summary>
 			/// <returns>Returns null if the type resolver does not have this ability.</returns>
-			virtual IGuiResourceTypeResolver_DirectLoadStream*	DirectLoadStream(){ return 0; }
+			virtual IGuiResourceTypeResolver_DirectLoadStream*	DirectLoadStream(){ return nullptr; }
 			/// <summary>Get the object for convert the resource between the preload type and the current type.</summary>
 			/// <returns>Returns null if the type resolver does not have this ability.</returns>
-			virtual IGuiResourceTypeResolver_IndirectLoad*		IndirectLoad(){ return 0; }
-		};
-
-		/// <summary>Provide a context for resource precompiling</summary>
-		struct GuiResourcePrecompileContext
-		{
-			typedef collections::Dictionary<Ptr<DescriptableObject>, Ptr<DescriptableObject>>	PropertyMap;
-
-			/// <summary>Progress callback.</summary>
-			workflow::IWfCompilerCallback*						compilerCallback = nullptr;
-			/// <summary>The folder to contain compiled objects.</summary>
-			Ptr<GuiResourceFolder>								targetFolder;
-			/// <summary>The root resource object.</summary>
-			GuiResource*										rootResource = nullptr;
-			/// <summary>Indicate the pass index of this precompiling pass.</summary>
-			vint												passIndex = -1;
-			/// <summary>The path resolver. This is only for delay load resource.</summary>
-			Ptr<GuiResourcePathResolver>						resolver;
-			/// <summary>Additional properties for resource item contents</summary>
-			PropertyMap											additionalProperties;
+			virtual IGuiResourceTypeResolver_IndirectLoad*		IndirectLoad(){ return nullptr; }
 		};
 
 		/// <summary>
@@ -598,7 +613,7 @@ Resource Type Resolver
 		///			Pass  3: Compile
 		///			Pass  4: Generate instance types with event handler functions to TemporaryClass	/ Compile animation types
 		///			Pass  5: Compile
-		///			Pass  6: Generate instance types with everything to InstanceCtor				/ Compile animation types
+		///			Pass  6: Generate instance types with everything to InstanceCtor				/ Compile animation types / Compile localized strings injection
 		///			Pass  7: Compile
 		/// </summary>
 		class IGuiResourceTypeResolver_Precompile : public virtual IDescriptable, public Description<IGuiResourceTypeResolver_Precompile>
@@ -617,6 +632,8 @@ Resource Type Resolver
 				Instance_GenerateInstanceClass		= 6,
 				Instance_CompileInstanceClass		= 7,
 				Instance_Max						= Instance_CompileInstanceClass,
+
+				Everything_Max						= Instance_Max,
 			};
 
 			enum PassSupport
@@ -626,13 +643,10 @@ Resource Type Resolver
 				PerPass,
 			};
 
-			/// <summary>Get the maximum pass index that the precompiler needs.</summary>
-			/// <returns>Returns the maximum pass index. The precompiler doesn't not need to response to every pass.</returns>
-			virtual vint										GetMaxPassIndex() = 0;
 			/// <summary>Get how this resolver supports precompiling.</summary>
 			/// <param name="passIndex">The pass index.</param>
 			/// <returns>Returns how this resolver supports precompiling.</returns>
-			virtual PassSupport									GetPassSupport(vint passIndex) = 0;
+			virtual PassSupport									GetPrecompilePassSupport(vint passIndex) = 0;
 			/// <summary>Precompile the resource item.</summary>
 			/// <param name="resource">The resource to precompile.</param>
 			/// <param name="context">The context for precompiling.</param>
@@ -652,12 +666,6 @@ Resource Type Resolver
 			virtual void										OnPerResource(vint passIndex, Ptr<GuiResourceItem> resource) = 0;
 		};
 
-		/// <summary>Provide a context for resource initializing</summary>
-		struct GuiResourceInitializeContext : GuiResourcePrecompileContext
-		{
-			GuiResourceUsage									usage;
-		};
-
 		/// <summary>
 		///		Represents a precompiler for resources of a specified type.
 		///		Current resources that needs precompiling:
@@ -668,9 +676,16 @@ Resource Type Resolver
 		class IGuiResourceTypeResolver_Initialize : public virtual IDescriptable, public Description<IGuiResourceTypeResolver_Initialize>
 		{
 		public:
-			/// <summary>Get the maximum pass index that the initializer needs.</summary>
-			/// <returns>Returns the maximum pass index. The initializer doesn't not need to response to every pass.</returns>
-			virtual vint										GetMaxPassIndex() = 0;
+			enum PassNames
+			{
+				Workflow_Initialize					= 0,
+				Everything_Max						= Workflow_Initialize,
+			};
+
+			/// <summary>Get how this resolver supports precompiling.</summary>
+			/// <param name="passIndex">The pass index.</param>
+			/// <returns>Returns how this resolver supports precompiling.</returns>
+			virtual bool										GetInitializePassSupport(vint passIndex) = 0;
 			/// <summary>Initialize the resource item.</summary>
 			/// <param name="resource">The resource to initializer.</param>
 			/// <param name="context">The context for initializing.</param>
@@ -686,14 +701,14 @@ Resource Type Resolver
 			/// <returns>The serialized xml element.</returns>
 			/// <param name="resource">The resource item containing the resource.</param>
 			/// <param name="content">The object to serialize.</param>
-			virtual Ptr<parsing::xml::XmlElement>				Serialize(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content) = 0;
+			virtual Ptr<glr::xml::XmlElement>					Serialize(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content) = 0;
 
 			/// <summary>Load a resource for a type inside an xml element.</summary>
 			/// <returns>The resource.</returns>
 			/// <param name="resource">The resource item containing the resource.</param>
 			/// <param name="element">The xml element.</param>
 			/// <param name="errors">All collected errors during loading a resource.</param>
-			virtual Ptr<DescriptableObject>						ResolveResource(Ptr<GuiResourceItem> resource, Ptr<parsing::xml::XmlElement> element, GuiResourceError::List& errors) = 0;
+			virtual Ptr<DescriptableObject>						ResolveResource(Ptr<GuiResourceItem> resource, Ptr<glr::xml::XmlElement> element, GuiResourceError::List& errors) = 0;
 
 			/// <summary>Load a resource for a type from a file.</summary>
 			/// <returns>The resource.</returns>
@@ -710,15 +725,15 @@ Resource Type Resolver
 			/// <summary>Serialize a precompiled resource to a stream.</summary>
 			/// <param name="resource">The resource item containing the resource.</param>
 			/// <param name="content">The content to serialize.</param>
-			/// <param name="stream">The stream.</param>
-			virtual void										SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& stream) = 0;
+			/// <param name="binaryStream">The stream.</param>
+			virtual void										SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& binaryStream) = 0;
 
 			/// <summary>Load a precompiled resource from a stream.</summary>
 			/// <returns>The resource.</returns>
 			/// <param name="resource">The resource item containing the resource.</param>
-			/// <param name="stream">The stream.</param>
+			/// <param name="binaryStream">The stream.</param>
 			/// <param name="errors">All collected errors during loading a resource.</param>
-			virtual Ptr<DescriptableObject>						ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& stream, GuiResourceError::List& errors) = 0;
+			virtual Ptr<DescriptableObject>						ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& binaryStream, GuiResourceError::List& errors) = 0;
 		};
 
 		/// <summary>Represents a symbol type for loading a resource with a preload type.</summary>
@@ -770,12 +785,6 @@ Resource Resolver Manager
 			/// <returns>Returns true if this operation succeeded.</returns>
 			/// <param name="resolver">The resolver.</param>
 			virtual bool										SetTypeResolver(Ptr<IGuiResourceTypeResolver> resolver) = 0;
-			/// <summary>Get the maximum precompiling pass index.</summary>
-			/// <returns>The maximum precompiling pass index.</returns>
-			virtual vint										GetMaxPrecompilePassIndex() = 0;
-			/// <summary>Get the maximum initializing pass index.</summary>
-			/// <returns>The maximum initializing pass index.</returns>
-			virtual vint										GetMaxInitializePassIndex() = 0;
 			/// <summary>Get names of all per resource resolvers for a pass.</summary>
 			/// <param name="passIndex">The pass index.</param>
 			/// <param name="names">Names of resolvers</param>

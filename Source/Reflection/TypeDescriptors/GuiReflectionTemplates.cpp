@@ -12,7 +12,7 @@ namespace vl
 			using namespace presentation::controls::list;
 			using namespace presentation::templates;
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 #define _ ,
 
@@ -42,12 +42,6 @@ Type Declaration (Extra)
 				ENUM_CLASS_ITEM(TopToBottom)
 				ENUM_CLASS_ITEM(BottomToTop)
 			END_ENUM_ITEM(TabPageOrder)
-
-			BEGIN_ENUM_ITEM(BoolOption)
-				ENUM_CLASS_ITEM(AlwaysTrue)
-				ENUM_CLASS_ITEM(AlwaysFalse)
-				ENUM_CLASS_ITEM(Customizable)
-			END_ENUM_ITEM(BoolOption)
 
 			BEGIN_INTERFACE_MEMBER_NOPROXY(ITextBoxCommandExecutor)
 				CLASS_MEMBER_BASE(IDescriptable)
@@ -132,6 +126,8 @@ Type Declaration (Extra)
 				CLASS_MEMBER_METHOD(AddControlHostComponent, {L"controlHost"})
 				CLASS_MEMBER_METHOD(AddAnimation, { L"animation" })
 				CLASS_MEMBER_METHOD(KillAnimation, { L"animation" })
+				CLASS_MEMBER_METHOD(GetNamedObject, { L"name" })
+				CLASS_MEMBER_METHOD(SetNamedObject, { L"name" _ L"namedObject" })
 			END_CLASS_MEMBER(GuiInstanceRootObject)
 
 			BEGIN_CLASS_MEMBER(GuiCommonScrollBehavior)
@@ -168,7 +164,7 @@ Type Declaration (Class)
 				NAME ## _PROPERTIES(GUI_TEMPLATE_PROPERTY_REFLECTION)\
 			END_CLASS_MEMBER(NAME)\
 
-			GUI_CONTROL_TEMPLATE(GuiListItemTemplate, GuiTemplate)
+			GUI_CORE_CONTROL_TEMPLATE_DECL(GUI_CONTROL_TEMPLATE)
 			GUI_CONTROL_TEMPLATE_DECL(GUI_CONTROL_TEMPLATE)
 			GUI_ITEM_TEMPLATE_DECL(GUI_CONTROL_TEMPLATE)
 
@@ -250,11 +246,11 @@ Type Loader
 
 			bool LoadGuiTemplateTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager=GetGlobalTypeManager();
 				if(manager)
 				{
-					Ptr<ITypeLoader> loader=new GuiTemplateTypeLoader;
+					auto loader=Ptr(new GuiTemplateTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

@@ -31,6 +31,7 @@ If a run decides that itself should be removed, then replacedRuns contains all r
 				void VisitContainer(DocumentContainerRun* run)
 				{
 					if (start == end) return;
+					// TODO: (enumerable) foreach:indexed(alterable(reversed))
 					for (vint i = run->runs.Count() - 1; i >= 0; i--)
 					{
 						Ptr<DocumentRun> subRun = run->runs[i];
@@ -44,6 +45,7 @@ If a run decides that itself should be removed, then replacedRuns contains all r
 							if (replacedRuns.Count() == 0 || subRun != replacedRuns[0])
 							{
 								run->runs.RemoveAt(i);
+								// TODO: (enumerable) foreach
 								for (vint j = 0; j<replacedRuns.Count(); j++)
 								{
 									run->runs.Insert(i + j, replacedRuns[j]);
@@ -52,7 +54,7 @@ If a run decides that itself should be removed, then replacedRuns contains all r
 						}
 					}
 					replacedRuns.Clear();
-					replacedRuns.Add(run);
+					replacedRuns.Add(Ptr(run));
 				}
 
 				void Visit(DocumentTextRun* run)override
@@ -65,15 +67,15 @@ If a run decides that itself should be removed, then replacedRuns contains all r
 						if (end<range.end)
 						{
 							run->text = run->text.Sub(end - range.start, range.end - end);
-							replacedRuns.Add(run);
+							replacedRuns.Add(Ptr(run));
 						}
 					}
 					else
 					{
 						if (end<range.end)
 						{
-							DocumentTextRun* firstRun = new DocumentTextRun;
-							DocumentTextRun* secondRun = new DocumentTextRun;
+							auto firstRun = Ptr(new DocumentTextRun);
+							auto secondRun = Ptr(new DocumentTextRun);
 
 							firstRun->text = run->text.Sub(0, start - range.start);
 							secondRun->text = run->text.Sub(end - range.start, range.end - end);
@@ -84,7 +86,7 @@ If a run decides that itself should be removed, then replacedRuns contains all r
 						else
 						{
 							run->text = run->text.Sub(0, start - range.start);
-							replacedRuns.Add(run);
+							replacedRuns.Add(Ptr(run));
 						}
 					}
 				}

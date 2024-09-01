@@ -43,9 +43,9 @@ GuiTextBoxAutoCompleteBase::TextListControlProvider
 			void GuiTextBoxAutoCompleteBase::TextListControlProvider::SetSortedContent(const collections::List<AutoCompleteItem>& items)
 			{
 				autoCompleteList->GetItems().Clear();
-				FOREACH(AutoCompleteItem, item, items)
+				for (auto item : items)
 				{
-					autoCompleteList->GetItems().Add(new list::TextItem(item.text));
+					autoCompleteList->GetItems().Add(Ptr(new list::TextItem(item.text)));
 				}
 			}
 
@@ -83,7 +83,7 @@ GuiTextBoxAutoCompleteBase
 			{
 				if (!autoCompleteControlProvider)
 				{
-					autoCompleteControlProvider = new TextListControlProvider;
+					autoCompleteControlProvider = Ptr(new TextListControlProvider);
 				}
 				autoCompleteControlProvider->GetAutoCompleteControl()->GetBoundsComposition()->SetAlignmentToParent(Margin(0, 0, 0, 0));
 
@@ -190,7 +190,7 @@ GuiTextBoxAutoCompleteBase
 					From(items)
 						.OrderBy([](const AutoCompleteItem& a, const AutoCompleteItem& b)
 						{
-							return INVLOC.Compare(a.text, b.text, Locale::IgnoreCase);
+							return INVLOC.Compare(a.text, b.text, Locale::IgnoreCase) <=> 0;
 						})
 					);
 

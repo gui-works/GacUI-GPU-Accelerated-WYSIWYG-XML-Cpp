@@ -12,8 +12,7 @@ namespace vl
 {
 	namespace presentation
 	{
-		using namespace parsing;
-		using namespace parsing::xml;
+		using namespace glr::xml;
 		using namespace workflow;
 		using namespace workflow::analyzer;
 		using namespace workflow::emitter;
@@ -24,8 +23,9 @@ namespace vl
 
 		using namespace controls;
 
-		class WorkflowVirtualScriptPositionVisitor : public traverse_visitor::ModuleVisitor
+		class WorkflowVirtualScriptPositionVisitor : public workflow::traverse_visitor::AstVisitor
 		{
+			using BaseVisitor = workflow::traverse_visitor::AstVisitor;
 		public:
 			GuiResourcePrecompileContext&						context;
 			Ptr<types::ScriptPosition>							sp;
@@ -38,7 +38,7 @@ namespace vl
 
 			void Visit(WfVirtualCfeExpression* node)override
 			{
-				traverse_visitor::ExpressionVisitor::Visit(node);
+				BaseVisitor::Visit(node);
 				vint index = sp->nodePositions.Keys().IndexOf(node);
 				if (index != -1)
 				{
@@ -49,7 +49,7 @@ namespace vl
 
 			void Visit(WfVirtualCseExpression* node)override
 			{
-				traverse_visitor::ExpressionVisitor::Visit(node);
+				BaseVisitor::Visit(node);
 				vint index = sp->nodePositions.Keys().IndexOf(node);
 				if (index != -1)
 				{
@@ -60,7 +60,7 @@ namespace vl
 
 			void Visit(WfVirtualCseStatement* node)override
 			{
-				traverse_visitor::StatementVisitor::Visit(node);
+				BaseVisitor::Visit(node);
 				vint index = sp->nodePositions.Keys().IndexOf(node);
 				if (index != -1)
 				{
@@ -71,12 +71,12 @@ namespace vl
 
 			void Visit(WfVirtualCfeDeclaration* node)override
 			{
-				traverse_visitor::DeclarationVisitor::Visit(node);
+				BaseVisitor::Visit(node);
 				vint index = sp->nodePositions.Keys().IndexOf(node);
 				if (index != -1)
 				{
 					auto record = sp->nodePositions.Values()[index];
-					FOREACH(Ptr<WfDeclaration>, decl, node->expandedDeclarations)
+					for (auto decl : node->expandedDeclarations)
 					{
 						Workflow_RecordScriptPosition(context, record.position, decl, record.availableAfter);
 					}
@@ -85,12 +85,12 @@ namespace vl
 
 			void Visit(WfVirtualCseDeclaration* node)override
 			{
-				traverse_visitor::DeclarationVisitor::Visit(node);
+				BaseVisitor::Visit(node);
 				vint index = sp->nodePositions.Keys().IndexOf(node);
 				if (index != -1)
 				{
 					auto record = sp->nodePositions.Values()[index];
-					FOREACH(Ptr<WfDeclaration>, decl, node->expandedDeclarations)
+					for (auto decl : node->expandedDeclarations)
 					{
 						Workflow_RecordScriptPosition(context, record.position, decl, record.availableAfter);
 					}
@@ -103,7 +103,7 @@ namespace vl
 			auto compiled = context.targetFolder->GetValueByPath(path).Cast<GuiInstanceCompiledWorkflow>();
 			if (assemblyType && !compiled)
 			{
-				compiled = new GuiInstanceCompiledWorkflow;
+				compiled = Ptr(new GuiInstanceCompiledWorkflow);
 				compiled->type = assemblyType.Value();
 				context.targetFolder->CreateValueByPath(path, L"Workflow", compiled);
 			}
@@ -133,7 +133,7 @@ namespace vl
 			if (!compiled->assembly)
 			{
 				List<WString> codes;
-				auto manager = Workflow_GetSharedManager();
+				auto manager = Workflow_GetSharedManager(context.targetCpuArchitecture);
 				manager->Clear(false, true);
 
 				auto addCode = [&codes](TextReader& reader)
@@ -152,6 +152,7 @@ namespace vl
 					codes.Add(code);
 				};
 
+				// TODO: (enumerable) Linq:Select
 				for (vint i = 0; i < compiled->modules.Count(); i++)
 				{
 					manager->AddModule(compiled->modules[i].module);
@@ -168,24 +169,28 @@ namespace vl
 					WfAssemblyLoadErrors loadErrors;
 					if (!compiled->Initialize(true, loadErrors))
 					{
-						manager->errors.Add(new ParsingError(L"Internal error happened during loading an assembly that just passed type verification."));
+						glr::ParsingError error;
+						error.message = L"Internal error happened during loading an assembly that just passed type verification.";
+						manager->errors.Add(error);
 					}
 				}
 				else
 				{
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i < compiled->modules.Count(); i++)
 					{
 						auto module = compiled->modules[i];
 						WorkflowVirtualScriptPositionVisitor visitor(context);
-						visitor.VisitField(module.module.Obj());
+						visitor.InspectInto(module.module.Obj());
 						Workflow_RecordScriptPosition(context, module.position, module.module);
 					}
 
 					auto sp = Workflow_GetScriptPosition(context);
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i < manager->errors.Count(); i++)
 					{
 						auto error = manager->errors[i];
-						errors.Add({ sp->nodePositions[error->parsingTree].computedPosition, error->errorMessage });
+						errors.Add({ sp->nodePositions[error.node].computedPosition, error.message });
 					}
 				}
 
@@ -240,12 +245,7 @@ Shared Script Type Resolver (Script)
 				return false;
 			}
 
-			vint GetMaxPassIndex()override
-			{
-				return Workflow_Max;
-			}
-
-			PassSupport GetPassSupport(vint passIndex)override
+			PassSupport GetPrecompilePassSupport(vint passIndex)override
 			{
 				switch (passIndex)
 				{
@@ -287,6 +287,7 @@ Shared Script Type Resolver (Script)
 					Workflow_GenerateAssembly(context, Path_Shared, errors, false, context.compilerCallback);
 					if (auto compiled = Workflow_GetModule(context, Path_Shared, {}))
 					{
+						// TODO: (enumerable) foreach
 						for (vint i = 0; i < compiled->modules.Count(); i++)
 						{
 							auto& module = compiled->modules[i];
@@ -366,12 +367,7 @@ Instance Type Resolver (Instance)
 				return false;
 			}
 
-			vint GetMaxPassIndex()override
-			{
-				return Instance_Max;
-			}
-
-			PassSupport GetPassSupport(vint passIndex)override
+			PassSupport GetPrecompilePassSupport(vint passIndex)override
 			{
 				switch (passIndex)
 				{
@@ -405,14 +401,13 @@ Instance Type Resolver (Instance)
 #define UNLOAD_ASSEMBLY(PATH)\
 			if (auto compiled = Workflow_GetModule(context, PATH, {}))\
 			{\
-				compiled->context = nullptr;\
+				compiled->UnloadTypes();\
 			}\
 
 #define DELETE_ASSEMBLY(PATH)\
 			if (auto compiled = Workflow_GetModule(context, PATH, {}))\
 			{\
-				compiled->context = nullptr;\
-				compiled->assembly = nullptr;\
+				compiled->UnloadAssembly();\
 			}\
 
 			void PerResourcePrecompile(Ptr<GuiResourceItem> resource, GuiResourcePrecompileContext& context, GuiResourceError::List& errors)override
@@ -426,7 +421,7 @@ Instance Type Resolver (Instance)
 							auto record = context.targetFolder->GetValueByPath(L"ClassNameRecord").Cast<GuiResourceClassNameRecord>();
 							if (!record)
 							{
-								record = MakePtr<GuiResourceClassNameRecord>();
+								record = Ptr(new GuiResourceClassNameRecord);
 								context.targetFolder->CreateValueByPath(L"ClassNameRecord", L"ClassNameRecord", record);
 							}
 
@@ -455,8 +450,9 @@ Instance Type Resolver (Instance)
 									L"\" should have the class name specified in the ref.Class attribute."));
 							}
 
-							FOREACH_INDEXER(Ptr<GuiInstanceLocalized>, localized, index,
-								From(obj->localizeds).Where([](Ptr<GuiInstanceLocalized> ls) {return ls->defaultStrings; })
+							// TODO: (enumerable) Linq:Take
+							for (auto [localized, index] :
+								indexed(From(obj->localizeds).Where([](Ptr<GuiInstanceLocalized> ls) {return ls->defaultStrings; }))
 								)
 							{
 								if (index > 0)
@@ -694,12 +690,7 @@ Animation Type Resolver (Animation)
 				return false;
 			}
 
-			vint GetMaxPassIndex()override
-			{
-				return Instance_Max;
-			}
-
-			PassSupport GetPassSupport(vint passIndex)override
+			PassSupport GetPrecompilePassSupport(vint passIndex)override
 			{
 				switch (passIndex)
 				{
@@ -819,16 +810,12 @@ Localized Strings Type Resolver (LocalizedStrings)
 				return false;
 			}
 
-			vint GetMaxPassIndex()override
-			{
-				return Workflow_Collect + 1;
-			}
-
-			PassSupport GetPassSupport(vint passIndex)override
+			PassSupport GetPrecompilePassSupport(vint passIndex)override
 			{
 				switch (passIndex)
 				{
 				case Workflow_Collect:
+				case Instance_CompileInstanceClass:
 					return PerResource;
 				default:
 					return NotSupported;
@@ -846,6 +833,17 @@ Localized Strings Type Resolver (LocalizedStrings)
 							if (auto module = obj->Compile(context, L"<localized-strings>" + obj->className, errors))
 							{
 								Workflow_AddModule(context, Path_Shared, module, GuiInstanceCompiledWorkflow::Shared, obj->tagPosition);
+							}
+						}
+					}
+					break;
+				case Instance_CompileInstanceClass:
+					{
+						if (auto obj = resource->GetContent().Cast<GuiInstanceLocalizedStringsInjection>())
+						{
+							if (auto module = obj->Compile(context, L"<localized-strings-injection>" + obj->className, errors))
+							{
+								Workflow_AddModule(context, Path_InstanceClass, module, GuiInstanceCompiledWorkflow::InstanceClass, obj->tagPosition);
 							}
 						}
 					}
@@ -874,6 +872,10 @@ Localized Strings Type Resolver (LocalizedStrings)
 				{
 					return obj->SaveToXml();
 				}
+				if (auto obj = content.Cast<GuiInstanceLocalizedStringsInjection>())
+				{
+					return obj->SaveToXml();
+				}
 				return nullptr;
 			}
 
@@ -881,7 +883,18 @@ Localized Strings Type Resolver (LocalizedStrings)
 			{
 				if (auto xml = resource->GetContent().Cast<XmlDocument>())
 				{
-					return GuiInstanceLocalizedStrings::LoadFromXml(resource, xml, errors);
+					if (xml->rootElement->name.value == L"LocalizedStrings")
+					{
+						return GuiInstanceLocalizedStrings::LoadFromXml(resource, xml, errors);
+					}
+					else if (xml->rootElement->name.value == L"LocalizedStringsInjection")
+					{
+						return GuiInstanceLocalizedStringsInjection::LoadFromXml(resource, xml, errors);
+					}
+					else
+					{
+						errors.Add(GuiResourceError({ { resource },xml->rootElement->codeRange.start }, L"Precompile: The root element of localized strings should be \"LocalizedStrings\" or \"LocalizedStringsInjection\"."));
+					}
 				}
 				return nullptr;
 			}
@@ -904,17 +917,20 @@ Plugin
 				GUI_PLUGIN_DEPEND(GacUI_Res_ResourceResolver);
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				IGuiResourceResolverManager* manager = GetResourceResolverManager();
-				manager->SetTypeResolver(new GuiResourceSharedScriptTypeResolver);
-				manager->SetTypeResolver(new GuiResourceInstanceTypeResolver);
-				manager->SetTypeResolver(new GuiResourceInstanceStyleTypeResolver);
-				manager->SetTypeResolver(new GuiResourceAnimationTypeResolver);
-				manager->SetTypeResolver(new GuiResourceLocalizedStringsTypeResolver);
+				if (controllerUnrelatedPlugins)
+				{
+					IGuiResourceResolverManager* manager = GetResourceResolverManager();
+					manager->SetTypeResolver(Ptr(new GuiResourceSharedScriptTypeResolver));
+					manager->SetTypeResolver(Ptr(new GuiResourceInstanceTypeResolver));
+					manager->SetTypeResolver(Ptr(new GuiResourceInstanceStyleTypeResolver));
+					manager->SetTypeResolver(Ptr(new GuiResourceAnimationTypeResolver));
+					manager->SetTypeResolver(Ptr(new GuiResourceLocalizedStringsTypeResolver));
+				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
 			}
 		};

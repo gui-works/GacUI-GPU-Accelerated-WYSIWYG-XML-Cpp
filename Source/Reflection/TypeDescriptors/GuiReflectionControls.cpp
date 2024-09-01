@@ -14,7 +14,7 @@ namespace vl
 			using namespace presentation::elements::text;
 			using namespace presentation::theme;
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 #define _ ,
 
@@ -23,21 +23,21 @@ namespace vl
 
 #define CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(CONTROL)\
 	CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(CONTROL)\
-	CLASS_MEMBER_PROPERTY_READONLY_FAST(ControlTemplateObject)\
+	CLASS_MEMBER_METHOD(TypedControlTemplateObject, {L"ensureExists"})\
 
 #define CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(CONTROL, TYPE2, PARAM2)\
 	CLASS_MEMBER_CONSTRUCTOR(CONTROL*(ThemeName, TYPE2), {L"themeName" _ L ## #PARAM2 })\
 
 #define CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_2(CONTROL, TYPE2, PARAM2)\
 	CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(CONTROL, TYPE2, PARAM2)\
-	CLASS_MEMBER_PROPERTY_READONLY_FAST(ControlTemplateObject)\
+	CLASS_MEMBER_METHOD(TypedControlTemplateObject, {L"ensureExists"})\
 
 #define CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_3(CONTROL, TYPE2, PARAM2, TYPE3, PARAM3)\
 	CLASS_MEMBER_CONSTRUCTOR(CONTROL*(ThemeName, TYPE2, TYPE3), {L"themeName" _ L ## #PARAM2 _ L ## #PARAM3})\
 
 #define CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_3(CONTROL, TYPE2, PARAM2, TYPE3, PARAM3)\
 	CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_3(CONTROL, TYPE2, PARAM2, TYPE3, PARAM3)\
-	CLASS_MEMBER_PROPERTY_READONLY_FAST(ControlTemplateObject)\
+	CLASS_MEMBER_METHOD(TypedControlTemplateObject, {L"ensureExists"})\
 
 #define INTERFACE_IDENTIFIER(INTERFACE)\
 	CLASS_MEMBER_STATIC_EXTERNALMETHOD(GetIdentifier, NO_PARAMETER, WString(*)(), vl::presentation::controls::QueryServiceHelper<::INTERFACE>::GetIdentifier)
@@ -56,8 +56,11 @@ Type Declaration (Extra)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ExecutablePath)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ExecutableFolder)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Windows)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(GlobalShortcutKeyManager)
 				
-				CLASS_MEMBER_METHOD(Run, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(Run, {L"mainWindow"})
+				CLASS_MEMBER_METHOD(RunOneCycle, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(GetWindowFromNative, {L"nativeWindow"});
 				CLASS_MEMBER_METHOD(ShowTooltip, {L"owner" _ L"tooltip" _ L"preferredContentWidth" _ L"location"})
 				CLASS_MEMBER_METHOD(CloseTooltip, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(IsInMainThread, NO_PARAMETER)
@@ -70,6 +73,9 @@ Type Declaration (Extra)
 			END_CLASS_MEMBER(GuiApplication)
 
 			BEGIN_ENUM_ITEM(ThemeName)
+				ENUM_ITEM_NAMESPACE(ThemeName)
+				ENUM_CLASS_ITEM(Unknown)
+				ENUM_CLASS_ITEM(Window)
 #define GUI_DEFINE_THEME_NAME(TEMPLATE, CONTROL) ENUM_CLASS_ITEM(CONTROL)
 				GUI_CONTROL_TEMPLATE_TYPES(GUI_DEFINE_THEME_NAME)
 #undef GUI_DEFINE_THEME_NAME
@@ -88,6 +94,7 @@ Type Declaration (Extra)
 				CLASS_MEMBER_CONSTRUCTOR(Ptr<ThemeTemplates>(), NO_PARAMETER)
 
 				CLASS_MEMBER_FIELD(Name)
+				CLASS_MEMBER_FIELD(PreferCustomFrameWindow)
 #define GUI_DEFINE_ITEM_PROPERTY(TEMPLATE, CONTROL) CLASS_MEMBER_FIELD(CONTROL)
 				GUI_CONTROL_TEMPLATE_TYPES(GUI_DEFINE_ITEM_PROPERTY)
 #undef GUI_DEFINE_ITEM_PROPERTY
@@ -177,33 +184,14 @@ Type Declaration (Extra)
 				CLASS_MEMBER_CONSTRUCTOR(GuiSelectableButton::MutexGroupController*(), NO_PARAMETER)
 			END_CLASS_MEMBER(GuiSelectableButton::MutexGroupController)
 
-			BEGIN_INTERFACE_MEMBER(GuiListControl::IItemProviderCallback)
+			BEGIN_INTERFACE_MEMBER(list::IItemProviderCallback)
 				CLASS_MEMBER_BASE(IDescriptable)
 
 				CLASS_MEMBER_METHOD(OnAttached, {L"provider"})
-				CLASS_MEMBER_METHOD(OnItemModified, {L"start" _ L"count" _ L"newCount"})
-			END_INTERFACE_MEMBER(GuiListControl::IItemProviderCallback)
+				CLASS_MEMBER_METHOD(OnItemModified, {L"start" _ L"count" _ L"newCount" _ L"itemReferenceUpdated"})
+			END_INTERFACE_MEMBER(list::IItemProviderCallback)
 
-			BEGIN_INTERFACE_MEMBER_NOPROXY(GuiListControl::IItemArrangerCallback)
-				CLASS_MEMBER_BASE(IDescriptable)
-				CLASS_MEMBER_METHOD(RequestItem, {L"itemIndex" _ L"itemComposition"})
-				CLASS_MEMBER_METHOD(ReleaseItem, {L"style"})
-				CLASS_MEMBER_METHOD(SetViewLocation, {L"value"})
-				CLASS_MEMBER_METHOD(GetStylePreferredSize, {L"style"})
-				CLASS_MEMBER_METHOD(SetStyleAlignmentToParent, {L"style" _ L"margin"})
-				CLASS_MEMBER_METHOD(GetStyleBounds, {L"style"})
-				CLASS_MEMBER_METHOD(SetStyleBounds, {L"style" _ L"bounds"})
-				CLASS_MEMBER_METHOD(GetContainerComposition, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(OnTotalSizeChanged, NO_PARAMETER)
-			END_INTERFACE_MEMBER(GuiListControl::IItemArrangerCallback)
-
-			BEGIN_ENUM_ITEM(GuiListControl::EnsureItemVisibleResult)
-				ENUM_CLASS_ITEM(ItemNotExists)
-				ENUM_CLASS_ITEM(Moved)
-				ENUM_CLASS_ITEM(NotMoved)
-			END_ENUM_ITEM(GuiListControl::EnsureItemVisibleResult)
-
-			BEGIN_INTERFACE_MEMBER(GuiListControl::IItemProvider)
+			BEGIN_INTERFACE_MEMBER(list::IItemProvider)
 				CLASS_MEMBER_BASE(IDescriptable)
 
 				CLASS_MEMBER_METHOD(AttachCallback, {L"value"})
@@ -215,10 +203,28 @@ Type Declaration (Extra)
 				CLASS_MEMBER_METHOD(GetTextValue, { L"itemIndex" })
 				CLASS_MEMBER_METHOD(GetBindingValue, { L"itemIndex" })
 				CLASS_MEMBER_METHOD(RequestView, {L"identifier"})
-			END_INTERFACE_MEMBER(GuiListControl::IItemProvider)
+			END_INTERFACE_MEMBER(list::IItemProvider)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(GuiListControl::IItemArrangerCallback)
+				CLASS_MEMBER_BASE(IDescriptable)
+				CLASS_MEMBER_METHOD(CreateItem, {L"itemIndex"})
+				CLASS_MEMBER_METHOD(GetItemBounds, { L"style" })
+				CLASS_MEMBER_METHOD(GetItem, { L"bounds" })
+				CLASS_MEMBER_METHOD(ReleaseItem, {L"style"})
+				CLASS_MEMBER_METHOD(SetViewLocation, {L"value"})
+				CLASS_MEMBER_METHOD(GetContainerComposition, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(OnTotalSizeChanged, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(OnAdoptedSizeChanged, NO_PARAMETER)
+			END_INTERFACE_MEMBER(GuiListControl::IItemArrangerCallback)
+
+			BEGIN_ENUM_ITEM(GuiListControl::EnsureItemVisibleResult)
+				ENUM_CLASS_ITEM(ItemNotExists)
+				ENUM_CLASS_ITEM(Moved)
+				ENUM_CLASS_ITEM(NotMoved)
+			END_ENUM_ITEM(GuiListControl::EnsureItemVisibleResult)
 
 			BEGIN_INTERFACE_MEMBER(GuiListControl::IItemArranger)
-				CLASS_MEMBER_BASE(GuiListControl::IItemProviderCallback)
+				CLASS_MEMBER_BASE(list::IItemProviderCallback)
 
 				CLASS_MEMBER_PROPERTY_FAST(Callback)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(TotalSize)
@@ -229,13 +235,13 @@ Type Declaration (Extra)
 				CLASS_MEMBER_METHOD(GetVisibleIndex, {L"style"})
 				CLASS_MEMBER_METHOD(ReloadVisibleStyles, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(OnViewChanged, {L"bounds"})
-				CLASS_MEMBER_METHOD(FindItem, {L"itemIndex" _ L"key"})
+				CLASS_MEMBER_METHOD(FindItemByVirtualKeyDirection, {L"itemIndex" _ L"key"})
 				CLASS_MEMBER_METHOD(EnsureItemVisible, {L"itemIndex"})
 				CLASS_MEMBER_METHOD(GetAdoptedSize, {L"expectedSize"})
 			END_INTERFACE_MEMBER(GuiListControl::IItemArranger)
 
 			BEGIN_CLASS_MEMBER(ItemProviderBase)
-				CLASS_MEMBER_BASE(GuiListControl::IItemProvider)
+				CLASS_MEMBER_BASE(list::IItemProvider)
 			END_CLASS_MEMBER(ItemProviderBase)
 
 			BEGIN_CLASS_MEMBER(RangedItemArrangerBase)
@@ -279,6 +285,7 @@ Type Declaration (Extra)
 			END_CLASS_MEMBER(TextItem)
 
 			BEGIN_CLASS_MEMBER(TextItemProvider)
+				CLASS_MEMBER_BASE(list::IItemProvider)
 				CLASS_MEMBER_BASE(ITextItemView)
 			END_CLASS_MEMBER(TextItemProvider)
 
@@ -308,7 +315,8 @@ Type Declaration (Extra)
 			END_CLASS_MEMBER(ListViewColumnItemArranger)
 
 			BEGIN_CLASS_MEMBER(ListViewColumnItemArranger::IColumnItemViewCallback)
-				CLASS_MEMBER_METHOD(OnColumnChanged, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(OnColumnRebuilt, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(OnColumnChanged, {L"needToRefreshItems"})
 			END_CLASS_MEMBER(ListViewColumnItemArranger::IColumnItemViewCallback)
 
 			BEGIN_INTERFACE_MEMBER(ListViewColumnItemArranger::IColumnItemView)
@@ -347,6 +355,7 @@ Type Declaration (Extra)
 			END_CLASS_MEMBER(ListViewColumn)
 
 			BEGIN_CLASS_MEMBER(ListViewItemProvider)
+				CLASS_MEMBER_BASE(list::IItemProvider)
 				CLASS_MEMBER_BASE(IListViewItemView)
 				CLASS_MEMBER_BASE(ListViewColumnItemArranger::IColumnItemView)
 			END_CLASS_MEMBER(ListViewItemProvider)
@@ -390,8 +399,8 @@ Type Declaration (Extra)
 				CLASS_MEMBER_BASE(IDescriptable)
 
 				CLASS_MEMBER_METHOD(OnAttached, {L"provider"})
-				CLASS_MEMBER_METHOD(OnBeforeItemModified, {L"parentNode" _ L"start" _ L"count" _ L"newCount"})
-				CLASS_MEMBER_METHOD(OnAfterItemModified, {L"parentNode" _ L"start" _ L"count" _ L"newCount"})
+				CLASS_MEMBER_METHOD(OnBeforeItemModified, {L"parentNode" _ L"start" _ L"count" _ L"newCount" _ L"itemReferenceUpdated"})
+				CLASS_MEMBER_METHOD(OnAfterItemModified, {L"parentNode" _ L"start" _ L"count" _ L"newCount" _ L"itemReferenceUpdated"})
 				CLASS_MEMBER_METHOD(OnItemExpanded, {L"node"})
 				CLASS_MEMBER_METHOD(OnItemCollapsed, {L"node"})
 			END_INTERFACE_MEMBER(INodeProviderCallback)
@@ -404,6 +413,7 @@ Type Declaration (Extra)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Parent)
 
 				CLASS_MEMBER_METHOD(CalculateTotalVisibleNodes, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(NotifyDataModified, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(GetChild, {L"index"})
 			END_INTERFACE_MEMBER(INodeProvider)
 
@@ -440,7 +450,6 @@ Type Declaration (Extra)
 
 				CLASS_MEMBER_PROPERTY_FAST(Data)
 
-				CLASS_MEMBER_METHOD(NotifyDataModified, NO_PARAMETER)
 				CLASS_MEMBER_METHOD_RENAME(GetChildren, Children, NO_PARAMETER)
 				CLASS_MEMBER_PROPERTY_READONLY(Children, GetChildren)
 			END_CLASS_MEMBER(MemoryNodeProvider)
@@ -493,7 +502,7 @@ Type Declaration (Extra)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(LargeImage, DescriptionChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(Image, DescriptionChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(Text, DescriptionChanged)
-				CLASS_MEMBER_PROPERTY_EVENT_FAST(Shortcut, DescriptionChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(Shortcut, DescriptionChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(ShortcutBuilder, DescriptionChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(Enabled, DescriptionChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_FAST(Selected, DescriptionChanged)
@@ -705,6 +714,26 @@ Type Declaration (Extra)
 				CLASS_MEMBER_BASE(IDataProcessorCallback)
 			END_CLASS_MEMBER(DataProvider)
 
+			BEGIN_CLASS_MEMBER(GuiBindableTextList::ItemSource)
+				CLASS_MEMBER_BASE(ItemProviderBase)
+				CLASS_MEMBER_BASE(ITextItemView)
+			END_CLASS_MEMBER(GuiBindableTextList::ItemSource)
+
+			BEGIN_CLASS_MEMBER(GuiBindableListView::ItemSource)
+				CLASS_MEMBER_BASE(ItemProviderBase)
+				CLASS_MEMBER_BASE(IListViewItemView)
+				CLASS_MEMBER_BASE(ListViewColumnItemArranger::IColumnItemView)
+			END_CLASS_MEMBER(GuiBindableListView::ItemSource)
+
+			BEGIN_CLASS_MEMBER(GuiBindableTreeView::ItemSourceNode)
+				CLASS_MEMBER_BASE(INodeProvider)
+			END_CLASS_MEMBER(GuiBindableTreeView::ItemSourceNode)
+
+			BEGIN_CLASS_MEMBER(GuiBindableTreeView::ItemSource)
+				CLASS_MEMBER_BASE(NodeRootProviderBase)
+				CLASS_MEMBER_BASE(ITreeViewItemView)
+			END_CLASS_MEMBER(GuiBindableTreeView::ItemSource)
+
 /***********************************************************************
 Type Declaration (Class)
 ***********************************************************************/
@@ -722,6 +751,7 @@ Type Declaration (Class)
 				CLASS_MEMBER_GUIEVENT(ControlSignalTrigerred)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(ControlThemeName)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(ControlTemplate)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(ControlTemplateObject)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(BoundsComposition)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ContainerComposition)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(FocusableComposition)
@@ -748,7 +778,7 @@ Type Declaration (Class)
 				CLASS_MEMBER_METHOD(GetChild, {L"index"})
 				CLASS_MEMBER_METHOD(AddChild, {L"control"})
 				CLASS_MEMBER_METHOD(HasChild, {L"control"})
-				CLASS_MEMBER_METHOD(SetFocus, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(SetFocused, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(DisplayTooltip, {L"location"})
 				CLASS_MEMBER_METHOD(CloseTooltip, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(QueryService, {L"identifier"})
@@ -758,7 +788,10 @@ Type Declaration (Class)
 			BEGIN_CLASS_MEMBER(GuiCustomControl)
 				CLASS_MEMBER_BASE(GuiControl)
 				CLASS_MEMBER_BASE(GuiInstanceRootObject)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiCustomControl)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiCustomControl)
+
+				CLASS_MEMBER_METHOD(SetFocusableComposition, { L"value" })
+				CLASS_MEMBER_PROPERTY(FocusableComposition, GetFocusableComposition, SetFocusableComposition)
 			END_CLASS_MEMBER(GuiCustomControl)
 
 			BEGIN_CLASS_MEMBER(GuiLabel)
@@ -776,6 +809,7 @@ Type Declaration (Class)
 
 				CLASS_MEMBER_PROPERTY_FAST(ClickOnMouseUp)
 				CLASS_MEMBER_PROPERTY_FAST(AutoFocus)
+				CLASS_MEMBER_PROPERTY_FAST(IgnoreChildControlMouseEvents)
 			END_CLASS_MEMBER(GuiButton)
 
 			BEGIN_CLASS_MEMBER(GuiSelectableButton)
@@ -803,7 +837,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiTabPage)
 				CLASS_MEMBER_BASE(GuiCustomControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiTabPage)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiTabPage)
 
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(OwnerTab)
 			END_CLASS_MEMBER(GuiTabPage)
@@ -842,7 +876,7 @@ Type Declaration (Class)
 			BEGIN_CLASS_MEMBER(GuiControlHost)
 				CLASS_MEMBER_BASE(GuiControl)
 				CLASS_MEMBER_BASE(GuiInstanceRootObject)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiControlHost)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiControlHost, INativeWindow::WindowMode, mode)
 
 				CLASS_MEMBER_GUIEVENT(WindowGotFocus)
 				CLASS_MEMBER_GUIEVENT(WindowLostFocus)
@@ -850,10 +884,12 @@ Type Declaration (Class)
 				CLASS_MEMBER_GUIEVENT(WindowDeactivated)
 				CLASS_MEMBER_GUIEVENT(WindowOpened)
 				CLASS_MEMBER_GUIEVENT(WindowClosing)
+				CLASS_MEMBER_GUIEVENT(WindowReadyToClose)
 				CLASS_MEMBER_GUIEVENT(WindowClosed)
 				CLASS_MEMBER_GUIEVENT(WindowDestroying)
 
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(MainComposition)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(RenderingAsActivated)
 				CLASS_MEMBER_PROPERTY_FAST(ShowInTaskBar)
 				CLASS_MEMBER_PROPERTY_FAST(EnabledActivate)
 				CLASS_MEMBER_PROPERTY_FAST(TopMost)
@@ -862,12 +898,8 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_FAST(ShortcutKeyManager)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(RelatedScreen)
 
-				CLASS_MEMBER_METHOD(DeleteAfterProcessingAllEvents, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(DeleteAfterProcessingAllEvents, {L"callback"})
 				CLASS_MEMBER_METHOD(ForceCalculateSizeImmediately, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(GetFocused, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(SetFocused, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(GetActivated, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(SetActivated, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(SetBounds, {L"location" _ L"size"})
 				CLASS_MEMBER_METHOD(Show, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(ShowDeactivated, NO_PARAMETER)
@@ -884,7 +916,9 @@ Type Declaration (Class)
 				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiWindow)
 
 				CLASS_MEMBER_GUIEVENT(ClipboardUpdated)
+				CLASS_MEMBER_GUIEVENT(FrameConfigChanged)
 
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(FrameConfig, FrameConfigChanged)
 				CLASS_MEMBER_PROPERTY_FAST(MaximizedBox)
 				CLASS_MEMBER_PROPERTY_FAST(MinimizedBox)
 				CLASS_MEMBER_PROPERTY_FAST(Border)
@@ -895,8 +929,10 @@ Type Declaration (Class)
 
 				CLASS_MEMBER_METHOD_OVERLOAD(MoveToScreenCenter, NO_PARAMETER, void(GuiWindow::*)())
 				CLASS_MEMBER_METHOD_OVERLOAD(MoveToScreenCenter, { L"screen" }, void(GuiWindow::*)(INativeScreen*))
+				CLASS_MEMBER_METHOD(ShowWithOwner, { L"owner" })
 				CLASS_MEMBER_METHOD(ShowModal, { L"owner" _ L"callback" })
-				CLASS_MEMBER_METHOD(ShowModalAndDelete, { L"owner" _ L"callback" })
+				CLASS_MEMBER_METHOD_OVERLOAD(ShowModalAndDelete, { L"owner" _ L"callback" }, void(GuiWindow::*)(GuiWindow*, const Func<void()>&))
+				CLASS_MEMBER_METHOD_OVERLOAD(ShowModalAndDelete, { L"owner" _ L"callbackClosed" _ L"callbackDeleted"}, void(GuiWindow::*)(GuiWindow*, const Func<void()>&, const Func<void()>&))
 				CLASS_MEMBER_METHOD(ShowModalAsync, { L"owner" })
 			END_CLASS_MEMBER(GuiWindow)
 
@@ -920,7 +956,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiListControl)
 				CLASS_MEMBER_BASE(GuiScrollView)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_3(GuiListControl, GuiListControl::IItemProvider*, itemProvider, bool, acceptFocus)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_3(GuiListControl, list::IItemProvider*, itemProvider, bool, acceptFocus)
 
 				CLASS_MEMBER_GUIEVENT(AdoptedSizeInvalidated)
 				CLASS_MEMBER_GUIEVENT(ItemLeftButtonDown)
@@ -948,7 +984,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiSelectableListControl)
 				CLASS_MEMBER_BASE(GuiListControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiSelectableListControl, GuiListControl::IItemProvider*, itemProvider)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiSelectableListControl, list::IItemProvider*, itemProvider)
 
 				CLASS_MEMBER_GUIEVENT(SelectionChanged)
 
@@ -966,7 +1002,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiVirtualTextList)
 				CLASS_MEMBER_BASE(GuiSelectableListControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_2(GuiVirtualTextList, GuiListControl::IItemProvider*, L"itemProvider")
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_2(GuiVirtualTextList, list::IItemProvider*, L"itemProvider")
 
 				CLASS_MEMBER_GUIEVENT(ItemChecked)
 				CLASS_MEMBER_PROPERTY_FAST(View)
@@ -989,14 +1025,14 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiListViewBase)
 				CLASS_MEMBER_BASE(GuiSelectableListControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_2(GuiListViewBase, GuiListControl::IItemProvider*, itemProvider)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_2(GuiListViewBase, list::IItemProvider*, itemProvider)
 
 				CLASS_MEMBER_GUIEVENT(ColumnClicked)
 			END_CLASS_MEMBER(GuiListViewBase)
 
 			BEGIN_CLASS_MEMBER(GuiVirtualListView)
 				CLASS_MEMBER_BASE(GuiListViewBase)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiVirtualListView, GuiListControl::IItemProvider*, itemProvider)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiVirtualListView, list::IItemProvider*, itemProvider)
 
 				CLASS_MEMBER_PROPERTY_FAST(View)
 			END_CLASS_MEMBER(GuiVirtualListView)
@@ -1021,7 +1057,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiMenuBar)
 				CLASS_MEMBER_BASE(GuiControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiMenuBar)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiMenuBar)
 			END_CLASS_MEMBER(GuiMenuBar)
 
 			BEGIN_CLASS_MEMBER(GuiMenuButton)
@@ -1088,6 +1124,11 @@ Type Declaration (Class)
 				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiComboBoxBase)
 			END_CLASS_MEMBER(GuiComboBoxBase)
 
+			BEGIN_CLASS_MEMBER(GuiComboButton)
+				CLASS_MEMBER_BASE(GuiComboBoxBase)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiComboButton, GuiControl*, dropdownControl)
+			END_CLASS_MEMBER(GuiComboButton)
+
 			BEGIN_CLASS_MEMBER(GuiComboBoxListControl)
 				CLASS_MEMBER_BASE(GuiComboBoxBase)
 				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiComboBoxListControl, GuiSelectableListControl*, containedListControl)
@@ -1108,21 +1149,21 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiToolstripMenuBar)
 				CLASS_MEMBER_BASE(GuiMenuBar)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiToolstripMenuBar)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiToolstripMenuBar)
 				
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ToolstripItems)
 			END_CLASS_MEMBER(GuiToolstripMenuBar)
 
 			BEGIN_CLASS_MEMBER(GuiToolstripToolBar)
 				CLASS_MEMBER_BASE(GuiControl)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiToolstripToolBar)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiToolstripToolBar)
 				
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ToolstripItems)
 			END_CLASS_MEMBER(GuiToolstripToolBar)
 
 			BEGIN_CLASS_MEMBER(GuiToolstripButton)
 				CLASS_MEMBER_BASE(GuiMenuButton)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiToolstripButton)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiToolstripButton)
 
 				CLASS_MEMBER_PROPERTY_FAST(Command)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ToolstripSubMenu)
@@ -1137,7 +1178,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiToolstripGroupContainer)
 				CLASS_MEMBER_BASE(GuiToolstripNestedContainer)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiToolstripGroupContainer)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiToolstripGroupContainer)
 
 				CLASS_MEMBER_PROPERTY_FAST(SplitterTemplate)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ToolstripItems)
@@ -1145,7 +1186,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiToolstripGroup)
 				CLASS_MEMBER_BASE(GuiToolstripNestedContainer)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiToolstripGroup)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiToolstripGroup)
 
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ToolstripItems)
 			END_CLASS_MEMBER(GuiToolstripGroup)
@@ -1160,7 +1201,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiRibbonTabPage)
 				CLASS_MEMBER_BASE(GuiTabPage)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE(GuiRibbonTabPage)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiRibbonTabPage)
 
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(Highlighted)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Groups)
@@ -1363,7 +1404,7 @@ Type Declaration (Class)
 
 			BEGIN_CLASS_MEMBER(GuiVirtualDataGrid)
 				CLASS_MEMBER_BASE(GuiVirtualListView)
-				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiVirtualDataGrid, GuiListControl::IItemProvider*, itemProvider)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiVirtualDataGrid, list::IItemProvider*, itemProvider)
 
 				CLASS_MEMBER_PROPERTY_GUIEVENT_READONLY_FAST(SelectedCell)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(ItemProvider)
@@ -1400,6 +1441,7 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(TextProperty)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(CheckedProperty)
 				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(SelectedItem, SelectionChanged)
+				CLASS_MEMBER_METHOD(NotifyItemDataModified, {L"start" _ L"count"})
 			END_CLASS_MEMBER(GuiBindableTextList)
 
 			BEGIN_CLASS_MEMBER(GuiBindableListView)
@@ -1412,17 +1454,21 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(LargeImageProperty)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(SmallImageProperty)
 				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(SelectedItem, SelectionChanged)
+				CLASS_MEMBER_METHOD(NotifyItemDataModified, { L"start" _ L"count" })
 			END_CLASS_MEMBER(GuiBindableListView)
 
 			BEGIN_CLASS_MEMBER(GuiBindableTreeView)
 				CLASS_MEMBER_BASE(GuiVirtualTreeView)
 				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE(GuiBindableTreeView)
+				CONTROL_CONSTRUCTOR_CONTROLT_TEMPLATE_INHERITANCE_2(GuiBindableTreeView, WritableItemProperty<description::Value>, reverseMappingProperty)
 				
 				CLASS_MEMBER_PROPERTY_FAST(ItemSource)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(ReverseMappingProperty)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(TextProperty)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(ImageProperty)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(ChildrenProperty)
 				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(SelectedItem, SelectionChanged)
+				CLASS_MEMBER_METHOD(NotifyNodeDataModified, {L"value"})
 			END_CLASS_MEMBER(GuiBindableTreeView)
 
 			BEGIN_CLASS_MEMBER(GuiBindableDataGrid)
@@ -1437,6 +1483,7 @@ Type Declaration (Class)
 				CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(SmallImageProperty)
 				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(SelectedRowValue, SelectedCellChanged)
 				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(SelectedCellValue, SelectedCellChanged)
+				CLASS_MEMBER_METHOD(NotifyItemDataModified, { L"start" _ L"count" })
 			END_CLASS_MEMBER(GuiBindableDataGrid)
 
 #undef INTERFACE_IDENTIFIER
@@ -1469,11 +1516,11 @@ Type Loader
 
 			bool LoadGuiControlTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager=GetGlobalTypeManager();
 				if(manager)
 				{
-					Ptr<ITypeLoader> loader=new GuiControlsTypeLoader;
+					auto loader=Ptr(new GuiControlsTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

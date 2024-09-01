@@ -5,22 +5,21 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace parsing;
 		using namespace workflow;
 
 /***********************************************************************
 WorkflowScriptPositionVisitor
 ***********************************************************************/
 
-		class WorkflowScriptPositionVisitor : public traverse_visitor::ModuleVisitor
+		class WorkflowScriptPositionVisitor : public workflow::traverse_visitor::AstVisitor
 		{
 		public:
 			GuiResourcePrecompileContext&					context;
 			GuiResourceTextPos								position;
-			ParsingTextPos									availableAfter;
+			glr::ParsingTextPos								availableAfter;
 			Ptr<types::ScriptPosition>						sp;
 
-			WorkflowScriptPositionVisitor(GuiResourcePrecompileContext& _context, GuiResourceTextPos _position, ParsingTextPos _availableAfter)
+			WorkflowScriptPositionVisitor(GuiResourcePrecompileContext& _context, GuiResourceTextPos _position, glr::ParsingTextPos _availableAfter)
 				:context(_context)
 				, position(_position)
 				, availableAfter(_availableAfter)
@@ -28,12 +27,12 @@ WorkflowScriptPositionVisitor
 				vint index = context.additionalProperties.Keys().IndexOf(nullptr);
 				if (index == -1)
 				{
-					context.additionalProperties.Add(nullptr, MakePtr<types::ScriptPosition>());
+					context.additionalProperties.Add(nullptr, Ptr(new types::ScriptPosition));
 				}
 				sp = context.additionalProperties[nullptr].Cast<types::ScriptPosition>();
 			}
 
-			virtual void Traverse(ParsingTreeCustomBase* node)override
+			void Traverse(glr::ParsingAstBase* node) override
 			{
 				if (!sp->nodePositions.Keys().Contains(node))
 				{
@@ -63,7 +62,7 @@ WorkflowScriptPositionVisitor
 						record.computedPosition = { position.originalLocation,{ position.row + pos.row,pos.column } };
 					}
 
-					sp->nodePositions.Add(node, record);
+					sp->nodePositions.Add(Ptr(node), record);
 				}
 			}
 		};
@@ -72,29 +71,29 @@ WorkflowScriptPositionVisitor
 WorkflowCompiler_ScriptPosition
 ***********************************************************************/
 
-		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfType> node, parsing::ParsingTextPos availableAfter)
+		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfType> node, glr::ParsingTextPos availableAfter)
 		{
-			WorkflowScriptPositionVisitor(context, position, availableAfter).VisitField(node.Obj());
+			WorkflowScriptPositionVisitor(context, position, availableAfter).InspectInto(node.Obj());
 		}
 
-		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfExpression> node, parsing::ParsingTextPos availableAfter)
+		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfExpression> node, glr::ParsingTextPos availableAfter)
 		{
-			WorkflowScriptPositionVisitor(context, position, availableAfter).VisitField(node.Obj());
+			WorkflowScriptPositionVisitor(context, position, availableAfter).InspectInto(node.Obj());
 		}
 
-		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfStatement> node, parsing::ParsingTextPos availableAfter)
+		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfStatement> node, glr::ParsingTextPos availableAfter)
 		{
-			WorkflowScriptPositionVisitor(context, position, availableAfter).VisitField(node.Obj());
+			WorkflowScriptPositionVisitor(context, position, availableAfter).InspectInto(node.Obj());
 		}
 
-		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfDeclaration> node, parsing::ParsingTextPos availableAfter)
+		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfDeclaration> node, glr::ParsingTextPos availableAfter)
 		{
-			WorkflowScriptPositionVisitor(context, position, availableAfter).VisitField(node.Obj());
+			WorkflowScriptPositionVisitor(context, position, availableAfter).InspectInto(node.Obj());
 		}
 
-		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfModule> node, parsing::ParsingTextPos availableAfter)
+		void Workflow_RecordScriptPosition(GuiResourcePrecompileContext& context, GuiResourceTextPos position, Ptr<workflow::WfModule> node, glr::ParsingTextPos availableAfter)
 		{
-			WorkflowScriptPositionVisitor(context, position, availableAfter).VisitField(node.Obj());
+			WorkflowScriptPositionVisitor(context, position, availableAfter).InspectInto(node.Obj());
 		}
 
 		Ptr<types::ScriptPosition> Workflow_GetScriptPosition(GuiResourcePrecompileContext& context)

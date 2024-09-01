@@ -15,6 +15,7 @@ namespace vl
 
 		namespace controls
 		{
+			using namespace reflection::description;
 
 /***********************************************************************
 GuiTabPage
@@ -67,13 +68,24 @@ GuiTabPageList
 				tab->containerComposition->RemoveChild(value->boundsComposition);
 				value->tab = nullptr;
 
+				if (items.Count() > 1)
+				{
+					if (items.Count() > index + 1)
+					{
+						tab->SetSelectedPage(items[index + 1]);
+					}
+					else if (items.Count() == index + 1)
+					{
+						tab->SetSelectedPage(items[index - 1]);
+					}
+				}
+			}
+
+			void GuiTabPageList::AfterRemove(vint index, vint count)
+			{
 				if (items.Count() == 0)
 				{
 					tab->SetSelectedPage(nullptr);
-				}
-				else if (tab->selectedPage == value)
-				{
-					tab->SetSelectedPage(items[0]);
 				}
 			}
 
@@ -104,7 +116,7 @@ GuiTab::CommandExecutor
 				tab->SetSelectedPage(tab->GetPages().Get(index));
 				if (setFocus)
 				{
-					tab->SetFocus();
+					tab->SetFocused();
 				}
 			}
 
@@ -114,7 +126,7 @@ GuiTab
 
 			void GuiTab::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				ct->SetCommands(nullptr);
@@ -124,9 +136,9 @@ GuiTab
 
 			void GuiTab::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				ct->SetCommands(commandExecutor.Obj());
-				ct->SetTabPages(tabPages.GetWrapper());
+				ct->SetTabPages(UnboxValue<Ptr<IValueObservableList>>(BoxParameter(tabPages)));
 				ct->SetSelectedTabPage(selectedPage);
 			}
 
@@ -134,7 +146,7 @@ GuiTab
 			{
 				if (arguments.eventSource == focusableComposition)
 				{
-					if (auto ct = GetControlTemplateObject(false))
+					if (auto ct = TypedControlTemplateObject(false))
 					{
 						vint index = tabPages.IndexOf(selectedPage);
 						if (index != -1)
@@ -144,20 +156,20 @@ GuiTab
 							switch (hint)
 							{
 							case TabPageOrder::LeftToRight:
-								if (arguments.code == VKEY::_LEFT) tabOffset = -1;
-								else if (arguments.code == VKEY::_RIGHT) tabOffset = 1;
+								if (arguments.code == VKEY::KEY_LEFT) tabOffset = -1;
+								else if (arguments.code == VKEY::KEY_RIGHT) tabOffset = 1;
 								break;
 							case TabPageOrder::RightToLeft:
-								if (arguments.code == VKEY::_LEFT) tabOffset = 1;
-								else if (arguments.code == VKEY::_RIGHT) tabOffset = -1;
+								if (arguments.code == VKEY::KEY_LEFT) tabOffset = 1;
+								else if (arguments.code == VKEY::KEY_RIGHT) tabOffset = -1;
 								break;
 							case TabPageOrder::TopToBottom:
-								if (arguments.code == VKEY::_UP) tabOffset = -1;
-								else if (arguments.code == VKEY::_DOWN) tabOffset = 1;
+								if (arguments.code == VKEY::KEY_UP) tabOffset = -1;
+								else if (arguments.code == VKEY::KEY_DOWN) tabOffset = 1;
 								break;
 							case TabPageOrder::BottomToTop:
-								if (arguments.code == VKEY::_UP) tabOffset = 1;
-								else if (arguments.code == VKEY::_DOWN) tabOffset = -1;
+								if (arguments.code == VKEY::KEY_UP) tabOffset = 1;
+								else if (arguments.code == VKEY::KEY_DOWN) tabOffset = -1;
 								break;
 							default:;
 							}
@@ -180,7 +192,7 @@ GuiTab
 				:GuiControl(themeName)
 				, tabPages(this)
 			{
-				commandExecutor = new CommandExecutor(this);
+				commandExecutor = Ptr(new CommandExecutor(this));
 				SetFocusableComposition(boundsComposition);
 
 				boundsComposition->GetEventReceiver()->keyDown.AttachMethod(this, &GuiTab::OnKeyDown);
@@ -217,12 +229,12 @@ GuiTab
 					}
 
 					selectedPage = value;
-					FOREACH(GuiTabPage*, tabPage, tabPages)
+					for (auto tabPage : tabPages)
 					{
 						tabPage->SetVisible(tabPage == selectedPage);
 					}
 				}
-				if (auto ct = GetControlTemplateObject(false))
+				if (auto ct = TypedControlTemplateObject(false))
 				{
 					ct->SetSelectedTabPage(selectedPage);
 				}
@@ -236,7 +248,7 @@ GuiScrollView
 
 			void GuiScrollView::BeforeControlTemplateUninstalled_()
 			{
-				auto ct = GetControlTemplateObject(false);
+				auto ct = TypedControlTemplateObject(false);
 				if (!ct) return;
 
 				if (auto scroll = ct->GetHorizontalScroll())
@@ -249,19 +261,19 @@ GuiScrollView
 				}
 				ct->GetEventReceiver()->horizontalWheel.Detach(hWheelHandler);
 				ct->GetEventReceiver()->verticalWheel.Detach(vWheelHandler);
-				ct->BoundsChanged.Detach(containerBoundsChangedHandler);
+				ct->CachedBoundsChanged.Detach(containerCachedBoundsChangedHandler);
 
 				hScrollHandler = nullptr;
 				vScrollHandler = nullptr;
 				hWheelHandler = nullptr;
 				vWheelHandler = nullptr;
-				containerBoundsChangedHandler = nullptr;
+				containerCachedBoundsChangedHandler = nullptr;
 				supressScrolling = false;
 			}
 
 			void GuiScrollView::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				if (auto scroll = ct->GetHorizontalScroll())
 				{
 					hScrollHandler = scroll->PositionChanged.AttachMethod(this, &GuiScrollView::OnHorizontalScroll);
@@ -272,7 +284,7 @@ GuiScrollView
 				}
 				hWheelHandler = ct->GetEventReceiver()->horizontalWheel.AttachMethod(this, &GuiScrollView::OnHorizontalWheel);
 				vWheelHandler = ct->GetEventReceiver()->verticalWheel.AttachMethod(this, &GuiScrollView::OnVerticalWheel);
-				containerBoundsChangedHandler = ct->BoundsChanged.AttachMethod(this, &GuiScrollView::OnContainerBoundsChanged);
+				containerCachedBoundsChangedHandler = ct->CachedBoundsChanged.AttachMethod(this, &GuiScrollView::OnContainerCachedBoundsChanged);
 				CalculateView();
 			}
 
@@ -282,12 +294,9 @@ GuiScrollView
 				CalculateView();
 			}
 
-			void GuiScrollView::OnContainerBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
+			void GuiScrollView::OnContainerCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
-				InvokeOrDelayIfRendering([=]()
-				{
-					CalculateView();
-				});
+				CalculateView();
 			}
 
 			void GuiScrollView::OnHorizontalScroll(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
@@ -310,7 +319,7 @@ GuiScrollView
 			{
 				if(!supressScrolling)
 				{
-					if (auto scroll = GetControlTemplateObject(true)->GetHorizontalScroll())
+					if (auto scroll = TypedControlTemplateObject(true)->GetHorizontalScroll())
 					{
 						if (scroll->GetEnabled())
 						{
@@ -327,7 +336,7 @@ GuiScrollView
 			{
 				if(!supressScrolling && GetVisuallyEnabled())
 				{
-					if (auto scroll = GetControlTemplateObject(true)->GetVerticalScroll())
+					if (auto scroll = TypedControlTemplateObject(true)->GetVerticalScroll())
 					{
 						if (scroll->GetEnabled())
 						{
@@ -348,10 +357,10 @@ GuiScrollView
 
 			bool GuiScrollView::AdjustView(Size fullSize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				auto hScroll = ct->GetHorizontalScroll();
 				auto vScroll = ct->GetVerticalScroll();
-				Size viewSize = ct->GetContainerComposition()->GetBounds().GetSize();
+				Size viewSize = ct->GetContainerComposition()->GetCachedBounds().GetSize();
 
 				auto hVisible = hScroll ? hScroll->GetVisible() : false;
 				auto vVisible = vScroll ? vScroll->GetVisible() : false;
@@ -398,7 +407,7 @@ GuiScrollView
 			GuiScrollView::GuiScrollView(theme::ThemeName themeName)
 				:GuiControl(themeName)
 			{
-				containerComposition->BoundsChanged.AttachMethod(this, &GuiScrollView::OnContainerBoundsChanged);
+				containerComposition->CachedBoundsChanged.AttachMethod(this, &GuiScrollView::OnContainerCachedBoundsChanged);
 			}
 
 			vint GuiScrollView::GetSmallMove()
@@ -417,50 +426,66 @@ GuiScrollView
 
 			void GuiScrollView::CalculateView()
 			{
-				auto ct = GetControlTemplateObject(true);
-				if (!supressScrolling)
+				TryDelayExecuteIfNotDeleted([=]()
 				{
-					Size fullSize = QueryFullSize();
-					while (true)
+					auto ct = TypedControlTemplateObject(true);
+					auto hScroll = ct->GetHorizontalScroll();
+					auto vScroll = ct->GetVerticalScroll();
+
+					if (!supressScrolling)
 					{
-						bool flagA = AdjustView(fullSize);
-						bool flagB = AdjustView(fullSize);
-						supressScrolling = true;
-						CallUpdateView();
-						supressScrolling = false;
-
-						Size newSize = QueryFullSize();
-						if (fullSize == newSize)
+						Size fullSize = QueryFullSize();
+						while (true)
 						{
-							vint smallMove = GetSmallMove();
-							Size bigMove = GetBigMove();
-							if (auto scroll = ct->GetHorizontalScroll())
+							bool flagA = false;
+							bool flagB = false;
+
+							flagA = AdjustView(fullSize);
+							bool bothInvisible = (hScroll ? !hScroll->GetVisible() : true) && (vScroll ? !vScroll->GetVisible() : true);
+
+							if (!bothInvisible)
 							{
-								scroll->SetSmallMove(smallMove);
-								scroll->SetBigMove(bigMove.x);
-							}
-							if (auto scroll = ct->GetVerticalScroll())
-							{
-								scroll->SetSmallMove(smallMove);
-								scroll->SetBigMove(bigMove.y);
+								flagB = AdjustView(fullSize);
+								bothInvisible = (hScroll ? !hScroll->GetVisible() : true) && (vScroll ? !vScroll->GetVisible() : true);
 							}
 
-							if (!flagA && !flagB)
+							supressScrolling = true;
+							CallUpdateView();
+							supressScrolling = false;
+
+							Size newSize = QueryFullSize();
+							if (fullSize == newSize)
 							{
-								break;
+								vint smallMove = GetSmallMove();
+								Size bigMove = GetBigMove();
+								if (hScroll)
+								{
+									hScroll->SetSmallMove(smallMove);
+									hScroll->SetBigMove(bigMove.x);
+								}
+								if (vScroll)
+								{
+									vScroll->SetSmallMove(smallMove);
+									vScroll->SetBigMove(bigMove.y);
+								}
+
+								if (bothInvisible || !flagA && !flagB)
+								{
+									break;
+								}
 							}
-						}
-						else
-						{
-							fullSize = newSize;
+							else
+							{
+								fullSize = newSize;
+							}
 						}
 					}
-				}
+				});
 			}
 
 			Size GuiScrollView::GetViewSize()
 			{
-				Size viewSize = GetControlTemplateObject(true)->GetContainerComposition()->GetBounds().GetSize();
+				Size viewSize = TypedControlTemplateObject(true)->GetContainerComposition()->GetCachedBounds().GetSize();
 				return viewSize;
 			}
 
@@ -471,15 +496,19 @@ GuiScrollView
 
 			Point GuiScrollView::GetViewPosition()
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				auto hScroll = ct->GetHorizontalScroll();
 				auto vScroll = ct->GetVerticalScroll();
-				return Point(hScroll ? hScroll->GetPosition() : 0, vScroll ? vScroll->GetPosition() : 0);
+				return Point(
+					(hScroll && hScroll->GetEnabled()) ? hScroll->GetPosition() : 0,
+					(vScroll && vScroll->GetEnabled()) ? vScroll->GetPosition() : 0
+					);
 			}
 
 			void GuiScrollView::SetViewPosition(Point value)
 			{
-				auto ct = GetControlTemplateObject(true);
+				if (GetViewPosition() == value) return;
+				auto ct = TypedControlTemplateObject(true);
 				if (auto hScroll = ct->GetHorizontalScroll())
 				{
 					hScroll->SetPosition(value.x);
@@ -492,12 +521,12 @@ GuiScrollView
 
 			GuiScroll* GuiScrollView::GetHorizontalScroll()
 			{
-				return GetControlTemplateObject(true)->GetHorizontalScroll();
+				return TypedControlTemplateObject(true)->GetHorizontalScroll();
 			}
 
 			GuiScroll* GuiScrollView::GetVerticalScroll()
 			{
-				return GetControlTemplateObject(true)->GetVerticalScroll();
+				return TypedControlTemplateObject(true)->GetVerticalScroll();
 			}
 
 			bool GuiScrollView::GetHorizontalAlwaysVisible()
@@ -534,13 +563,13 @@ GuiScrollContainer
 
 			Size GuiScrollContainer::QueryFullSize()
 			{
-				return containerComposition->GetBounds().GetSize();
+				return containerComposition->GetCachedBounds().GetSize();
 			}
 
 			void GuiScrollContainer::UpdateView(Rect viewBounds)
 			{
 				auto leftTop = Point(-viewBounds.x1, -viewBounds.y1);
-				containerComposition->SetBounds(Rect(leftTop, Size(0, 0)));
+				containerComposition->SetExpectedBounds(Rect(leftTop, Size(0, 0)));
 			}
 
 			GuiScrollContainer::GuiScrollContainer(theme::ThemeName themeName)

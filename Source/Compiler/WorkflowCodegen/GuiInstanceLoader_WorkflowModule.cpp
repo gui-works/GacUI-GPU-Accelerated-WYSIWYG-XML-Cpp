@@ -15,16 +15,17 @@ Workflow_CreateModuleWithUsings
 
 		Ptr<workflow::WfModule> Workflow_CreateModuleWithUsings(Ptr<GuiInstanceContext> context, const WString& moduleName)
 		{
-			auto module = MakePtr<WfModule>();
+			auto module = Ptr(new WfModule);
+			module->moduleType = WfModuleType::Module;
 			module->name.value = moduleName;
 
 			vint index = context->namespaces.Keys().IndexOf(GlobalStringKey());
 			if (index != -1)
 			{
 				auto nss = context->namespaces.Values()[index];
-				FOREACH(Ptr<GuiInstanceNamespace>, ns, nss->namespaces)
+				for (auto ns : nss->namespaces)
 				{
-					auto path = MakePtr<WfModuleUsingPath>();
+					auto path = Ptr(new WfModuleUsingPath);
 					module->paths.Add(path);
 
 					auto pathCode = ns->prefix + L"*" + ns->postfix;
@@ -41,32 +42,32 @@ Workflow_CreateModuleWithUsings
 							wildcard = nullptr;
 						}
 
-						auto item = MakePtr<WfModuleUsingItem>();
+						auto item = Ptr(new WfModuleUsingItem);
 						path->items.Add(item);
 						if (wildcard)
 						{
 							if (begin < wildcard)
 							{
-								auto fragment = MakePtr<WfModuleUsingNameFragment>();
+								auto fragment = Ptr(new WfModuleUsingNameFragment);
 								item->fragments.Add(fragment);
-								fragment->name.value = WString(begin, vint(wildcard - begin));
+								fragment->name.value = WString::CopyFrom(begin, vint(wildcard - begin));
 							}
 							{
-								auto fragment = MakePtr<WfModuleUsingWildCardFragment>();
+								auto fragment = Ptr(new WfModuleUsingWildCardFragment);
 								item->fragments.Add(fragment);
 							}
 							if (wildcard + 1 < end)
 							{
-								auto fragment = MakePtr<WfModuleUsingNameFragment>();
+								auto fragment = Ptr(new WfModuleUsingNameFragment);
 								item->fragments.Add(fragment);
-								fragment->name.value = WString(wildcard + 1, vint(end - wildcard - 1));
+								fragment->name.value = WString::CopyFrom(wildcard + 1, vint(end - wildcard - 1));
 							}
 						}
 						else if (begin < end)
 						{
-							auto fragment = MakePtr<WfModuleUsingNameFragment>();
+							auto fragment = Ptr(new WfModuleUsingNameFragment);
 							item->fragments.Add(fragment);
-							fragment->name.value = WString(begin, vint(end - begin));
+							fragment->name.value = WString::CopyFrom(begin, vint(end - begin));
 						}
 
 						if (delimiter)
@@ -84,10 +85,10 @@ Workflow_CreateModuleWithUsings
 		}
 
 /***********************************************************************
-Workflow_InstallClass
+Workflow_InstallWithClass
 ***********************************************************************/
 
-		Ptr<workflow::WfClassDeclaration> Workflow_InstallClass(const WString& className, Ptr<workflow::WfModule> module)
+		WString Workflow_InstallWithClass(const WString& className, Ptr<workflow::WfModule> module, Ptr<workflow::WfDeclaration> decl)
 		{
 			auto decls = &module->declarations;
 			auto reading = className.Buffer();
@@ -96,22 +97,31 @@ Workflow_InstallClass
 				auto delimiter = wcsstr(reading, L"::");
 				if (delimiter)
 				{
-					auto ns = MakePtr<WfNamespaceDeclaration>();
-					ns->name.value = WString(reading, delimiter - reading);
+					auto ns = Ptr(new WfNamespaceDeclaration);
+					ns->name.value = WString::CopyFrom(reading, delimiter - reading);
 					decls->Add(ns);
 					decls = &ns->declarations;
 				}
 				else
 				{
-					auto ctorClass = MakePtr<WfClassDeclaration>();
-					ctorClass->kind = WfClassKind::Class;
-					ctorClass->constructorType = WfConstructorType::Undefined;
-					ctorClass->name.value = reading;
-					decls->Add(ctorClass);
-					return ctorClass;
+					decls->Add(decl);
+					return reading;
 				}
 				reading = delimiter + 2;
 			}
+		}
+
+/***********************************************************************
+Workflow_InstallClass
+***********************************************************************/
+
+		Ptr<workflow::WfClassDeclaration> Workflow_InstallClass(const WString& className, Ptr<workflow::WfModule> module)
+		{
+			auto ctorClass = Ptr(new WfClassDeclaration);
+			ctorClass->kind = WfClassKind::Class;
+			ctorClass->constructorType = WfConstructorType::Undefined;
+			ctorClass->name.value = Workflow_InstallWithClass(className, module, ctorClass);
+			return ctorClass;
 		}
 
 /***********************************************************************
@@ -123,13 +133,14 @@ Workflow_InstallCtorClass
 			auto ctorClass = Workflow_InstallClass(resolvingResult.context->className + L"Constructor", module);
 			Workflow_CreateVariablesForReferenceValues(ctorClass, resolvingResult);
 
-			auto thisParam = MakePtr<WfFunctionArgument>();
+			auto thisParam = Ptr(new WfFunctionArgument);
 			thisParam->name.value = L"<this>";
 			thisParam->type = GetTypeFromTypeInfo(resolvingResult.rootTypeInfo.typeInfo.Obj());
 
-			auto block = MakePtr<WfBlockStatement>();
+			auto block = Ptr(new WfBlockStatement);
 
-			auto func = MakePtr<WfFunctionDeclaration>();
+			auto func = Ptr(new WfFunctionDeclaration);
+			func->functionKind = WfFunctionKind::Normal;
 			func->anonymity = WfFunctionAnonymity::Named;
 			func->arguments.Add(thisParam);
 			func->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<void>::CreateTypeInfo().Obj());
@@ -141,16 +152,13 @@ Workflow_InstallCtorClass
 				func->name.value = L"<" + From(fragments).Aggregate([](const WString& a, const WString& b) {return a + L"-" + b; }) + L">Initialize";
 			}
 			{
-				auto att = MakePtr<WfAttribute>();
+				auto att = Ptr(new WfAttribute);
 				att->category.value = L"cpp";
 				att->name.value = L"Protected";
 				func->attributes.Add(att);
 			}
 
-			func->classMember = MakePtr<WfClassMember>();
-			func->classMember->kind = WfClassMemberKind::Normal;
 			ctorClass->declarations.Add(func);
-
 			return block;
 		}
 
@@ -160,12 +168,12 @@ Variable
 
 		void Workflow_CreatePointerVariable(Ptr<workflow::WfClassDeclaration> ctorClass, GlobalStringKey name, description::ITypeInfo* typeInfo)
 		{
-			auto var = MakePtr<WfVariableDeclaration>();
+			auto var = Ptr(new WfVariableDeclaration);
 			var->name.value = name.ToString();
 			var->type = GetTypeFromTypeInfo(typeInfo);
 
 			{
-				auto att = MakePtr<WfAttribute>();
+				auto att = Ptr(new WfAttribute);
 				att->category.value = L"cpp";
 				att->name.value = L"Protected";
 				var->attributes.Add(att);
@@ -184,15 +192,13 @@ Variable
 			}
 
 			var->expression = CreateDefaultValue(typeInfo);
-
-			var->classMember = MakePtr<WfClassMember>();
-			var->classMember->kind = WfClassMemberKind::Normal;
 			ctorClass->declarations.Add(var);
 		}
 		
 		void Workflow_CreateVariablesForReferenceValues(Ptr<workflow::WfClassDeclaration> ctorClass, types::ResolvingResult& resolvingResult)
 		{
 			const auto& typeInfos = resolvingResult.typeInfos;
+			// TODO: (enumerable) foreach on dictionary
 			for (vint i = 0; i < typeInfos.Count(); i++)
 			{
 				auto key = typeInfos.Keys()[i];

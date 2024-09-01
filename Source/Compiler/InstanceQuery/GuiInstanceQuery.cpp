@@ -5,6 +5,7 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
+		using namespace instancequery;
 
 /***********************************************************************
 ExecuteQueryVisitor
@@ -45,10 +46,11 @@ ExecuteQueryVisitor
 			{
 				if (setter)
 				{
-					FOREACH_INDEXER(GlobalStringKey, attribute, index, setter->setters.Keys())
+					// TODO: (enumerable) foreach on group
+					for (auto [attribute, index] : indexed(setter->setters.Keys()))
 					{
 						auto setterValue = setter->setters.Values()[index];
-						FOREACH(Ptr<GuiValueRepr>, value, setterValue->values)
+						for (auto value : setterValue->values)
 						{
 							if (auto ctor = value.Cast<GuiConstructorRepr>())
 							{
@@ -85,7 +87,7 @@ ExecuteQueryVisitor
 				auto inputExists = &input;
 				if (inputExists)
 				{
-					FOREACH(Ptr<GuiConstructorRepr>, setter, input)
+					for (auto setter : input)
 					{
 						Traverse(node, setter);
 					}
@@ -123,6 +125,7 @@ ExecuteQueryVisitor
 				case GuiIqBinaryOperator::Substract:
 					CopyFrom(output, From(first).Except(second));
 					break;
+				default:;
 				}
 			}
 		};
@@ -155,7 +158,8 @@ ApplyStyle
 
 		void ApplyStyleInternal(Ptr<GuiAttSetterRepr> src, Ptr<GuiAttSetterRepr> dst)
 		{
-			FOREACH_INDEXER(GlobalStringKey, attribute, srcIndex, src->setters.Keys())
+			// TODO: (enumerable) foreach on dictionary
+			for (auto [attribute, srcIndex] : indexed(src->setters.Keys()))
 			{
 				auto srcValue = src->setters.Values()[srcIndex];
 				vint dstIndex = dst->setters.Keys().IndexOf(attribute);
@@ -180,7 +184,8 @@ ApplyStyle
 				}
 			}
 
-			FOREACH_INDEXER(GlobalStringKey, eventName, srcIndex, src->eventHandlers.Keys())
+			// TODO: (enumerable) foreach
+			for (auto [eventName, srcIndex] : indexed(src->eventHandlers.Keys()))
 			{
 				if (!dst->eventHandlers.Keys().Contains(eventName))
 				{
@@ -189,7 +194,8 @@ ApplyStyle
 				}
 			}
 
-			FOREACH_INDEXER(GlobalStringKey, varName, srcIndex, src->environmentVariables.Keys())
+			// TODO: (enumerable) foreach
+			for (auto [varName, srcIndex] : indexed(src->environmentVariables.Keys()))
 			{
 				if (!dst->environmentVariables.Keys().Contains(varName))
 				{
@@ -228,6 +234,7 @@ GuiIqPrint
 				case GuiIqChildOption::Indirect:
 					writer.WriteString(L"//");
 					break;
+				default:;
 				}
 
 				if (node->attributeNameOption == GuiIqNameOption::Specified)
@@ -277,6 +284,7 @@ GuiIqPrint
 				case GuiIqBinaryOperator::Substract:
 					writer.WriteString(L" - ");
 					break;
+				default:;
 				}
 				node->second->Accept(this);
 				writer.WriteChar(L')');

@@ -1,4 +1,5 @@
 #include "../../../Source/Reflection/TypeDescriptors/GuiReflectionPlugin.h"
+#include "../../../Source/GacUI.h"
 
 using namespace vl;
 using namespace vl::collections;
@@ -31,33 +32,43 @@ void Reflection_TypeList(U&& callback)
 	TEST_ASSERT(types.Count() == 0);
 }
 
-#define PROCESS_TYPE(TYPE) types.Remove(GetTypeDescriptor<TYPE>());
-#define GUIREFLECTIONTEMPLATES_PROCESS_TYPE(NAME, BASE) types.Remove(GetTypeDescriptor<presentation::templates::NAME>());
+#define PROCESS_TYPE(TYPE) TEST_ASSERT(types.Remove(GetTypeDescriptor<TYPE>()));
+#define GUIREFLECTIONTEMPLATES_PROCESS_TYPE(NAME, BASE) TEST_ASSERT(types.Remove(GetTypeDescriptor<presentation::templates::NAME>()));
 
-TEST_CASE(Reflection_TypeList_Elements)
-{
-	Reflection_TypeList<IGuiGraphicsElement>([](auto& types)
-	{
-		types.Remove(GetTypeDescriptor<IGuiGraphicsElement>());
-		GUIREFLECTIONELEMENT_CLASS_TYPELIST(PROCESS_TYPE);
-	});
-}
+extern void SetGuiMainProxy(const Func<void()>& proxy);
 
-TEST_CASE(Reflection_TypeList_Compositions)
+TEST_FILE
 {
-	Reflection_TypeList<GuiGraphicsComposition>([](auto& types)
+	SetGuiMainProxy([]()
 	{
-		GUIREFLECTIONCOMPOSITION_CLASS_TYPELIST(PROCESS_TYPE);
-		GUIREFLECTIONTEMPLATES_CLASS_TYPELIST(PROCESS_TYPE);
-	});
-}
+		TEST_CASE(L"Ensure GUIREFLECTIONELEMENT_CLASS_TYPELIST has all IGuiGraphicsElement sub classes")
+		{
+			Reflection_TypeList<IGuiGraphicsElement>([](auto& types)
+			{
+				types.Remove(GetTypeDescriptor<IGuiGraphicsElement>());
+				GUIREFLECTIONELEMENT_CLASS_TYPELIST(PROCESS_TYPE);
+			});
+		});
 
-TEST_CASE(Reflection_TypeList_Controls)
-{
-	Reflection_TypeList<GuiControl>([](auto& types)
-	{
-		GUIREFLECTIONCONTROLS_CLASS_TYPELIST(PROCESS_TYPE);
+		TEST_CASE(L"Ensure GUIREFLECTION(COMPOSITION|TEMPLATES)_CLASS_TYPELIST has all GuiGraphicsComposition sub classes")
+		{
+			Reflection_TypeList<GuiGraphicsComposition>([](auto& types)
+			{
+				GUIREFLECTIONCOMPOSITION_CLASS_TYPELIST(PROCESS_TYPE);
+				GUIREFLECTIONTEMPLATES_CLASS_TYPELIST(PROCESS_TYPE);
+			});
+		});
+
+		TEST_CASE(L"Ensure GUIREFLECTIONCONTROLS_CLASS_TYPELIST has all GuiControl sub classes")
+		{
+			Reflection_TypeList<GuiControl>([](auto& types)
+			{
+				GUIREFLECTIONCONTROLS_CLASS_TYPELIST(PROCESS_TYPE);
+			});
+		});
 	});
+	SetupGacGenNativeController();
+	SetGuiMainProxy({});
 }
 
 #undef GUIREFLECTIONTEMPLATES_PROCESS_TYPE

@@ -30,7 +30,8 @@ Rich Content Document (element)
 			/// <summary>Defines a rich text document element for rendering complex styled document.</summary>
 			class GuiDocumentElement : public GuiElementBase<GuiDocumentElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiDocumentElement, L"RichDocument");
+				friend class GuiElementBase<GuiDocumentElement>;
+				static constexpr const wchar_t* ElementTypeName = L"RichDocument";
 			public:
 				/// <summary>Callback interface for this element.</summary>
 				class ICallback : public virtual IDescriptable, public Description<ICallback>
@@ -49,11 +50,10 @@ Rich Content Document (element)
 					virtual Size							OnRenderEmbeddedObject(const WString& name, const Rect& location) = 0;
 				};
 
-				class GuiDocumentElementRenderer : public Object, public IGuiGraphicsRenderer, private IGuiGraphicsParagraphCallback
+				class GuiDocumentElementRenderer : public GuiElementRendererBase<GuiDocumentElement, GuiDocumentElementRenderer, IGuiGraphicsRenderTarget>, private IGuiGraphicsParagraphCallback
 				{
 					friend class visitors::SetPropertiesVisitor;
-
-					DEFINE_GUI_GRAPHICS_RENDERER(GuiDocumentElement, GuiDocumentElementRenderer, IGuiGraphicsRenderTarget)
+					friend class GuiElementRendererBase<GuiDocumentElement, GuiDocumentElementRenderer, IGuiGraphicsRenderTarget>;
 				protected:
 					struct EmbeddedObject
 					{

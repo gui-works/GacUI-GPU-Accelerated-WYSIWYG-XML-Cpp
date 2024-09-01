@@ -5,10 +5,27 @@ GacUI::Native Window
 
 Interfaces:
   INativeController						: Interface for Operating System abstraction
+    INativeControllerListener
+  INativeScreenService					: Screen Service
+    INativeScreen
+  INativeResourceService				: Resource Service
+    INativeCursor
+  INativeImageService					: Image Service
+    INativeImageFrameCache
+    INativeImageFrame
+    INativeImage
+  INativeWindowService					: Window Service
+    INativeWindow
+    INativeWindowListener
+  INativeAsyncService					: Async Service
+    INativeDelay
+  INativeClipboardService				: Clipboard Service
+    INativeClipboardReader
+    INativeClipboardWriter
+  INativeInputService					: Input Service
+  INativeCallbackService				: Callback Service
+  INativeDialogService					: Dialog Service
 
-Renderers:
-  GUI_GRAPHICS_RENDERER_GDI
-  GUI_GRAPHICS_RENDERER_DIRECT2D
 ***********************************************************************/
 
 #ifndef VCZH_PRESENTATION_GUINATIVEWINDOW
@@ -20,299 +37,37 @@ namespace vl
 {
 	namespace presentation
 	{
+
+/***********************************************************************
+INativeWindow
+***********************************************************************/
+
 		class GuiImageData;
 		class DocumentModel;
-		class INativeWindow;
+		class INativeCursor;
 		class INativeWindowListener;
-		class INativeController;
-		class INativeControllerListener;
 
-/***********************************************************************
-System Object
-***********************************************************************/
-
-		/// <summary>
-		/// Represents a screen.
-		/// </summary>
-		class INativeScreen : public virtual IDescriptable, public Description<INativeScreen>
+		enum class BoolOption
 		{
-		public:
-			/// <summary>
-			/// Get the bounds of the screen.
-			/// </summary>
-			/// <returns>The bounds of the screen.</returns>
-			virtual NativeRect			GetBounds()=0;
-			/// <summary>
-			/// Get the bounds of the screen client area.
-			/// </summary>
-			/// <returns>The bounds of the screen client area.</returns>
-			virtual NativeRect			GetClientBounds()=0;
-			/// <summary>
-			/// Get the name of the screen.
-			/// </summary>
-			/// <returns>The name of the screen.</returns>
-			virtual WString				GetName()=0;
-			/// <summary>
-			/// Test is the screen is a primary screen.
-			/// </summary>
-			/// <returns>Returns true if the screen is a primary screen.</returns>
-			virtual bool				IsPrimary()=0;
-			/// <summary>
-			/// Get the scaling for the screen's horizontal edge. For example, in Windows when you have a 96 DPI, this function returns 1.0.
-			/// </summary>
-			virtual double				GetScalingX() = 0;
-			/// <summary>
-			/// Get the scaling for the screen's vertical edge. For example, in Windows when you have a 96 DPI, this function returns 1.0.
-			/// </summary>
-			virtual double				GetScalingY() = 0;
-		};
-		
-		/// <summary>
-		/// Represents a cursor.
-		/// </summary>
-		class INativeCursor : public virtual IDescriptable, public Description<INativeCursor>
-		{
-		public:
-			/// <summary>
-			/// Represents a predefined cursor type.
-			/// </summary>
-			enum SystemCursorType
-			{
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Small waiting cursor.
-				/// </summary>
-				SmallWaiting,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]large waiting cursor.
-				/// </summary>
-				LargeWaiting,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Arrow cursor.
-				/// </summary>
-				Arrow,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Cross cursor.
-				/// </summary>
-				Cross,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Hand cursor.
-				/// </summary>
-				Hand,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Help cursor.
-				/// </summary>
-				Help,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]I beam cursor.
-				/// </summary>
-				IBeam,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Sizing in all direction cursor.
-				/// </summary>
-				SizeAll,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Sizing NE-SW cursor.
-				/// </summary>
-				SizeNESW,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Sizing N-S cursor.
-				/// </summary>
-				SizeNS,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Sizing NW-SE cursor.
-				/// </summary>
-				SizeNWSE,
-				/// <summary>
-				/// [T:vl.presentation.INativeCursor.SystemCursorType]Sizing W-E cursor.
-				/// </summary>
-				SizeWE,
-				LastSystemCursor=SizeWE,
-			};
-
-			static const vint			SystemCursorCount=LastSystemCursor+1;
-		public:
-			/// <summary>
-			/// Test is the cursor a system provided cursor.
-			/// </summary>
-			/// <returns>Returns true if the cursor a system provided cursor.</returns>
-			virtual bool				IsSystemCursor()=0;
-			/// <summary>
-			/// Get the cursor type if the cursor a system provided cursor.
-			/// </summary>
-			/// <returns>The cursor type.</returns>
-			virtual SystemCursorType	GetSystemCursorType()=0;
+			AlwaysTrue,
+			AlwaysFalse,
+			Customizable,
 		};
 
-/***********************************************************************
-Image Object
-***********************************************************************/
-
-		class INativeImageService;
-		class INativeImage;
-		class INativeImageFrame;
-		
-		/// <summary>
-		/// Represents a customized cache object for an image frame.
-		/// </summary>
-		class INativeImageFrameCache : public Interface
+		struct NativeWindowFrameConfig
 		{
-		public:
-			/// <summary>
-			/// Called when this cache object is attached to an image frame.
-			/// </summary>
-			/// <param name="frame">The image frame that attached to.</param>
-			virtual void						OnAttach(INativeImageFrame* frame)=0;
-			/// <summary>
-			/// Called when this cache object is detached to an image frame.
-			/// </summary>
-			/// <param name="frame">The image frame that detached from.</param>
-			virtual void						OnDetach(INativeImageFrame* frame)=0;
+			BoolOption MaximizedBoxOption = BoolOption::Customizable;
+			BoolOption MinimizedBoxOption = BoolOption::Customizable;
+			BoolOption BorderOption = BoolOption::Customizable;
+			BoolOption SizeBoxOption = BoolOption::Customizable;
+			BoolOption IconVisibleOption = BoolOption::Customizable;
+			BoolOption TitleBarOption = BoolOption::Customizable;
+			BoolOption CustomFrameEnabled = BoolOption::Customizable;
+
+			auto operator<=>(const NativeWindowFrameConfig&) const = default;
+
+			static const NativeWindowFrameConfig Default;
 		};
-
-		/// <summary>
-		/// Represents an image frame.
-		/// </summary>
-		class INativeImageFrame : public virtual IDescriptable, public Description<INativeImageFrame>
-		{
-		public:
-			/// <summary>
-			/// Get the image that owns this frame.
-			/// </summary>
-			/// <returns>The image that owns this frame.</returns>
-			virtual INativeImage*				GetImage()=0;
-			/// <summary>
-			/// Get the size of this frame.
-			/// </summary>
-			/// <returns>The size of this frame.</returns>
-			virtual Size						GetSize()=0;
-
-			/// <summary>
-			/// Attach a customized cache object to this image frame and bind to a key.
-			/// </summary>
-			/// <returns>Returns true if this operation succeeded.</returns>
-			/// <param name="key">The key binded with the customized cache object.</param>
-			/// <param name="cache">The customized cache object.</param>
-			virtual bool						SetCache(void* key, Ptr<INativeImageFrameCache> cache)=0;
-			/// <summary>
-			/// Get the attached customized cache object that is already binded to a key.
-			/// </summary>
-			/// <returns>The attached customized cache object.</returns>
-			/// <param name="key">The key binded with the customized cache object.</param>
-			virtual Ptr<INativeImageFrameCache>	GetCache(void* key)=0;
-			/// <summary>
-			/// Get the attached customized cache object that is already binded to a key, and then detach it.
-			/// </summary>
-			/// <returns>The detached customized cache object.</returns>
-			/// <param name="key">The key binded with the customized cache object.</param>
-			virtual Ptr<INativeImageFrameCache>	RemoveCache(void* key)=0;
-		};
-		
-		/// <summary>
-		/// Represents an image.
-		/// </summary>
-		class INativeImage : public virtual IDescriptable, public Description<INativeImage>
-		{
-		public:
-			/// <summary>
-			/// Represents an image format.
-			/// </summary>
-			enum FormatType
-			{
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]Bitmap format.
-				/// </summary>
-				Bmp,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]GIF format.
-				/// </summary>
-				Gif,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]Icon format.
-				/// </summary>
-				Icon,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]JPEG format.
-				/// </summary>
-				Jpeg,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]PNG format.
-				/// </summary>
-				Png,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]TIFF format.
-				/// </summary>
-				Tiff,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]WMP format.
-				/// </summary>
-				Wmp,
-				/// <summary>
-				/// [T:vl.presentation.INativeImage.FormatType]Unknown format.
-				/// </summary>
-				Unknown,
-			};
-			
-			/// <summary>
-			/// Get the image service that creates this image.
-			/// </summary>
-			/// <returns>The image service that creates this image.</returns>
-			virtual INativeImageService*		GetImageService()=0;
-			/// <summary>
-			/// Get the image format.
-			/// </summary>
-			/// <returns>The image format.</returns>
-			virtual FormatType					GetFormat()=0;
-			/// <summary>
-			/// Get the number of frames in this image.
-			/// </summary>
-			/// <returns>The number of frames in this image.</returns>
-			virtual vint						GetFrameCount()=0;
-			/// <summary>
-			/// Get the frame in this image by a specified frame index.
-			/// </summary>
-			/// <returns>The frame in this image by a specified frame index.</returns>
-			/// <param name="index">The specified frame index.</param>
-			virtual INativeImageFrame*			GetFrame(vint index)=0;
-			/// <summary>
-			/// Save the image to a stream.
-			/// </summary>
-			/// <param name="stream">The stream.</param>
-			/// <param name="formatType">The format of the image.</param>
-			virtual void						SaveToStream(stream::IStream& stream, FormatType formatType = FormatType::Unknown) = 0;
-		};
-		
-		/// <summary>
-		/// Image service. To access this service, use [M:vl.presentation.INativeController.ImageService].
-		/// </summary>
-		class INativeImageService : public virtual IDescriptable, public Description<INativeImageService>
-		{
-		public:
-			/// <summary>
-			/// Create an image from file.
-			/// </summary>
-			/// <returns>The created image.</returns>
-			/// <param name="path">The file path.</param>
-			virtual Ptr<INativeImage>			CreateImageFromFile(const WString& path)=0;
-
-			/// <summary>
-			/// Create an image from memory.
-			/// </summary>
-			/// <returns>The created image.</returns>
-			/// <param name="buffer">The memory pointer.</param>
-			/// <param name="length">The memory length.</param>
-			virtual Ptr<INativeImage>			CreateImageFromMemory(void* buffer, vint length)=0;
-
-			/// <summary>
-			/// Create an image from stream.
-			/// </summary>
-			/// <returns>The created image.</returns>
-			/// <param name="stream">The stream.</param>
-			virtual Ptr<INativeImage>			CreateImageFromStream(stream::IStream& stream)=0;
-		};
-
-/***********************************************************************
-Native Window
-***********************************************************************/
 		
 		/// <summary>
 		/// Represents a window.
@@ -320,6 +75,19 @@ Native Window
 		class INativeWindow : public Interface, public Description<INativeWindow>
 		{
 		public:
+			/// <summary>
+			/// Test if the window needs to actively refreshing itself.
+			/// It should return true if it has an exclusive OS native window.
+			/// </summary>
+			/// <returns>Returns true if the window needs to actively refreshing itself.</returns>
+			virtual bool				IsActivelyRefreshing() = 0;
+			/// <summary>
+			/// Get the rendering offset to the render target.
+			/// It should return (0,0) if it has an exclusive OS native window.
+			/// </summary>
+			/// <returns>Returns the rendering offset to the render target.</returns>
+			virtual NativeSize			GetRenderingOffset() = 0;
+
 			/// <summary>
 			/// Convert point from native coordinate to GUI coordinate.
 			/// </summary>
@@ -392,7 +160,7 @@ Native Window
 			/// Set the title of the window. A title will be displayed as a name of this window.
 			/// </summary>
 			/// <param name="title">The title of the window.</param>
-			virtual void				SetTitle(WString title)=0;
+			virtual void				SetTitle(const WString& title)=0;
 			/// <summary>
 			/// Get the mouse cursor of the window. When the mouse is on the window, the mouse cursor will be rendered.
 			/// </summary>
@@ -415,7 +183,8 @@ Native Window
 			virtual void				SetCaretPoint(NativePoint point)=0;
 			
 			/// <summary>
-			/// Get the parent window. A parent window doesn't contain a child window. It always displayed below the child windows. When a parent window is minimized or restored, so as its child windows.
+			/// Get the parent window.
+			/// A parent window doesn't contain a child window. It always displayed below the child windows. When a parent window is minimized or restored, so as its child windows.
 			/// </summary>
 			/// <returns>The parent window.</returns>
 			virtual INativeWindow*		GetParent()=0;
@@ -424,16 +193,38 @@ Native Window
 			/// </summary>
 			/// <param name="parent">The parent window.</param>
 			virtual void				SetParent(INativeWindow* parent)=0;
+
 			/// <summary>
-			/// Test is the window always pass the focus to its parent window.
+			/// Window mode
 			/// </summary>
-			/// <returns>Returns true if the window always pass the focus to its parent window.</returns>
-			virtual bool				GetAlwaysPassFocusToParent()=0;
+			enum WindowMode
+			{
+				/// <summary>
+				/// A normal window.
+				/// </summary>
+				Normal,
+				/// <summary>
+				/// A popup window.
+				/// Such window is expected to be disabled activation, [M:vl.presentation.INativeWindow.DisableActivate] must be called manually.
+				/// Such window is expected to have a parent window, [M:vl.presentation.INativeWindow.SetParent] must be called before [M:vl.presentation.INativeWindow.ShowDeactivated].
+				/// This window is automatically closed when the top level window is deactivated or clicked.
+				/// </summary>
+				Popup,
+				/// <summary>
+				/// A tooltip window, just like Popup.
+				/// </summary>
+				Tooltip,
+				/// <summary>
+				/// A menu window, just like Menu.
+				/// </summary>
+				Menu,
+			};
+
 			/// <summary>
-			/// Enable or disble always passing the focus to its parent window.
+			/// Get the window mode. 
 			/// </summary>
-			/// <param name="value">True to enable always passing the focus to its parent window.</param>
-			virtual void				SetAlwaysPassFocusToParent(bool value)=0;
+			/// <returns>The window mode.</summary>
+			virtual WindowMode			GetWindowMode() = 0;
 
 			/// <summary>
 			/// Enable the window customized frame mode.
@@ -483,6 +274,7 @@ Native Window
 			virtual WindowSizeState		GetSizeState()=0;
 			/// <summary>
 			/// Show the window.
+			/// If the window disabled activation, this function enables it again.
 			/// </summary>
 			virtual void				Show()=0;
 			/// <summary>
@@ -527,16 +319,8 @@ Native Window
 			virtual bool				IsEnabled()=0;
 			
 			/// <summary>
-			/// Set focus to the window.
-			/// </summary>
-			virtual void				SetFocus()=0;
-			/// <summary>
-			/// Test is the window focused.
-			/// </summary>
-			/// <returns>Returns true if the window is focused.</returns>
-			virtual bool				IsFocused()=0;
-			/// <summary>
 			/// Activate to the window.
+			/// If the window disabled activation, this function enables it again.
 			/// </summary>
 			virtual void				SetActivate()=0;
 			/// <summary>
@@ -544,6 +328,11 @@ Native Window
 			/// </summary>
 			/// <returns>Returns true if the window is activated.</returns>
 			virtual bool				IsActivated()=0;
+			/// <summary>
+			/// Test is the window rendering as activated.
+			/// </summary>
+			/// <returns>Returns true if the window is rendering as activated.</returns>
+			virtual bool				IsRenderingAsActivated() = 0;
 			
 			/// <summary>
 			/// Show the icon in the task bar.
@@ -565,6 +354,8 @@ Native Window
 			virtual void				EnableActivate()=0;
 			/// <summary>
 			/// Disable activation to the window.
+			/// Clicking a window with activation disabled doesn't bring activation.
+			/// Activation will be automatically enabled by calling <see cref="Show"/> or <see cref="SetActivate"/>.
 			/// </summary>
 			virtual void				DisableActivate()=0;
 			/// <summary>
@@ -575,6 +366,8 @@ Native Window
 			
 			/// <summary>
 			/// Require mouse message capturing to this window. If the capture is required, all mouse message will be send to this window.
+			/// When the window becomes invisible after calling this function, the window will still receive mouse messages, if the OS supports this feature.
+			/// Otherwise, the capturing must be released when the window becomes invisible.
 			/// </summary>
 			/// <returns>Returns true if this operation succeeded.</returns>
 			virtual bool				RequireCapture()=0;
@@ -806,16 +599,19 @@ Native Window
 			/// Called when the window is moving.
 			/// </summary>
 			/// <param name="bounds">The bounds. Message handler can change the bounds.</param>
-			/// <param name="fixSizeOnly">True if the message raise only want the message handler to change the size.</param>
-			virtual void				Moving(NativeRect& bounds, bool fixSizeOnly);
+			/// <param name="fixSizeOnly">True if the message raise only want the message handler to change the size, and keep the position unchanged.</param>
+			/// <param name="draggingBorder">True if the message raise because the user is dragging the border to change the size.</param>
+			virtual void				Moving(NativeRect& bounds, bool fixSizeOnly, bool draggingBorder);
 			/// <summary>
 			/// Called when the window is moved.
 			/// </summary>
 			virtual void				Moved();
 			/// <summary>
 			/// Called when the dpi associated with this window is changed.
+			/// The native window should call DpiChanged(true) before DpiChanged(false).
 			/// </summary>
-			virtual void				DpiChanged();
+			/// <param name="preparing">True for before changing phase, false for after changing phase.</param>
+			virtual void				DpiChanged(bool preparing);
 			/// <summary>
 			/// Called when the window is enabled.
 			/// </summary>
@@ -833,13 +629,13 @@ Native Window
 			/// </summary>
 			virtual void				LostFocus();
 			/// <summary>
-			/// Called when the window is activated.
+			/// Called when the window is rending as activated.
 			/// </summary>
-			virtual void				Activated();
+			virtual void				RenderingAsActivated();
 			/// <summary>
-			/// Called when the window is deactivated.
+			/// Called when the window is rendering as deactivated.
 			/// </summary>
-			virtual void				Deactivated();
+			virtual void				RenderingAsDeactivated();
 			/// <summary>
 			/// Called when the window is opened.
 			/// </summary>
@@ -848,7 +644,11 @@ Native Window
 			/// Called when the window is closing.
 			/// </summary>
 			/// <param name="cancel">Change the value to true to prevent the windows from being closed.</param>
-			virtual void				Closing(bool& cancel);
+			virtual void				BeforeClosing(bool& cancel);
+			/// <summary>
+			/// Called when all <see cref="BeforeClosing"/> callback agree to close.
+			/// </summary>
+			virtual void				AfterClosing();
 			/// <summary>
 			/// Called when the window is closed.
 			/// </summary>
@@ -946,25 +746,279 @@ Native Window
 			/// <param name="info">Detailed information to this message.</param>
 			virtual void				KeyUp(const NativeWindowKeyInfo& info);
 			/// <summary>
-			/// Called a system key is pressed.
-			/// </summary>
-			/// <param name="info">Detailed information to this message.</param>
-			virtual void				SysKeyDown(const NativeWindowKeyInfo& info);
-			/// <summary>
-			/// Called a system key is released.
-			/// </summary>
-			/// <param name="info">Detailed information to this message.</param>
-			virtual void				SysKeyUp(const NativeWindowKeyInfo& info);
-			/// <summary>
 			/// Called an input character is generated.
 			/// </summary>
 			/// <param name="info">Detailed information to this message.</param>
 			virtual void				Char(const NativeWindowCharInfo& info);
+
+			/// <summary>
+			/// Called to test if the window needs to be updated, only when <see cref="INativeWindow::IsActivelyRefreshing"/> returns false.
+			/// </summary>
+			/// <returns>Returns true if the window needs to be updated.</returns>
+			virtual bool				NeedRefresh();
+			/// <summary>
+			/// Called to refresh the window, only when <see cref="INativeWindow::IsActivelyRefreshing"/> returns false.
+			/// </summary>
+			/// <returns>Returns true if the window needs to be updated.</returns>
+			/// <param name="cleanBeforeRender">True when the whole render target needs to be cleaned.</param>
+			virtual void				ForceRefresh(bool handleFailure, bool& updated, bool& failureByResized, bool& failureByLostDevice);
+			/// <summary>
+			/// Called when the frame config of a window is decided.
+			/// This callback is only called in hosted mode.
+			/// This callback is only called once on a window.
+			/// </summary>
+			virtual void				AssignFrameConfig(const NativeWindowFrameConfig& config);
 		};
 
 /***********************************************************************
-Native Window Services
+INativeImageService
 ***********************************************************************/
+
+		class INativeImageService;
+		class INativeImage;
+		class INativeImageFrame;
+		
+		/// <summary>
+		/// Represents a customized cache object for an image frame.
+		/// </summary>
+		class INativeImageFrameCache : public Interface
+		{
+		public:
+			/// <summary>
+			/// Called when this cache object is attached to an image frame.
+			/// </summary>
+			/// <param name="frame">The image frame that attached to.</param>
+			virtual void						OnAttach(INativeImageFrame* frame)=0;
+			/// <summary>
+			/// Called when this cache object is detached to an image frame.
+			/// </summary>
+			/// <param name="frame">The image frame that detached from.</param>
+			virtual void						OnDetach(INativeImageFrame* frame)=0;
+		};
+
+		/// <summary>
+		/// Represents an image frame.
+		/// </summary>
+		class INativeImageFrame : public virtual IDescriptable, public Description<INativeImageFrame>
+		{
+		public:
+			/// <summary>
+			/// Get the image that owns this frame.
+			/// </summary>
+			/// <returns>The image that owns this frame.</returns>
+			virtual INativeImage*				GetImage()=0;
+			/// <summary>
+			/// Get the size of this frame.
+			/// </summary>
+			/// <returns>The size of this frame.</returns>
+			virtual Size						GetSize()=0;
+
+			/// <summary>
+			/// Attach a customized cache object to this image frame and bind to a key.
+			/// </summary>
+			/// <returns>Returns true if this operation succeeded.</returns>
+			/// <param name="key">The key binded with the customized cache object.</param>
+			/// <param name="cache">The customized cache object.</param>
+			virtual bool						SetCache(void* key, Ptr<INativeImageFrameCache> cache)=0;
+			/// <summary>
+			/// Get the attached customized cache object that is already binded to a key.
+			/// </summary>
+			/// <returns>The attached customized cache object.</returns>
+			/// <param name="key">The key binded with the customized cache object.</param>
+			virtual Ptr<INativeImageFrameCache>	GetCache(void* key)=0;
+			/// <summary>
+			/// Get the attached customized cache object that is already binded to a key, and then detach it.
+			/// </summary>
+			/// <returns>The detached customized cache object.</returns>
+			/// <param name="key">The key binded with the customized cache object.</param>
+			virtual Ptr<INativeImageFrameCache>	RemoveCache(void* key)=0;
+		};
+		
+		/// <summary>
+		/// Represents an image.
+		/// </summary>
+		class INativeImage : public virtual IDescriptable, public Description<INativeImage>
+		{
+		public:
+			/// <summary>
+			/// Represents an image format.
+			/// </summary>
+			enum FormatType
+			{
+				/// <summary>
+				/// Bitmap format.
+				/// </summary>
+				Bmp,
+				/// <summary>
+				/// GIF format.
+				/// </summary>
+				Gif,
+				/// <summary>
+				/// Icon format.
+				/// </summary>
+				Icon,
+				/// <summary>
+				/// JPEG format.
+				/// </summary>
+				Jpeg,
+				/// <summary>
+				/// PNG format.
+				/// </summary>
+				Png,
+				/// <summary>
+				/// TIFF format.
+				/// </summary>
+				Tiff,
+				/// <summary>
+				/// WMP format.
+				/// </summary>
+				Wmp,
+				/// <summary>
+				/// Unknown format.
+				/// </summary>
+				Unknown,
+			};
+			
+			/// <summary>
+			/// Get the image service that creates this image.
+			/// </summary>
+			/// <returns>The image service that creates this image.</returns>
+			virtual INativeImageService*		GetImageService()=0;
+			/// <summary>
+			/// Get the image format.
+			/// </summary>
+			/// <returns>The image format.</returns>
+			virtual FormatType					GetFormat()=0;
+			/// <summary>
+			/// Get the number of frames in this image.
+			/// </summary>
+			/// <returns>The number of frames in this image.</returns>
+			virtual vint						GetFrameCount()=0;
+			/// <summary>
+			/// Get the frame in this image by a specified frame index.
+			/// </summary>
+			/// <returns>The frame in this image by a specified frame index.</returns>
+			/// <param name="index">The specified frame index.</param>
+			virtual INativeImageFrame*			GetFrame(vint index)=0;
+			/// <summary>
+			/// Save the image to a stream.
+			/// </summary>
+			/// <param name="imageStream">The stream.</param>
+			/// <param name="formatType">The format of the image.</param>
+			virtual void						SaveToStream(stream::IStream& imageStream, FormatType formatType = FormatType::Unknown) = 0;
+		};
+		
+		/// <summary>
+		/// Image service. To access this service, use [M:vl.presentation.INativeController.ImageService].
+		/// </summary>
+		class INativeImageService : public virtual IDescriptable, public Description<INativeImageService>
+		{
+		public:
+			/// <summary>
+			/// Create an image from file.
+			/// </summary>
+			/// <returns>The created image.</returns>
+			/// <param name="path">The file path.</param>
+			virtual Ptr<INativeImage>			CreateImageFromFile(const WString& path)=0;
+
+			/// <summary>
+			/// Create an image from memory.
+			/// </summary>
+			/// <returns>The created image.</returns>
+			/// <param name="buffer">The memory pointer.</param>
+			/// <param name="length">The memory length.</param>
+			virtual Ptr<INativeImage>			CreateImageFromMemory(void* buffer, vint length)=0;
+
+			/// <summary>
+			/// Create an image from stream.
+			/// </summary>
+			/// <returns>The created image.</returns>
+			/// <param name="imageStream">The stream.</param>
+			virtual Ptr<INativeImage>			CreateImageFromStream(stream::IStream& imageStream)=0;
+		};
+
+/***********************************************************************
+INativeResourceService
+***********************************************************************/
+		
+		/// <summary>
+		/// Represents a cursor.
+		/// </summary>
+		class INativeCursor : public virtual IDescriptable, public Description<INativeCursor>
+		{
+		public:
+			/// <summary>
+			/// Represents a predefined cursor type.
+			/// </summary>
+			enum SystemCursorType
+			{
+				/// <summary>
+				/// Small waiting cursor.
+				/// </summary>
+				SmallWaiting,
+				/// <summary>
+				/// large waiting cursor.
+				/// </summary>
+				LargeWaiting,
+				/// <summary>
+				/// Arrow cursor.
+				/// </summary>
+				Arrow,
+				/// <summary>
+				/// Cross cursor.
+				/// </summary>
+				Cross,
+				/// <summary>
+				/// Hand cursor.
+				/// </summary>
+				Hand,
+				/// <summary>
+				/// Help cursor.
+				/// </summary>
+				Help,
+				/// <summary>
+				/// I beam cursor.
+				/// </summary>
+				IBeam,
+				/// <summary>
+				/// Sizing in all direction cursor.
+				/// </summary>
+				SizeAll,
+				/// <summary>
+				/// Sizing NE-SW cursor.
+				/// </summary>
+				SizeNESW,
+				/// <summary>
+				/// Sizing N-S cursor.
+				/// </summary>
+				SizeNS,
+				/// <summary>
+				/// Sizing NW-SE cursor.
+				/// </summary>
+				SizeNWSE,
+				/// <summary>
+				/// Sizing W-E cursor.
+				/// </summary>
+				SizeWE,
+				/// <summary>
+				/// Number of available cursors, this is not an available cursor by itself.
+				/// </summary>
+				LastSystemCursor=SizeWE,
+			};
+
+			static const vint			SystemCursorCount=LastSystemCursor+1;
+		public:
+			/// <summary>
+			/// Test is the cursor a system provided cursor.
+			/// </summary>
+			/// <returns>Returns true if the cursor a system provided cursor.</returns>
+			virtual bool				IsSystemCursor()=0;
+			/// <summary>
+			/// Get the cursor type if the cursor a system provided cursor.
+			/// </summary>
+			/// <returns>The cursor type.</returns>
+			virtual SystemCursorType	GetSystemCursorType()=0;
+		};
 
 		/// <summary>
 		/// System resource service. To access this service, use [M:vl.presentation.INativeController.ResourceService].
@@ -994,7 +1048,16 @@ Native Window Services
 			/// </summary>
 			/// <param name="value">The font configuration to override.</param>
 			virtual void					SetDefaultFont(const FontProperties& value)=0;
+			/// <summary>
+			/// Enumerate all system fonts.
+			/// </summary>
+			/// <param name="fonts">The collection to receive all fonts.</param>
+			virtual void					EnumerateFonts(collections::List<WString>& fonts)=0;
 		};
+
+/***********************************************************************
+INativeAsyncService
+***********************************************************************/
 
 		/// <summary>
 		/// Delay execution controller.
@@ -1075,6 +1138,10 @@ Native Window Services
 			virtual Ptr<INativeDelay>		DelayExecuteInMainThread(const Func<void()>& proc, vint milliseconds)=0;
 		};
 
+/***********************************************************************
+INativeClipboardService
+***********************************************************************/
+
 		/// <summary>
 		/// Clipboard reader.
 		/// </summary>
@@ -1142,6 +1209,48 @@ Native Window Services
 			/// <returns>The clipboard writer.</returns>
 			virtual Ptr<INativeClipboardWriter>		WriteClipboard() = 0;
 		};
+
+/***********************************************************************
+INativeScreenService
+***********************************************************************/
+
+		/// <summary>
+		/// Represents a screen.
+		/// </summary>
+		class INativeScreen : public virtual IDescriptable, public Description<INativeScreen>
+		{
+		public:
+			/// <summary>
+			/// Get the bounds of the screen.
+			/// </summary>
+			/// <returns>The bounds of the screen.</returns>
+			virtual NativeRect			GetBounds()=0;
+			/// <summary>
+			/// Get the bounds of the screen client area.
+			/// </summary>
+			/// <returns>The bounds of the screen client area.</returns>
+			virtual NativeRect			GetClientBounds()=0;
+			/// <summary>
+			/// Get the name of the screen.
+			/// </summary>
+			/// <returns>The name of the screen.</returns>
+			virtual WString				GetName()=0;
+			/// <summary>
+			/// Test is the screen is a primary screen.
+			/// </summary>
+			/// <returns>Returns true if the screen is a primary screen.</returns>
+			virtual bool				IsPrimary()=0;
+			/// <summary>
+			/// Get the scaling for the screen's horizontal edge.
+			/// </summary>
+			/// <returns>The scaling. For example, in Windows when you have a 96 DPI, this function returns 1.0.</returns>
+			virtual double				GetScalingX() = 0;
+			/// <summary>
+			/// Get the scaling for the screen's vertical edge.
+			/// </summary>
+			/// <returns>The scaling. For example, in Windows when you have a 96 DPI, this function returns 1.0.</returns>
+			virtual double				GetScalingY() = 0;
+		};
 		
 		/// <summary>
 		/// Screen information service. To access this service, use [M:vl.presentation.INativeController.ScreenService].
@@ -1153,20 +1262,24 @@ Native Window Services
 			/// Get the number of all available screens.
 			/// </summary>
 			///  <returns>The number of all available screens.</returns>
-			virtual vint					GetScreenCount()=0;
+			virtual vint							GetScreenCount()=0;
 			/// <summary>
 			/// Get the screen object by a specified screen index.
 			/// </summary>
 			/// <returns>The screen object.</returns>
 			/// <param name="index">The specified screen index.</param>
-			virtual INativeScreen*			GetScreen(vint index)=0;
+			virtual INativeScreen*					GetScreen(vint index)=0;
 			/// <summary>
 			/// Get the screen object where the main part of the specified window is inside.
 			/// </summary>
 			/// <returns>The screen object.</returns>
 			/// <param name="window">The specified window.</param>
-			virtual INativeScreen*			GetScreen(INativeWindow* window)=0;
+			virtual INativeScreen*					GetScreen(INativeWindow* window)=0;
 		};
+
+/***********************************************************************
+INativeWindowService
+***********************************************************************/
 		
 		/// <summary>
 		/// Window service. To access this service, use [M:vl.presentation.INativeController.WindowService].
@@ -1175,10 +1288,28 @@ Native Window Services
 		{
 		public:
 			/// <summary>
+			/// Get the frame configuration for the main window.
+			/// It limit values of frame properties and control template of the main window.
+			/// This function must return "NativeWindowFrameConfig::Default",
+			/// unless it is only designed to be used under hosted mode.
+			/// </summary>
+			/// <returns>The frame configuration for the main window.</returns>
+			virtual const NativeWindowFrameConfig&	GetMainWindowFrameConfig()=0;
+			/// <summary>
+			/// Get the frame configuration for non-main windows.
+			/// It limit values of frame properties and control template of all non-main windows.
+			/// This function must return "NativeWindowFrameConfig::Default",
+			/// unless it is only designed to be used under hosted mode.
+			/// </summary>
+			/// <returns>The frame configuration for non-main windows.</returns>
+			virtual const NativeWindowFrameConfig&	GetNonMainWindowFrameConfig()=0;
+
+			/// <summary>
 			/// Create a window.
 			/// </summary>
 			/// <returns>The created window.</returns>
-			virtual INativeWindow*			CreateNativeWindow() = 0;
+			/// <param name="windowMode">The window mode.</param>
+			virtual INativeWindow*			CreateNativeWindow(INativeWindow::WindowMode windowMode) = 0;
 			/// <summary>
 			/// Destroy a window.
 			/// </summary>
@@ -1196,10 +1327,26 @@ Native Window Services
 			/// <param name="location">The specified position in screen space.</param>
 			virtual INativeWindow*			GetWindow(NativePoint location) = 0;
 			/// <summary>
-			/// Make the specified window a main window, show that window, and wait until the windows is closed.
+			/// Make the specified window a main window, show that window, process events, and wait until the windows is closed.
 			/// </summary>
 			/// <param name="window">The specified window.</param>
 			virtual void					Run(INativeWindow* window) = 0;
+			/// <summary>
+			/// Process minimum necessary events and execute some async tasks.
+			/// </summary>
+			/// <returns>Return false when the main window has been closed and all finalizing are done.</returns>
+			virtual bool					RunOneCycle() = 0;
+		};
+
+/***********************************************************************
+INativeInputService
+***********************************************************************/
+
+		enum class NativeGlobalShortcutKeyResult : vint
+		{
+			NotSupported = -2,
+			Occupied = -1,
+			ValidIdBegins = 0,
 		};
 		
 		/// <summary>
@@ -1209,58 +1356,99 @@ Native Window Services
 		{
 		public:
 			/// <summary>
-			/// Start to reveive global mouse message.
-			/// </summary>
-			virtual void					StartHookMouse()=0;
-			/// <summary>
-			/// Stop to receive global mouse message.
-			/// </summary>
-			virtual void					StopHookMouse()=0;
-			/// <summary>
-			/// Test is the global mouse message receiving enabled.
-			/// </summary>
-			/// <returns>Returns true if the global mouse message receiving is enabled.</returns>
-			virtual bool					IsHookingMouse()=0;
-			
-			/// <summary>
 			/// Start to reveive global timer message.
 			/// </summary>
-			virtual void					StartTimer()=0;
+			virtual void							StartTimer()=0;
 			/// <summary>
 			/// Stop to receive global timer message.
 			/// </summary>
-			virtual void					StopTimer()=0;
+			virtual void							StopTimer()=0;
 			/// <summary>
 			/// Test is the global timer message receiving enabled.
 			/// </summary>
 			/// <returns>Returns true if the global timer message receiving is enabled.</returns>
-			virtual bool					IsTimerEnabled()=0;
+			virtual bool							IsTimerEnabled()=0;
 			
 			/// <summary>
 			/// Test is the specified key pressing.
 			/// </summary>
 			/// <returns>Returns true if the specified key is pressing.</returns>
 			/// <param name="code">The key code to test.</param>
-			virtual bool					IsKeyPressing(VKEY code)=0;
+			virtual bool							IsKeyPressing(VKEY code)=0;
 			/// <summary>
 			/// Test is the specified key toggled.
 			/// </summary>
 			/// <returns>Returns true if the specified key is toggled.</returns>
 			/// <param name="code">The key code to test.</param>
-			virtual bool					IsKeyToggled(VKEY code)=0;
+			virtual bool							IsKeyToggled(VKEY code)=0;
 
 			/// <summary>
 			/// Get the name of a key.
 			/// </summary>
 			/// <returns>The name of a key.</returns>
 			/// <param name="code">The key code.</param>
-			virtual WString					GetKeyName(VKEY code)=0;
+			virtual WString							GetKeyName(VKEY code)=0;
 			/// <summary>
 			/// Get the key from a name.
 			/// </summary>
 			/// <returns>The key, returns -1 if the key name doesn't exist.</returns>
 			/// <param name="name">Key name</param>
-			virtual VKEY					GetKey(const WString& name)=0;
+			virtual VKEY							GetKey(const WString& name)=0;
+
+			/// <summary>
+			/// Register a system-wide shortcut key that doesn't require any window to be foreground window.
+			/// If the shortcut key is activated, <see cref="INativeControllerListener::GlobalShortcutKeyActivated"/> will be called.
+			/// </summary>
+			/// <param name="ctrl">Set to true if the CTRL key is required.</param>
+			/// <param name="shift">Set to true if the SHIFT key is required.</param>
+			/// <param name="alt">Set to true if the ALT key is required.</param>
+			/// <param name="key">The non-control key.</param>
+			/// <param name="id"></param>
+			/// <returns>Returns the created id. If it fails, the id equals to one of an item in <see cref="NativeGlobalShortcutKeyResult"/> except "ValidIdBegins".</returns>
+			virtual vint							RegisterGlobalShortcutKey(bool ctrl, bool shift, bool alt, VKEY key)=0;
+
+			/// <summary>
+			/// Unregister a system-wide shortcut key.
+			/// </summary>
+			/// <param name="id">The created id.</param>
+			/// <returns>Returns true if this operation succeeded.</returns>
+			virtual bool							UnregisterGlobalShortcutKey(vint id)=0;
+		};
+
+/***********************************************************************
+INativeCallbackService
+***********************************************************************/
+
+		class INativeControllerListener;
+
+		/// <summary>
+		/// Callback invoker.
+		/// </summary>
+		class INativeCallbackInvoker : public virtual Interface
+		{
+		public:
+			/// <summary>
+			/// Invoke <see cref="INativeControllerListener::GlobalTimer"/> of all installed listeners. 
+			/// </summary>
+			virtual void					InvokeGlobalTimer()=0;
+			/// <summary>
+			/// Invoke <see cref="INativeControllerListener::ClipboardUpdated"/> of all installed listeners.
+			/// </summary>
+			virtual void					InvokeClipboardUpdated()=0;
+			/// <summary>
+			/// Invoke <see cref="INativeControllerListener::ClipboardUpdated"/> of all installed listeners.
+			/// </summary>
+			virtual void					InvokeGlobalShortcutKeyActivated(vint id) = 0;
+			/// <summary>
+			/// Invoke <see cref="INativeControllerListener::NativeWindowCreated"/> of all installed listeners.
+			/// </summary>
+			/// <param name="window">The argument to the callback.</param>
+			virtual void					InvokeNativeWindowCreated(INativeWindow* window)=0;
+			/// <summary>
+			/// Invoke <see cref="INativeControllerListener::NativeWindowDestroying"/> of all installed listeners.
+			/// </summary>
+			/// <param name="window">The argument to the callback.</param>
+			virtual void					InvokeNativeWindowDestroying(INativeWindow* window)=0;
 		};
 		
 		/// <summary>
@@ -1281,8 +1469,16 @@ Native Window Services
 			/// <returns>Returns true if this operation succeeded.</returns>
 			/// <param name="listener">The global message listener to uninstall.</param>
 			virtual bool					UninstallListener(INativeControllerListener* listener)=0;
+			/// <summary>
+			/// Get the invoker that invoke all listeners.
+			/// </summary>
+			/// <returns>The invoker.</returns>
+			virtual INativeCallbackInvoker*	Invoker()=0;
 		};
 
+/***********************************************************************
+INativeDialogService
+***********************************************************************/
 
 		/// <summary>
 		/// Dialog service. To access this service, use [M:vl.presentation.INativeController.DialogService].
@@ -1438,10 +1634,12 @@ Native Window Services
 			};
 
 			/// <summary>
-			/// File dialog options.
+			/// File dialog option flags.
 			/// </summary>
 			enum FileDialogOptions
 			{
+				/// <summary>No option are selected.</summary>
+				None = 0,
 				/// <summary>Allow multiple selection.</summary>
 				FileDialogAllowMultipleSelection = 1,
 				/// <summary>Prevent the user to select unexisting files.</summary>
@@ -1556,31 +1754,6 @@ Native Window Controller
 		{
 		public:
 			/// <summary>
-			/// Called when the left mouse button is pressed. To receive or not receive this message, use <see cref="INativeInputService::StartHookMouse"/> or <see cref="INativeInputService::StopHookMouse"/>.
-			/// </summary>
-			/// <param name="position">The mouse position in the screen space.</param>
-			virtual void					LeftButtonDown(NativePoint position);
-			/// <summary>
-			/// Called when the left mouse button is released. To receive or not receive this message, use <see cref="INativeInputService::StartHookMouse"/> or <see cref="INativeInputService::StopHookMouse"/>
-			/// </summary>
-			/// <param name="position">The mouse position in the screen space.</param>
-			virtual void					LeftButtonUp(NativePoint position);
-			/// <summary>
-			/// Called when the right mouse button is pressed. To receive or not receive this message, use <see cref="INativeInputService::StartHookMouse"/> or <see cref="INativeInputService::StopHookMouse"/>
-			/// </summary>
-			/// <param name="position">The mouse position in the screen space.</param>
-			virtual void					RightButtonDown(NativePoint position);
-			/// <summary>
-			/// Called when the right mouse button is released. To receive or not receive this message, use <see cref="INativeInputService::StartHookMouse"/> or <see cref="INativeInputService::StopHookMouse"/>
-			/// </summary>
-			/// <param name="position">The mouse position in the screen space.</param>
-			virtual void					RightButtonUp(NativePoint position);
-			/// <summary>
-			/// Called when the mouse is moving. To receive or not receive this message, use <see cref="INativeInputService::StartHookMouse"/> or <see cref="INativeInputService::StopHookMouse"/>
-			/// </summary>
-			/// <param name="position">The mouse position in the screen space.</param>
-			virtual void					MouseMoving(NativePoint position);
-			/// <summary>
 			/// Called when the global timer message raised. To receive or not receive this message, use <see cref="INativeInputService::StartTimer"/> or <see cref="INativeInputService::StopTimer"/>
 			/// </summary>
 			virtual void					GlobalTimer();
@@ -1588,6 +1761,11 @@ Native Window Controller
 			/// Called when the content of the clipboard is updated.
 			/// </summary>
 			virtual void					ClipboardUpdated();
+			/// <summary>
+			/// Called when a registered system-wide shortcut key is activated.
+			/// </summary>
+			/// <param name="id"></param>
+			virtual void					GlobalShortcutKeyActivated(vint id);
 			/// <summary>
 			/// Called when a window is created.
 			/// </summary>
@@ -1609,7 +1787,88 @@ Native Window Controller
 		/// Set the global native system service controller.
 		/// </summary>
 		/// <param name="controller">The global native system service controller.</param>
-		extern void							SetCurrentController(INativeController* controller);
+		extern void							SetNativeController(INativeController* controller);
+
+#define GUI_SUBSTITUTABLE_SERVICES(F)	\
+		F(Clipboard)					\
+		F(Dialog)						\
+
+#define GUI_UNSUBSTITUTABLE_SERVICES(F)	\
+		F(Callback)						\
+		F(Resource)						\
+		F(Async)						\
+		F(Image)						\
+		F(Screen)						\
+		F(Window)						\
+		F(Input)						\
+
+		class INativeServiceSubstitution : public Interface
+		{
+		public:
+
+#define SUBSTITUTE_SERVICE(NAME)																			\
+			virtual void					Substitute(INative##NAME##Service* service, bool optional) = 0;	\
+			virtual void					Unsubstitute(INative##NAME##Service* service) = 0;				\
+
+			GUI_SUBSTITUTABLE_SERVICES(SUBSTITUTE_SERVICE)
+#undef SUBSTITUTE_SERVICE
+		};
+
+		extern INativeServiceSubstitution*	GetNativeServiceSubstitution();
+
+/***********************************************************************
+NativeImageFrameBase
+***********************************************************************/
+
+		/// <summary>
+		/// A partial implementation for <see cref="INativeImageFrame"/>.
+		/// </summary>
+		class NativeImageFrameBase : public Object, public virtual INativeImageFrame
+		{
+			collections::Dictionary<void*, Ptr<INativeImageFrameCache>>		caches;
+		public:
+			NativeImageFrameBase();
+			~NativeImageFrameBase();
+
+			bool							SetCache(void* key, Ptr<INativeImageFrameCache> cache) override;
+			Ptr<INativeImageFrameCache>		GetCache(void* key) override;
+			Ptr<INativeImageFrameCache>		RemoveCache(void* key) override;
+		};
+
+/***********************************************************************
+Helper Functions
+***********************************************************************/
+
+		/// <summary>
+		/// Get a cursor according to the hit test result.
+		/// </summary>
+		/// <param name="hitTestResult">The hit test result.</param>
+		/// <param name="resourceService">The resource service to get cursors.</param>
+		/// <returns>Returns the cursor according to the hit test result. It could return nullptr when the cursor is not defined.</returns>
+		extern INativeCursor*				GetCursorFromHitTest(INativeWindowListener::HitTestResult hitTestResult, INativeResourceService* resourceService);
+
+		/// <summary>
+		/// A helper function calling multiple <see cref="INativeWindowListener::HitTest"/>.
+		/// </summary>
+		/// <returns>The hit test result.</returns>
+		template<typename T>
+		INativeWindowListener::HitTestResult PerformHitTest(collections::LazyList<T> listeners, NativePoint location)
+		{
+			auto hitTestResult = INativeWindowListener::NoDecision;
+			for (auto listener : listeners)
+			{
+				auto singleResult = listener->HitTest(location);
+				CHECK_ERROR(
+					hitTestResult == INativeWindowListener::NoDecision || singleResult == INativeWindowListener::NoDecision,
+					L"vl::presentation::PerformHitTest(LazyList<T>, NativePoint)#Incompatible INativeWindowListener::HitTest() callback results occured."
+					);
+				if (singleResult != INativeWindowListener::NoDecision)
+				{
+					hitTestResult = singleResult;
+				}
+			}
+			return hitTestResult;
+		}
 	}
 }
 

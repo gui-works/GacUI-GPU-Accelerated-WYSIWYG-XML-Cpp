@@ -9,8 +9,8 @@ Classes:
 #ifndef VCZH_PRESENTATION_GUITYPES
 #define VCZH_PRESENTATION_GUITYPES
 
-#include "../Import/VlppParser.h"
-#include "../Import/VlppWorkflowLibrary.h"
+#include <VlppGlrParser.h>
+#include <VlppWorkflowLibrary.h>
 
 namespace vl
 {
@@ -60,6 +60,9 @@ Enumerations
 			UpRight,
 		};
 
+#define GUI_DEFINE_COMPARE_OPERATORS(TYPE)\
+		auto operator<=>(const TYPE&) const = default;\
+
 /***********************************************************************
 TextPos
 ***********************************************************************/
@@ -88,21 +91,7 @@ TextPos
 			{
 			}
 
-			vint Compare(const TextPos& value)const
-			{
-				if(row<value.row) return -1;
-				if(row>value.row) return 1;
-				if(column<value.column) return -1;
-				if(column>value.column) return 1;
-				return 0;
-			}
-
-			bool operator==(const TextPos& value)const {return Compare(value)==0;}
-			bool operator!=(const TextPos& value)const {return Compare(value)!=0;}
-			bool operator<(const TextPos& value)const {return Compare(value)<0;}
-			bool operator<=(const TextPos& value)const {return Compare(value)<=0;}
-			bool operator>(const TextPos& value)const {return Compare(value)>0;}
-			bool operator>=(const TextPos& value)const {return Compare(value)>=0;}
+			GUI_DEFINE_COMPARE_OPERATORS(TextPos)
 		};
 
 /***********************************************************************
@@ -133,21 +122,7 @@ GridPos
 			{
 			}
 
-			vint Compare(const GridPos& value)const
-			{
-				if(row<value.row) return -1;
-				if(row>value.row) return 1;
-				if(column<value.column) return -1;
-				if(column>value.column) return 1;
-				return 0;
-			}
-
-			bool operator==(const GridPos& value)const {return Compare(value)==0;}
-			bool operator!=(const GridPos& value)const {return Compare(value)!=0;}
-			bool operator<(const GridPos& value)const {return Compare(value)<0;}
-			bool operator<=(const GridPos& value)const {return Compare(value)<=0;}
-			bool operator>(const GridPos& value)const {return Compare(value)>0;}
-			bool operator>=(const GridPos& value)const {return Compare(value)>=0;}
+			GUI_DEFINE_COMPARE_OPERATORS(GridPos)
 		};
 
 /***********************************************************************
@@ -173,12 +148,7 @@ Coordinate
 			NativeCoordinate& operator=(const NativeCoordinate& _value) = default;
 			NativeCoordinate& operator=(NativeCoordinate&& _value) = default;
 
-			inline bool operator==(NativeCoordinate c)const { return value == c.value; };
-			inline bool operator!=(NativeCoordinate c)const { return value != c.value; };
-			inline bool operator<(NativeCoordinate c)const { return value < c.value; };
-			inline bool operator<=(NativeCoordinate c)const { return value <= c.value; };
-			inline bool operator>(NativeCoordinate c)const { return value > c.value; };
-			inline bool operator>=(NativeCoordinate c)const { return value >= c.value; };
+			GUI_DEFINE_COMPARE_OPERATORS(NativeCoordinate)
 
 			inline NativeCoordinate operator+(NativeCoordinate c)const { return value + c.value; };
 			inline NativeCoordinate operator-(NativeCoordinate c)const { return value - c.value; };
@@ -190,6 +160,9 @@ Coordinate
 			inline NativeCoordinate& operator*=(NativeCoordinate c) { value *= c.value; return *this; };
 			inline NativeCoordinate& operator/=(NativeCoordinate c) { value /= c.value; return *this; };
 		};
+
+		inline vint CompareCoordinate(vint a, vint b) { return a - b; }
+		inline vint CompareCoordinate(NativeCoordinate a, NativeCoordinate b) { return a.value - b.value; }
 
 /***********************************************************************
 Point
@@ -221,15 +194,7 @@ Point
 			{
 			}
 
-			bool operator==(Point_<T> point)const
-			{
-				return x == point.x && y == point.y;
-			}
-
-			bool operator!=(Point_<T> point)const
-			{
-				return x != point.x || y != point.y;
-			}
+			GUI_DEFINE_COMPARE_OPERATORS(Point_<T>)
 		};
 
 		using Point = Point_<GuiCoordinate>;
@@ -265,15 +230,7 @@ Size
 			{
 			}
 
-			bool operator==(Size_<T> size)const
-			{
-				return x == size.x && y == size.y;
-			}
-
-			bool operator!=(Size_<T> size)const
-			{
-				return x != size.x || y != size.y;
-			}
+			GUI_DEFINE_COMPARE_OPERATORS(Size_<T>)
 		};
 
 		using Size = Size_<GuiCoordinate>;
@@ -322,57 +279,49 @@ Rectangle
 			{
 			}
 
-			bool operator==(Rect_<T> rect)const
-			{
-				return x1 == rect.x1 && y1 == rect.y1 && x2 == rect.x2 && y2 == rect.y2;
-			}
+			GUI_DEFINE_COMPARE_OPERATORS(Rect_<T>)
 
-			bool operator!=(Rect_<T> rect)const
-			{
-				return x1 != rect.x1 || y1 != rect.y1 || x2 != rect.x2 || y2 != rect.y2;
-			}
-
-			Point_<T> LeftTop()const
+			Point_<T> LeftTop() const
 			{
 				return Point_<T>(x1, y1);
 			}
 
-			Point_<T> RightBottom()const
+			Point_<T> RightBottom() const
 			{
 				return Point_<T>(x2, y2);
 			}
 
-			Size_<T> GetSize()const
+			Size_<T> GetSize() const
 			{
 				return Size_<T>(x2 - x1, y2 - y1);
 			}
 
-			T Left()const
+			T Left() const
 			{
 				return x1;
 			}
 
-			T Right()const
+			T Right() const
 			{
 				return x2;
 			}
 
-			T Width()const
+			T Width() const
 			{
 				return x2 - x1;
 			}
 
-			T Top()const
+			T Top() const
 			{
 				return y1;
 			}
 
-			T Bottom()const
+			T Bottom() const
 			{
 				return y2;
 			}
 
-			T Height()const
+			T Height() const
 			{
 				return y2 - y1;
 			}
@@ -409,9 +358,24 @@ Rectangle
 				y2 += s.y;
 			}
 
-			bool Contains(Point_<T> p)
+			bool Contains(Point_<T> p) const
 			{
 				return x1 <= p.x && p.x < x2 && y1 <= p.y && p.y < y2;
+			}
+
+			bool Contains(Rect_<T> r) const
+			{
+				return x1 <= r.x1 && r.x2 <= x2 && y1 <= r.y1 && r.y2 <= y2;
+			}
+
+			Rect_<T> Intersect(Rect_<T> r)  const
+			{
+				Rect_<T> result = r;
+				if (r.x1 < x1) r.x1 = x1;
+				if (r.x2 > x2) r.x2 = x2;
+				if (r.y1 < y1) r.y1 = y1;
+				if (r.y2 > y2) r.y2 = y2;
+				return r;
 			}
 		};
 
@@ -531,10 +495,8 @@ Color
 			{
 			}
 
-			vint Compare(Color color)const
-			{
-				return value-color.value;
-			}
+			std::strong_ordering operator<=>(const Color& c) const { return value <=> c.value; }
+			bool operator==(const Color& c) const { return value == c.value; }
 
 			static Color Parse(const WString& value)
 			{
@@ -582,13 +544,6 @@ Color
 				}
 				return result;
 			}
-
-			bool operator==(Color color)const {return Compare(color)==0;}
-			bool operator!=(Color color)const {return Compare(color)!=0;}
-			bool operator<(Color color)const {return Compare(color)<0;}
-			bool operator<=(Color color)const {return Compare(color)<=0;}
-			bool operator>(Color color)const {return Compare(color)>0;}
-			bool operator>=(Color color)const {return Compare(color)>=0;}
 		};
 
 /***********************************************************************
@@ -629,15 +584,7 @@ Margin
 			{
 			}
 
-			bool operator==(Margin_<T> margin)const
-			{
-				return left==margin.left && top==margin.top && right==margin.right && bottom==margin.bottom;
-			}
-
-			bool operator!=(Margin_<T> margin)const
-			{
-				return left!=margin.left || top!=margin.top || right!=margin.right || bottom!=margin.bottom;
-			}
+			GUI_DEFINE_COMPARE_OPERATORS(Margin_<T>)
 		};
 
 		using Margin = Margin_<GuiCoordinate>;
@@ -696,47 +643,14 @@ Resources
 			{
 			}
 			
-			vint Compare(const FontProperties& value)const
-			{
-				vint result=0;
-				
-				result=WString::Compare(fontFamily, value.fontFamily);
-				if(result!=0) return result;
-
-				result=size-value.size;
-				if(result!=0) return result;
-
-				result=(vint)bold-(vint)value.bold;
-				if(result!=0) return result;
-
-				result=(vint)italic-(vint)value.italic;
-				if(result!=0) return result;
-
-				result=(vint)underline-(vint)value.underline;
-				if(result!=0) return result;
-
-				result=(vint)strikeline-(vint)value.strikeline;
-				if(result!=0) return result;
-
-				result=(vint)antialias-(vint)value.antialias;
-				if(result!=0) return result;
-
-				return 0;
-			}
-
-			bool operator==(const FontProperties& value)const {return Compare(value)==0;}
-			bool operator!=(const FontProperties& value)const {return Compare(value)!=0;}
-			bool operator<(const FontProperties& value)const {return Compare(value)<0;}
-			bool operator<=(const FontProperties& value)const {return Compare(value)<=0;}
-			bool operator>(const FontProperties& value)const {return Compare(value)>0;}
-			bool operator>=(const FontProperties& value)const {return Compare(value)>=0;}
+			GUI_DEFINE_COMPARE_OPERATORS(FontProperties)
 		};
 
 /***********************************************************************
 Keys
 ***********************************************************************/
 
-#define GUI_DEFINE_KEYBOARD_CODE(ITEM)											\
+#define GUI_DEFINE_KEYBOARD_CODE_BASIC(ITEM)									\
 /*																				\
  * Virtual Keys, Standard Set													\
  */																				\
@@ -758,7 +672,6 @@ ITEM(CAPITAL,             0x14)													\
 ITEM(KANA_HANGUL,         0x15)													\
 ITEM(JUNJA,               0x17)													\
 ITEM(FINAL,               0x18)													\
-ITEM(HANJA,               0x19)													\
 ITEM(KANJI,               0x19)													\
 ITEM(ESCAPE,              0x1B)													\
 ITEM(CONVERT,             0x1C)													\
@@ -868,10 +781,6 @@ ITEM(F24,                 0x87)													\
 ITEM(NUMLOCK,             0x90)													\
 ITEM(SCROLL,              0x91)													\
 /*																				\
- * NEC PC-9800 kbd definitions													\
- */																				\
-ITEM(OEM_NEC_EQUAL,       0x92)		/* '=' key on numpad */						\
-/*																				\
  * Fujitsu/OASYS kbd definitions												\
  */																				\
 ITEM(OEM_FJ_JISHO,        0x92)		/* 'Dictionary' key */						\
@@ -908,17 +817,10 @@ ITEM(LAUNCH_MAIL,         0xB4)													\
 ITEM(LAUNCH_MEDIA_SELECT, 0xB5)													\
 ITEM(LAUNCH_APP1,         0xB6)													\
 ITEM(LAUNCH_APP2,         0xB7)													\
-ITEM(OEM_1,               0xBA)		/* ';:' for US */							\
 ITEM(OEM_PLUS,            0xBB)		/* '+' any country */						\
 ITEM(OEM_COMMA,           0xBC)		/* ',' any country */						\
 ITEM(OEM_MINUS,           0xBD)		/* '-' any country */						\
 ITEM(OEM_PERIOD,          0xBE)		/* '.' any country */						\
-ITEM(OEM_2,               0xBF)		/* '/?' for US */							\
-ITEM(OEM_3,               0xC0)		/* '`~' for US */							\
-ITEM(OEM_4,               0xDB)		/* '[{' for US */							\
-ITEM(OEM_5,               0xDC)		/* '\|' for US */							\
-ITEM(OEM_6,               0xDD)		/* ']}' for US */							\
-ITEM(OEM_7,               0xDE)		/* ''"' for US */							\
 ITEM(OEM_8,               0xDF)													\
 /*																				\
  * Various extended or enhanced keyboards										\
@@ -966,19 +868,142 @@ ITEM(BACKSLASH,           0xDC)		/* OEM_5 */									\
 ITEM(LEFT_BRACKET,        0xDD)		/* OEM_6 */									\
 ITEM(APOSTROPHE,          0xDE)		/* OEM_7 */									\
 
-#define GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM(NAME, CODE) _##NAME = CODE,
+#define GUI_DEFINE_KEYBOARD_CODE_ADDITIONAL(ITEM)								\
+ITEM(OEM_1,               0xBA)		/* ';:' for US */							\
+ITEM(OEM_2,               0xBF)		/* '/?' for US */							\
+ITEM(OEM_3,               0xC0)		/* '`~' for US */							\
+ITEM(OEM_4,               0xDB)		/* '[{' for US */							\
+ITEM(OEM_5,               0xDC)		/* '\|' for US */							\
+ITEM(OEM_6,               0xDD)		/* ']}' for US */							\
+ITEM(OEM_7,               0xDE)		/* ''"' for US */							\
+ITEM(HANJA,               0x19)													\
+/*																				\
+ * NEC PC-9800 kbd definitions													\
+ */																				\
+ITEM(OEM_NEC_EQUAL,       0x92)		/* '=' key on numpad */						\
+
+#define GUI_DEFINE_KEYBOARD_CODE(ITEM)											\
+			GUI_DEFINE_KEYBOARD_CODE_BASIC(ITEM)								\
+			GUI_DEFINE_KEYBOARD_CODE_ADDITIONAL(ITEM)							\
+
+
+#define GUI_DEFINE_KEYBOARD_WINDOWS_NAME(ITEM)									\
+ITEM(BACK,					L"Backspace")\
+ITEM(TAB,					L"Tab")\
+ITEM(RETURN,				L"Enter")\
+ITEM(SHIFT,					L"Shift")\
+ITEM(CONTROL,				L"Ctrl")\
+ITEM(MENU,					L"Alt")\
+ITEM(CAPITAL,				L"Caps Lock")\
+ITEM(ESCAPE,				L"Esc")\
+ITEM(SPACE,					L"Space")\
+ITEM(PRIOR,					L"Page Up")\
+ITEM(NEXT,					L"Page Down")\
+ITEM(END,					L"End")\
+ITEM(HOME,					L"Home")\
+ITEM(LEFT,					L"Left")\
+ITEM(UP,					L"Up")\
+ITEM(RIGHT,					L"Right")\
+ITEM(DOWN,					L"Down")\
+ITEM(SNAPSHOT,				L"Sys Req")\
+ITEM(INSERT,				L"Insert")\
+ITEM(DELETE,				L"Delete")\
+ITEM(0,						L"0")\
+ITEM(1,						L"1")\
+ITEM(2,						L"2")\
+ITEM(3,						L"3")\
+ITEM(4,						L"4")\
+ITEM(5,						L"5")\
+ITEM(6,						L"6")\
+ITEM(7,						L"7")\
+ITEM(8,						L"8")\
+ITEM(9,						L"9")\
+ITEM(A,						L"A")\
+ITEM(B,						L"B")\
+ITEM(C,						L"C")\
+ITEM(D,						L"D")\
+ITEM(E,						L"E")\
+ITEM(F,						L"F")\
+ITEM(G,						L"G")\
+ITEM(H,						L"H")\
+ITEM(I,						L"I")\
+ITEM(J,						L"J")\
+ITEM(K,						L"K")\
+ITEM(L,						L"L")\
+ITEM(M,						L"M")\
+ITEM(N,						L"N")\
+ITEM(O,						L"O")\
+ITEM(P,						L"P")\
+ITEM(Q,						L"Q")\
+ITEM(R,						L"R")\
+ITEM(S,						L"S")\
+ITEM(T,						L"T")\
+ITEM(U,						L"U")\
+ITEM(V,						L"V")\
+ITEM(W,						L"W")\
+ITEM(X,						L"X")\
+ITEM(Y,						L"Y")\
+ITEM(Z,						L"Z")\
+ITEM(NUMPAD0,				L"Num 0")\
+ITEM(NUMPAD1,				L"Num 1")\
+ITEM(NUMPAD2,				L"Num 2")\
+ITEM(NUMPAD3,				L"Num 3")\
+ITEM(NUMPAD4,				L"Num 4")\
+ITEM(NUMPAD5,				L"Num 5")\
+ITEM(NUMPAD6,				L"Num 6")\
+ITEM(NUMPAD7,				L"Num 7")\
+ITEM(NUMPAD8,				L"Num 8")\
+ITEM(NUMPAD9,				L"Num 9")\
+ITEM(MULTIPLY,				L"Num *")\
+ITEM(ADD,					L"Num +")\
+ITEM(SUBTRACT,				L"Num -")\
+ITEM(DECIMAL,				L"Num Del")\
+ITEM(DIVIDE,				L"/")\
+ITEM(F1,					L"F1")\
+ITEM(F2,					L"F2")\
+ITEM(F3,					L"F3")\
+ITEM(F4,					L"F4")\
+ITEM(F5,					L"F5")\
+ITEM(F6,					L"F6")\
+ITEM(F7,					L"F7")\
+ITEM(F8,					L"F8")\
+ITEM(F9,					L"F9")\
+ITEM(F10,					L"F10")\
+ITEM(F11,					L"F11")\
+ITEM(F12,					L"F12")\
+ITEM(NUMLOCK,				L"Pause")\
+ITEM(SCROLL,				L"Scroll Lock")\
+ITEM(BROWSER_HOME,			L"M")\
+ITEM(VOLUME_MUTE,			L"D")\
+ITEM(VOLUME_DOWN,			L"C")\
+ITEM(VOLUME_UP,				L"B")\
+ITEM(MEDIA_NEXT_TRACK,		L"P")\
+ITEM(MEDIA_PREV_TRACK,		L"Q")\
+ITEM(MEDIA_STOP,			L"J")\
+ITEM(MEDIA_PLAY_PAUSE,		L"G")\
+ITEM(LAUNCH_APP2,			L"F")\
+ITEM(OEM_PLUS,				L"=")\
+ITEM(OEM_COMMA,				L",")\
+ITEM(OEM_MINUS,				L"-")\
+ITEM(OEM_PERIOD,			L".")\
+ITEM(OEM_102,				L"\\")\
+ITEM(SEMICOLON,				L";")\
+ITEM(SLASH,					L"/")\
+ITEM(GRAVE_ACCENT,			L"`")\
+ITEM(RIGHT_BRACKET,			L"[")\
+ITEM(BACKSLASH,				L"\\")\
+ITEM(LEFT_BRACKET,			L"]")\
+ITEM(APOSTROPHE,			L"'")\
+
+#define GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM(NAME, CODE) KEY_##NAME = CODE,
 		enum class VKEY
 		{
-			_UNKNOWN = -1,
+			KEY_UNKNOWN = -1,
+			KEY_MAXIMUM = 255,
 			GUI_DEFINE_KEYBOARD_CODE(GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM)
 		};
 #undef GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM
-		static bool operator == (VKEY a, VKEY b) { return (vint)a == (vint)b; }
-		static bool operator != (VKEY a, VKEY b) { return (vint)a != (vint)b; }
-		static bool operator <  (VKEY a, VKEY b) { return (vint)a <  (vint)b; }
-		static bool operator <= (VKEY a, VKEY b) { return (vint)a <= (vint)b; }
-		static bool operator >  (VKEY a, VKEY b) { return (vint)a >  (vint)b; }
-		static bool operator >= (VKEY a, VKEY b) { return (vint)a >= (vint)b; }
+		static auto operator <=> (VKEY a, VKEY b) { return (vint)a <=> (vint)b; }
 		static VKEY operator &  (VKEY a, VKEY b) { return (VKEY)((vint)a & (vint)b); }
 		static VKEY operator |  (VKEY a, VKEY b) { return (VKEY)((vint)a | (vint)b); }
 

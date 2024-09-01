@@ -25,7 +25,7 @@ Elements
 ***********************************************************************/
 
 			/// <summary>
-			/// Defines a shape for some <see cref="IGuiGraphicsElement"></see>.
+			/// Defines a shape for some <see cref="IGuiGraphicsElement"/>.
 			/// </summary>
 			enum class ElementShapeType
 			{
@@ -38,16 +38,15 @@ Elements
 			};
 
 			/// <summary>
-			/// Defines a shape for some <see cref="IGuiGraphicsElement"></see>.
+			/// Defines a shape for some <see cref="IGuiGraphicsElement"/>.
 			/// </summary>
 			struct ElementShape
 			{
 				ElementShapeType		shapeType = ElementShapeType::Rectangle;
-				int						radiusX = 0;
-				int						radiusY = 0;
+				vint					radiusX = 0;
+				vint					radiusY = 0;
 
-				bool operator==(const ElementShape& value)const { return shapeType == value.shapeType && radiusX == value.radiusX && radiusY == value.radiusY; }
-				bool operator!=(const ElementShape& value)const { return !(*this == value); }
+				GUI_DEFINE_COMPARE_OPERATORS(ElementShape)
 			};
 
 			/// <summary>
@@ -55,7 +54,8 @@ Elements
 			/// </summary>
 			class GuiFocusRectangleElement : public GuiElementBase<GuiFocusRectangleElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiFocusRectangleElement, L"FocusRectangle")
+				friend class GuiElementBase<GuiFocusRectangleElement>;
+				static constexpr const wchar_t* ElementTypeName = L"FocusRectangle";
 			protected:
 
 				GuiFocusRectangleElement();
@@ -67,7 +67,8 @@ Elements
 			/// </summary>
 			class GuiSolidBorderElement : public GuiElementBase<GuiSolidBorderElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiSolidBorderElement, L"SolidBorder")
+				friend class GuiElementBase<GuiSolidBorderElement>;
+				static constexpr const wchar_t* ElementTypeName = L"SolidBorder";
 			protected:
 				Color					color;
 				ElementShape			shape;
@@ -101,7 +102,8 @@ Elements
 			/// </summary>
 			class Gui3DBorderElement : public GuiElementBase<Gui3DBorderElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(Gui3DBorderElement, L"3DBorder")
+				friend class GuiElementBase<Gui3DBorderElement>;
+				static constexpr const wchar_t* ElementTypeName = L"3DBorder";
 			protected:
 				Color					color1;
 				Color					color2;
@@ -141,10 +143,11 @@ Elements
 			/// </summary>
 			class Gui3DSplitterElement : public GuiElementBase<Gui3DSplitterElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(Gui3DSplitterElement, L"3DSplitter")
+				friend class GuiElementBase<Gui3DSplitterElement>;
+				static constexpr const wchar_t* ElementTypeName = L"3DSplitter";
 			public:
 				/// <summary>
-				/// Defines a direction of the <see cref="Gui3DSplitterElement"></see>.
+				/// Defines a direction of the <see cref="Gui3DSplitterElement"/>.
 				/// </summary>
 				enum Direction
 				{
@@ -204,7 +207,8 @@ Elements
 			/// </summary>
 			class GuiSolidBackgroundElement : public GuiElementBase<GuiSolidBackgroundElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiSolidBackgroundElement, L"SolidBackground")
+				friend class GuiElementBase<GuiSolidBackgroundElement>;
+				static constexpr const wchar_t* ElementTypeName = L"SolidBackground";
 			protected:
 				Color					color;
 				ElementShape			shape;
@@ -212,14 +216,14 @@ Elements
 				GuiSolidBackgroundElement();
 			public:
 				/// <summary>
-				/// Get the border color.
+				/// Get the background color.
 				/// </summary>
-				/// <returns>The border color.</returns>
+				/// <returns>The background color.</returns>
 				Color					GetColor();
 				/// <summary>
-				/// Set the border color.
+				/// Set the background color.
 				/// </summary>
-				/// <param name="value">The new border color.</param>
+				/// <param name="value">The new background color.</param>
 				void					SetColor(Color value);
 				/// <summary>
 				/// Get the shape.
@@ -238,10 +242,11 @@ Elements
 			/// </summary>
 			class GuiGradientBackgroundElement : public GuiElementBase<GuiGradientBackgroundElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiGradientBackgroundElement, L"GradientBackground")
+				friend class GuiElementBase<GuiGradientBackgroundElement>;
+				static constexpr const wchar_t* ElementTypeName = L"GradientBackground";
 			public:
 				/// <summary>
-				/// Defines a direction of the <see cref="GuiGradientBackgroundElement"></see>.
+				/// Defines a direction of the <see cref="GuiGradientBackgroundElement"/>.
 				/// </summary>
 				enum Direction
 				{
@@ -316,7 +321,8 @@ Elements
 			/// </summary>
 			class GuiInnerShadowElement : public GuiElementBase<GuiInnerShadowElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiInnerShadowElement, L"InnerShadow")
+				friend class GuiElementBase<GuiInnerShadowElement>;
+				static constexpr const wchar_t* ElementTypeName = L"InnerShadow";
 			protected:
 				Color					color;
 				vint					thickness = 0;
@@ -351,7 +357,8 @@ Elements
 			/// </summary>
 			class GuiSolidLabelElement : public GuiElementBase<GuiSolidLabelElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiSolidLabelElement, L"SolidLabel");
+				friend class GuiElementBase<GuiSolidLabelElement>;
+				static constexpr const wchar_t* ElementTypeName = L"SolidLabel";
 			protected:
 				Color					color;
 				FontProperties			fontProperties;
@@ -475,7 +482,8 @@ Elements
 			/// </summary>
 			class GuiImageFrameElement : public GuiElementBase<GuiImageFrameElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiImageFrameElement, L"ImageFrame");
+				friend class GuiElementBase<GuiImageFrameElement>;
+				static constexpr const wchar_t* ElementTypeName = L"ImageFrame";
 			protected:
 				Ptr<INativeImage>		image;
 				vint					frameIndex;
@@ -568,9 +576,10 @@ Elements
 			/// </summary>
 			class GuiPolygonElement : public GuiElementBase<GuiPolygonElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiPolygonElement, L"Polygon");
+				friend class GuiElementBase<GuiPolygonElement>;
 
 				typedef collections::Array<Point>			PointArray;
+				static constexpr const wchar_t*				ElementTypeName = L"Polygon";
 			protected:
 				Size							size;
 				PointArray						points;

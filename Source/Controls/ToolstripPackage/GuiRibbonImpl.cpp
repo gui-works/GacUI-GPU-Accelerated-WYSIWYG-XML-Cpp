@@ -10,44 +10,48 @@ namespace vl
 			using namespace compositions;
 
 /***********************************************************************
-GalleryItemArranger
+GalleryItemArrangerRepeatComposition
 ***********************************************************************/
 
 			namespace ribbon_impl
 			{
-				void GalleryItemArranger::BeginPlaceItem(bool forMoving, Rect newBounds, vint& newStartIndex)
+				void GalleryItemArrangerRepeatComposition::Layout_BeginPlaceItem(bool firstPhase, Rect newBounds, vint& newStartIndex)
 				{
-					if (forMoving)
+					if (firstPhase)
 					{
 						pim_itemWidth = itemWidth;
 						newStartIndex = firstIndex;
 					}
 				}
 
-				void GalleryItemArranger::PlaceItem(bool forMoving, bool newCreatedStyle, vint index, ItemStyleRecord style, Rect viewBounds, Rect& bounds, Margin& alignmentToParent)
+				compositions::VirtualRepeatPlaceItemResult GalleryItemArrangerRepeatComposition::Layout_PlaceItem(bool firstPhase, bool newCreatedStyle, vint index, ItemStyleRecord style, Rect viewBounds, Rect& bounds, Margin& alignmentToParent)
 				{
 					alignmentToParent = Margin(-1, 0, -1, 0);
 					bounds = Rect(Point((index - firstIndex) * itemWidth, 0), Size(itemWidth, 0));
 
-					if (forMoving)
+					if (firstPhase)
 					{
-						vint styleWidth = callback->GetStylePreferredSize(GetStyleBounds(style)).x;
+						vint styleWidth = Layout_GetStylePreferredSize(style).x;
 						if (pim_itemWidth < styleWidth)
 						{
 							pim_itemWidth = styleWidth;
 						}
 					}
+
+					if (bounds.Right() + pim_itemWidth > viewBounds.Right())
+					{
+						return VirtualRepeatPlaceItemResult::HitLastItem;
+					}
+					else
+					{
+						return VirtualRepeatPlaceItemResult::None;
+					}
 				}
 
-				bool GalleryItemArranger::IsItemOutOfViewBounds(vint index, ItemStyleRecord style, Rect bounds, Rect viewBounds)
-				{
-					return bounds.Right() + pim_itemWidth > viewBounds.Right();
-				}
-
-				bool GalleryItemArranger::EndPlaceItem(bool forMoving, Rect newBounds, vint newStartIndex)
+				compositions::VirtualRepeatEndPlaceItemResult GalleryItemArrangerRepeatComposition::Layout_EndPlaceItem(bool firstPhase, Rect newBounds, vint newStartIndex)
 				{
 					bool result = false;
-					if (forMoving)
+					if (firstPhase)
 					{
 						if (pim_itemWidth != itemWidth)
 						{
@@ -61,32 +65,46 @@ GalleryItemArranger
 						UnblockScrollUpdate();
 					}
 
-					return result;
+					return result ?
+						VirtualRepeatEndPlaceItemResult::TotalSizeUpdated :
+						VirtualRepeatEndPlaceItemResult::None;
 				}
 
-				void GalleryItemArranger::InvalidateItemSizeCache()
+				void GalleryItemArrangerRepeatComposition::Layout_EndLayout(bool totalSizeUpdated)
+				{
+				}
+
+				void GalleryItemArrangerRepeatComposition::Layout_InvalidateItemSizeCache()
 				{
 					itemWidth = 1;
 				}
 
-				Size GalleryItemArranger::OnCalculateTotalSize()
+				void GalleryItemArrangerRepeatComposition::Layout_CalculateTotalSize(Size& full, Size& minimum)
+				{
+					full = Size(1, 1);
+					minimum = Size(1, 1);
+				}
+
+				Size GalleryItemArrangerRepeatComposition::Layout_GetAdoptedSize(Size expectedSize)
 				{
 					return Size(1, 1);
 				}
 
-				GalleryItemArranger::GalleryItemArranger(GuiBindableRibbonGalleryList* _owner)
+				GalleryItemArrangerRepeatComposition::GalleryItemArrangerRepeatComposition(GuiBindableRibbonGalleryList* _owner)
 					:owner(_owner)
 				{
 				}
 
-				GalleryItemArranger::~GalleryItemArranger()
+				GalleryItemArrangerRepeatComposition::~GalleryItemArrangerRepeatComposition()
 				{
 				}
 
-				vint GalleryItemArranger::FindItem(vint itemIndex, compositions::KeyDirection key)
+				vint GalleryItemArrangerRepeatComposition::FindItemByVirtualKeyDirection(vint itemIndex, compositions::KeyDirection key)
 				{
-					vint count = itemProvider->Count();
+					vint count = itemSource->GetCount();
+					if (itemIndex < 0 || itemIndex >= count) return -1;
 					vint groupCount = viewBounds.Width() / itemWidth;
+					if (groupCount == 0) groupCount = 1;
 
 					switch (key)
 					{
@@ -117,42 +135,36 @@ GalleryItemArranger
 					else return itemIndex;
 				}
 
-				GuiListControl::EnsureItemVisibleResult GalleryItemArranger::EnsureItemVisible(vint itemIndex)
+				compositions::VirtualRepeatEnsureItemVisibleResult GalleryItemArrangerRepeatComposition::EnsureItemVisible(vint itemIndex)
 				{
-					if (callback)
+					if (!itemSource) return VirtualRepeatEnsureItemVisibleResult::NotMoved;
+					if (itemIndex < 0 || itemIndex >= itemSource->GetCount())
 					{
-						if (0 <= itemIndex && itemIndex < itemProvider->Count())
-						{
-							vint groupCount = viewBounds.Width() / itemWidth;
-							if (itemIndex < firstIndex)
-							{
-								firstIndex = itemIndex;
-								callback->OnTotalSizeChanged();
-							}
-							else if (itemIndex >= firstIndex + groupCount)
-							{
-								firstIndex = itemIndex - groupCount + 1;
-								callback->OnTotalSizeChanged();
-							}
-							return GuiListControl::EnsureItemVisibleResult::NotMoved;
-						}
-						else
-						{
-							return GuiListControl::EnsureItemVisibleResult::ItemNotExists;
-						}
+						return VirtualRepeatEnsureItemVisibleResult::ItemNotExists;
 					}
-					return GuiListControl::EnsureItemVisibleResult::NotMoved;
-				}
 
-				Size GalleryItemArranger::GetAdoptedSize(Size expectedSize)
-				{
-					return Size(1, 1);
-				}
-
-				void GalleryItemArranger::ScrollUp()
-				{
-					vint count = itemProvider->Count();
 					vint groupCount = viewBounds.Width() / itemWidth;
+					if (groupCount == 0) groupCount = 1;
+
+					if (itemIndex < firstIndex)
+					{
+						firstIndex = itemIndex;
+						InvalidateLayout();
+					}
+					else if (itemIndex >= firstIndex + groupCount)
+					{
+						firstIndex = itemIndex - groupCount + 1;
+						InvalidateLayout();
+					}
+					return VirtualRepeatEnsureItemVisibleResult::NotMoved;
+				}
+
+				void GalleryItemArrangerRepeatComposition::ScrollUp()
+				{
+					vint count = itemSource->GetCount();
+					vint groupCount = viewBounds.Width() / itemWidth;
+					if (groupCount == 0) groupCount = 1;
+
 					if (count > groupCount)
 					{
 						firstIndex -= groupCount;
@@ -160,18 +172,16 @@ GalleryItemArranger
 						{
 							firstIndex = 0;
 						}
-
-						if (callback)
-						{
-							callback->OnTotalSizeChanged();
-						}
+						InvalidateLayout();
 					}
 				}
 
-				void GalleryItemArranger::ScrollDown()
+				void GalleryItemArrangerRepeatComposition::ScrollDown()
 				{
-					vint count = itemProvider->Count();
+					vint count = itemSource->GetCount();
 					vint groupCount = viewBounds.Width() / itemWidth;
+					if (groupCount == 0) groupCount = 1;
+
 					if (count > groupCount)
 					{
 						firstIndex += groupCount;
@@ -179,20 +189,18 @@ GalleryItemArranger
 						{
 							firstIndex = count - groupCount;
 						}
-
-						if (callback)
-						{
-							callback->OnTotalSizeChanged();
-						}
+						InvalidateLayout();
 					}
 				}
 
-				void GalleryItemArranger::UnblockScrollUpdate()
+				void GalleryItemArrangerRepeatComposition::UnblockScrollUpdate()
 				{
 					blockScrollUpdate = false;
 
-					vint count = itemProvider->Count();
+					vint count = itemSource->GetCount();
 					vint groupCount = viewBounds.Width() / pim_itemWidth;
+					if (groupCount == 0) groupCount = 1;
+
 					owner->SetScrollUpEnabled(firstIndex > 0);
 					owner->SetScrollDownEnabled(firstIndex + groupCount < count);
 					if (owner->layout->GetItemWidth() != pim_itemWidth)
@@ -200,6 +208,34 @@ GalleryItemArranger
 						owner->layout->SetItemWidth(pim_itemWidth);
 						owner->UpdateLayoutSizeOffset();
 					}
+				}
+
+/***********************************************************************
+GalleryItemArranger
+***********************************************************************/
+
+				GalleryItemArranger::GalleryItemArranger(GuiBindableRibbonGalleryList* _owner)
+					: TBase(new TBase::ArrangerRepeatComposition(this, _owner))
+				{
+				}
+
+				GalleryItemArranger::~GalleryItemArranger()
+				{
+				}
+				
+				void GalleryItemArranger::ScrollUp()
+				{
+					GetRepeatComposition()->ScrollUp();
+				}
+
+				void GalleryItemArranger::ScrollDown()
+				{
+					GetRepeatComposition()->ScrollDown();
+				}
+
+				void GalleryItemArranger::UnblockScrollUpdate()
+				{
+					GetRepeatComposition()->UnblockScrollUpdate();
 				}
 
 /***********************************************************************

@@ -5,7 +5,6 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace parsing;
 		using namespace workflow;
 		using namespace workflow::analyzer;
 		using namespace reflection::description;
@@ -97,7 +96,7 @@ WorkflowGenerateCreatingVisitor
 				{
 					repr->Accept(this);
 
-					auto ref = MakePtr<WfReferenceExpression>();
+					auto ref = Ptr(new WfReferenceExpression);
 					ref->name.value = ctor->instanceName.ToString();
 					argumentInfo.expression = ref;
 				}
@@ -122,15 +121,15 @@ WorkflowGenerateCreatingVisitor
 				vint errorCount = errors.Count();
 				if (auto expr = info.loader->GetParameter(precompileContext, resolvingResult, propInfo, repr->instanceName, setter->attPosition, errors))
 				{
-					auto refInstance = MakePtr<WfReferenceExpression>();
+					auto refInstance = Ptr(new WfReferenceExpression);
 					refInstance->name.value = setTarget->instanceName.ToString();
 
-					auto assign = MakePtr<WfBinaryExpression>();
+					auto assign = Ptr(new WfBinaryExpression);
 					assign->op = WfBinaryOperator::Assign;
 					assign->first = refInstance;
 					assign->second = expr;
 
-					auto stat = MakePtr<WfExpressionStatement>();
+					auto stat = Ptr(new WfExpressionStatement);
 					stat->expression = assign;
 
 					return stat;
@@ -194,7 +193,7 @@ WorkflowGenerateCreatingVisitor
 				)
 			{
 				List<GlobalStringKey> pairedProps;
-				info.loader->GetPairedProperties(propInfo, pairedProps);
+				info.loader->GetPairedProperties(precompileContext, propInfo, pairedProps);
 				if (pairedProps.Count() == 0)
 				{
 					pairedProps.Add(propInfo.propertyName);
@@ -202,11 +201,11 @@ WorkflowGenerateCreatingVisitor
 
 				vint errorCount = errors.Count();
 				IGuiInstanceLoader::ArgumentMap arguments;
-				FOREACH(GlobalStringKey, pairedProp, pairedProps)
+				for (auto pairedProp : pairedProps)
 				{
 					usedProps.Add(pairedProp, info.loader);
 					auto pairedSetter = repr->setters[pairedProp];
-					FOREACH(Ptr<GuiValueRepr>, pairedValue, pairedSetter->values)
+					for (auto pairedValue : pairedSetter->values)
 					{
 						auto pairedInfo = resolvingResult.propertyResolvings[pairedValue.Obj()];
 						if (pairedInfo.loader == info.loader)
@@ -223,7 +222,8 @@ WorkflowGenerateCreatingVisitor
 				else if (errorCount == errors.Count())
 				{
 					WString propNames;
-					FOREACH_INDEXER(GlobalStringKey, pairedProp, propIndex, pairedProps)
+					// TODO: (enumerable) Linq:Aggregate
+					for (auto [pairedProp, propIndex] : indexed(pairedProps))
 					{
 						if (propIndex > 0)propNames += L", ";
 						propNames += L"\"" + pairedProp.ToString() + L"\"";
@@ -253,7 +253,8 @@ WorkflowGenerateCreatingVisitor
 					WORKFLOW_ENVIRONMENT_VARIABLE_ADD
 
 					Group<GlobalStringKey, IGuiInstanceLoader*> usedProps;
-					FOREACH(GlobalStringKey, prop, From(repr->setters.Keys()).Reverse())
+					// TODO: (enumerable) foreach:reversed on dictionary
+					for (auto prop : From(repr->setters.Keys()).Reverse())
 					{
 						auto setter = repr->setters[prop];
 						IGuiInstanceLoader::PropertyInfo propInfo(reprTypeInfo, prop);
@@ -269,7 +270,7 @@ WorkflowGenerateCreatingVisitor
 						}
 						else if (setter->binding == GlobalStringKey::Empty)
 						{
-							FOREACH(Ptr<GuiValueRepr>, value, setter->values)
+							for (auto value : setter->values)
 							{
 								auto info = resolvingResult.propertyResolvings[value.Obj()];
 								if (info.info->usage == GuiInstancePropertyInfo::Property)
@@ -303,7 +304,8 @@ WorkflowGenerateCreatingVisitor
 			{
 				WORKFLOW_ENVIRONMENT_VARIABLE_ADD
 
-				FOREACH_INDEXER(GlobalStringKey, prop, index, repr->setters.Keys())
+				// TODO: (enumerable) foreach on dictionary
+				for (auto [prop, index] : indexed(repr->setters.Keys()))
 				{
 					auto setter = repr->setters.Values()[index];
 					auto propertyResolving = resolvingResult.propertyResolvings[setter->values[0].Obj()];
@@ -311,7 +313,7 @@ WorkflowGenerateCreatingVisitor
 
 					if (setter->binding == GlobalStringKey::Empty)
 					{
-						FOREACH(Ptr<GuiValueRepr>, value, setter->values)
+						for (auto value : setter->values)
 						{
 							auto argument = GetArgumentInfo(setter->attPosition, value.Obj());
 							if (argument.typeInfo && argument.expression)
@@ -378,18 +380,18 @@ WorkflowGenerateCreatingVisitor
 					FillCtorArguments(repr, ctorLoader, ctorTypeInfo, resolvingResult.rootCtorArguments);
 
 					{
-						auto refInstance = MakePtr<WfReferenceExpression>();
+						auto refInstance = Ptr(new WfReferenceExpression);
 						refInstance->name.value = repr->instanceName.ToString();
 
-						auto refThis = MakePtr<WfReferenceExpression>();
+						auto refThis = Ptr(new WfReferenceExpression);
 						refThis->name.value = L"<this>";
 
-						auto assign = MakePtr<WfBinaryExpression>();
+						auto assign = Ptr(new WfBinaryExpression);
 						assign->op = WfBinaryOperator::Assign;
 						assign->first = refInstance;
 						assign->second = refThis;
 
-						auto stat = MakePtr<WfExpressionStatement>();
+						auto stat = Ptr(new WfExpressionStatement);
 						stat->expression = assign;
 
 						statements->statements.Add(stat);
@@ -404,24 +406,24 @@ WorkflowGenerateCreatingVisitor
 						}
 					}
 
-					FOREACH(Ptr<GuiInstanceParameter>, parameter, resolvingResult.context->parameters)
+					for (auto parameter : resolvingResult.context->parameters)
 					{
-						auto refInstance = MakePtr<WfReferenceExpression>();
+						auto refInstance = Ptr(new WfReferenceExpression);
 						refInstance->name.value = parameter->name.ToString();
 
-						auto refThis = MakePtr<WfReferenceExpression>();
+						auto refThis = Ptr(new WfReferenceExpression);
 						refThis->name.value = L"<this>";
 
-						auto refParameter = MakePtr<WfMemberExpression>();
+						auto refParameter = Ptr(new WfMemberExpression);
 						refParameter->parent = refThis;
 						refParameter->name.value = parameter->name.ToString();
 
-						auto assign = MakePtr<WfBinaryExpression>();
+						auto assign = Ptr(new WfBinaryExpression);
 						assign->op = WfBinaryOperator::Assign;
 						assign->first = refInstance;
 						assign->second = refParameter;
 
-						auto stat = MakePtr<WfExpressionStatement>();
+						auto stat = Ptr(new WfExpressionStatement);
 						stat->expression = assign;
 
 						statements->statements.Add(stat);
@@ -438,6 +440,41 @@ WorkflowGenerateCreatingVisitor
 					{
 						Workflow_RecordScriptPosition(precompileContext, resolvingResult.context->tagPosition, ctorStats);
 						statements->statements.Add(ctorStats);
+						
+						auto instanceName = repr->instanceName.ToString();
+						auto generatedNamePrefix = WString::Unmanaged(L"<precompile>");
+						if (instanceName.Length() < generatedNamePrefix.Length() || instanceName.Left(generatedNamePrefix.Length()) != generatedNamePrefix)
+						{
+							auto refName = Ptr(new WfStringExpression);
+							refName->value.value = instanceName;
+
+							auto refInstance = Ptr(new WfReferenceExpression);
+							refInstance->name.value = instanceName;
+
+							auto refThis = Ptr(new WfReferenceExpression);
+							refThis->name.value = L"<this>";
+
+							auto refSetNamedObject = Ptr(new WfMemberExpression);
+							refSetNamedObject->parent = refThis;
+							refSetNamedObject->name.value = L"SetNamedObject";
+
+							auto refCall = Ptr(new WfCallExpression);
+							refCall->function = refSetNamedObject;
+							refCall->arguments.Add(refName);
+							refCall->arguments.Add(refInstance);
+
+							auto statSetNamedObject = Ptr(new WfExpressionStatement);
+							statSetNamedObject->expression = refCall;
+
+							if (auto block = ctorStats.Cast<WfBlockStatement>())
+							{
+								block->statements.Add(statSetNamedObject);
+							}
+							else
+							{
+								statements->statements.Add(statSetNamedObject);
+							}
+						}
 					}
 					else if (errorCount == errors.Count())
 					{

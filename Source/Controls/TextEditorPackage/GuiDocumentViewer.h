@@ -75,6 +75,13 @@ GuiDocumentCommonInterface
 				GuiControl*									documentControl = nullptr;
 				elements::GuiDocumentElement*				documentElement = nullptr;
 				compositions::GuiBoundsComposition*			documentComposition = nullptr;
+
+				compositions::GuiGraphicsComposition*		documentMouseArea = nullptr;
+				Ptr<compositions::IGuiGraphicsEventHandler>	onMouseMoveHandler;
+				Ptr<compositions::IGuiGraphicsEventHandler>	onMouseDownHandler;
+				Ptr<compositions::IGuiGraphicsEventHandler>	onMouseUpHandler;
+				Ptr<compositions::IGuiGraphicsEventHandler>	onMouseLeaveHandler;
+
 				Ptr<DocumentHyperlinkRun::Package>			activeHyperlinks;
 				bool										dragging = false;
 				EditMode									editMode = EditMode::ViewOnly;
@@ -86,9 +93,18 @@ GuiDocumentCommonInterface
 				void										InvokeUndoRedoChanged();
 				void										InvokeModifiedChanged();
 				void										UpdateCaretPoint();
+				void										EnsureDocumentRectVisible(Rect bounds);
 				void										Move(TextPos caret, bool shift, bool frontSide);
 				bool										ProcessKey(VKEY code, bool shift, bool ctrl);
-				void										InstallDocumentViewer(GuiControl* _sender, compositions::GuiGraphicsComposition* _container, compositions::GuiGraphicsComposition* eventComposition, compositions::GuiGraphicsComposition* focusableComposition);
+				void										InstallDocumentViewer(
+																GuiControl* _sender,
+																compositions::GuiGraphicsComposition* _mouseArea,
+																compositions::GuiGraphicsComposition* _container,
+																compositions::GuiGraphicsComposition* eventComposition,
+																compositions::GuiGraphicsComposition* focusableComposition
+																);
+				void										ReplaceMouseArea(compositions::GuiGraphicsComposition* _mouseArea);
+
 				void										SetActiveHyperlink(Ptr<DocumentHyperlinkRun::Package> package);
 				void										ActivateActiveHyperlink(bool activate);
 				void										AddShortcutCommand(VKEY key, const Func<void()>& eventHandler);
@@ -102,6 +118,9 @@ GuiDocumentCommonInterface
 				void										OnLostFocus(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void										OnKeyDown(compositions::GuiGraphicsComposition* sender, compositions::GuiKeyEventArgs& arguments);
 				void										OnCharInput(compositions::GuiGraphicsComposition* sender, compositions::GuiCharEventArgs& arguments);
+
+				void										UpdateCursor(INativeCursor* cursor);
+				Point										GetMouseOffset();
 				void										OnMouseMove(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
 				void										OnMouseDown(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
 				void										OnMouseUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);

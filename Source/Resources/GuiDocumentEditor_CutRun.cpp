@@ -33,7 +33,7 @@ If a run decides that itself should be cut, then leftRun and rightRun contains n
 					vint leftCount = 0;
 					Ptr<DocumentRun> selectedRun;
 
-					FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+					for (auto subRun : run->runs)
 					{
 						RunRange range = runRanges[subRun.Obj()];
 						if (range.start<position)
@@ -63,6 +63,7 @@ If a run decides that itself should be cut, then leftRun and rightRun contains n
 
 					Ptr<DocumentContainerRun> leftContainer = CopyRun(run).Cast<DocumentContainerRun>();
 					Ptr<DocumentContainerRun> rightContainer = CopyRun(run).Cast<DocumentContainerRun>();
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i<run->runs.Count(); i++)
 					{
 						(i<leftCount ? leftContainer : rightContainer)->runs.Add(run->runs[i]);
@@ -75,10 +76,10 @@ If a run decides that itself should be cut, then leftRun and rightRun contains n
 				{
 					RunRange range = runRanges[run];
 
-					Ptr<DocumentTextRun> leftText = new DocumentTextRun;
+					auto leftText = Ptr(new DocumentTextRun);
 					leftText->text = run->text.Sub(0, position - range.start);
 
-					Ptr<DocumentTextRun> rightText = new DocumentTextRun;
+					auto rightText = Ptr(new DocumentTextRun);
 					rightText->text = run->text.Sub(position - range.start, range.end - position);
 
 					leftRun = leftText;

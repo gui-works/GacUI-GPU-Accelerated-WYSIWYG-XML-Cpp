@@ -14,6 +14,7 @@ static_assert(false, "Don't use GacUIReflection.(h|cpp) if VCZH_DEBUG_NO_REFLECT
 #define VCZH_PRESENTATION_REFLECTION_GUIREFLECTIONPLUGIN
 
 #include "../../GacUIReflectionHelper.h"
+#include "../../Utilities/FakeServices/GuiFakeDialogServiceBase.h"
 
 namespace vl
 {
@@ -29,6 +30,8 @@ Type List (Basic)
 ***********************************************************************/
 
 #define GUIREFLECTIONBASIC_TYPELIST(F)\
+			F(presentation::helper_types::SiteValue)\
+			F(presentation::helper_types::LocalizedStrings)\
 			F(presentation::Color)\
 			F(presentation::Alignment)\
 			F(presentation::AxisDirection)\
@@ -51,8 +54,11 @@ Type List (Basic)
 			F(presentation::INativeImage::FormatType)\
 			F(presentation::INativeCursor)\
 			F(presentation::INativeCursor::SystemCursorType)\
+			F(presentation::BoolOption)\
+			F(presentation::NativeWindowFrameConfig)\
 			F(presentation::INativeWindow)\
 			F(presentation::INativeWindow::WindowSizeState)\
+			F(presentation::INativeWindow::WindowMode)\
 			F(presentation::INativeDelay)\
 			F(presentation::INativeDelay::ExecuteStatus)\
 			F(presentation::INativeScreen)\
@@ -63,6 +69,7 @@ Type List (Basic)
 			F(presentation::INativeClipboardWriter)\
 			F(presentation::INativeClipboardService)\
 			F(presentation::INativeScreenService)\
+			F(presentation::NativeGlobalShortcutKeyResult)\
 			F(presentation::INativeInputService)\
 			F(presentation::INativeDialogService::MessageBoxButtonsInput)\
 			F(presentation::INativeDialogService::MessageBoxButtonsOutput)\
@@ -72,6 +79,7 @@ Type List (Basic)
 			F(presentation::INativeDialogService::ColorDialogCustomColorOptions)\
 			F(presentation::INativeDialogService::FileDialogTypes)\
 			F(presentation::INativeDialogService::FileDialogOptions)\
+			F(presentation::INativeWindowListener::HitTestResult)\
 			F(presentation::INativeController)\
 			F(presentation::GuiImageData)\
 			F(presentation::GuiTextData)\
@@ -101,7 +109,19 @@ Type List (Basic)
 			F(presentation::GuiResourcePathResolver)\
 			F(presentation::GuiResourceUsage)\
 			F(presentation::IGuiResourceManager)\
-			F(presentation::INativeWindowListener::HitTestResult)\
+			F(presentation::IMessageBoxDialogAction)\
+			F(presentation::IMessageBoxDialogViewModel)\
+			F(presentation::IDialogConfirmation)\
+			F(presentation::IColorDialogViewModel)\
+			F(presentation::ICommonFontDialogViewModel)\
+			F(presentation::ISimpleFontDialogViewModel)\
+			F(presentation::IFullFontDialogViewModel)\
+			F(presentation::FileDialogFolderType)\
+			F(presentation::IFileDialogFolder)\
+			F(presentation::FileDialogFileType)\
+			F(presentation::IFileDialogFile)\
+			F(presentation::IFileDialogFilter)\
+			F(presentation::IFileDialogViewModel)\
 
 /***********************************************************************
 Type List (Elements)
@@ -162,10 +182,11 @@ Type List (Compositions)
 			F(presentation::compositions::IGuiAltActionContainer)\
 			F(presentation::compositions::IGuiAltActionHost)\
 			F(presentation::compositions::IGuiTabAction)\
+			F(presentation::compositions::GuiRepeatCompositionBase)\
+			F(presentation::compositions::VirtualRepeatEnsureItemVisibleResult)\
 
 #define GUIREFLECTIONCOMPOSITION_CLASS_TYPELIST(F)\
 			F(presentation::compositions::GuiGraphicsComposition)\
-			F(presentation::compositions::GuiGraphicsSite)\
 			F(presentation::compositions::GuiWindowComposition)\
 			F(presentation::compositions::GuiBoundsComposition)\
 			F(presentation::compositions::GuiStackComposition)\
@@ -181,9 +202,14 @@ Type List (Compositions)
 			F(presentation::compositions::GuiPartialViewComposition)\
 			F(presentation::compositions::GuiSharedSizeItemComposition)\
 			F(presentation::compositions::GuiSharedSizeRootComposition)\
-			F(presentation::compositions::GuiRepeatCompositionBase)\
+			F(presentation::compositions::GuiNonVirtialRepeatCompositionBase)\
 			F(presentation::compositions::GuiRepeatStackComposition)\
 			F(presentation::compositions::GuiRepeatFlowComposition)\
+			F(presentation::compositions::GuiVirtualRepeatCompositionBase)\
+			F(presentation::compositions::GuiRepeatFreeHeightItemComposition)\
+			F(presentation::compositions::GuiRepeatFixedHeightItemComposition)\
+			F(presentation::compositions::GuiRepeatFixedSizeMultiColumnItemComposition)\
+			F(presentation::compositions::GuiRepeatFixedHeightMultiColumnItemComposition)\
 			F(presentation::compositions::GuiResponsiveCompositionBase)\
 			F(presentation::compositions::GuiResponsiveSharedComposition)\
 			F(presentation::compositions::GuiResponsiveViewComposition)\
@@ -221,7 +247,6 @@ Type List (Templates)
 			F(presentation::controls::ButtonState)\
 			F(presentation::controls::ColumnSortingState)\
 			F(presentation::controls::TabPageOrder)\
-			F(presentation::templates::BoolOption)\
 			F(presentation::controls::ITextBoxCommandExecutor)\
 			F(presentation::controls::IScrollCommandExecutor)\
 			F(presentation::controls::ITabCommandExecutor)\
@@ -237,9 +262,9 @@ Type List (Templates)
 
 #define GUIREFLECTIONTEMPLATES_CLASS_TYPELIST(F)\
 			F(presentation::templates::GuiTemplate)\
-			F(presentation::templates::GuiListItemTemplate)\
 			F(presentation::templates::GuiCommonDatePickerLook)\
 			F(presentation::templates::GuiCommonScrollViewLook)\
+			GUI_CORE_CONTROL_TEMPLATE_DECL(GUIREFLECTIONTEMPLATES_##F)\
 			GUI_CONTROL_TEMPLATE_DECL(GUIREFLECTIONTEMPLATES_##F)\
 			GUI_ITEM_TEMPLATE_DECL(GUIREFLECTIONTEMPLATES_##F)\
 			F(presentation::controls::list::MainColumnVisualizerTemplate)\
@@ -261,6 +286,7 @@ Type List (Controls)
 			F(presentation::theme::ThemeName)\
 			F(presentation::theme::ITheme)\
 			F(presentation::theme::ThemeTemplates)\
+			F(presentation::controls::GuiDisposedFlag)\
 			F(presentation::controls::GuiDialogBase)\
 			F(presentation::controls::GuiMessageDialog)\
 			F(presentation::controls::GuiColorDialog)\
@@ -270,9 +296,9 @@ Type List (Controls)
 			F(presentation::controls::GuiSaveFileDialog)\
 			F(presentation::controls::GuiSelectableButton::GroupController)\
 			F(presentation::controls::GuiSelectableButton::MutexGroupController)\
-			F(presentation::controls::GuiListControl::IItemProviderCallback)\
+			F(presentation::controls::list::IItemProviderCallback)\
+			F(presentation::controls::list::IItemProvider)\
 			F(presentation::controls::GuiListControl::IItemArrangerCallback)\
-			F(presentation::controls::GuiListControl::IItemProvider)\
 			F(presentation::controls::GuiListControl::EnsureItemVisibleResult)\
 			F(presentation::controls::GuiListControl::IItemArranger)\
 			F(presentation::controls::list::ItemProviderBase)\
@@ -339,9 +365,12 @@ Type List (Controls)
 			F(presentation::controls::list::DataReverseSorter)\
 			F(presentation::controls::list::DataColumn)\
 			F(presentation::controls::list::DataProvider)\
+			F(presentation::controls::GuiBindableTextList::ItemSource)\
+			F(presentation::controls::GuiBindableListView::ItemSource)\
+			F(presentation::controls::GuiBindableTreeView::ItemSourceNode)\
+			F(presentation::controls::GuiBindableTreeView::ItemSource)\
 
 #define GUIREFLECTIONCONTROLS_CLASS_TYPELIST(F)\
-			F(presentation::controls::GuiDisposedFlag)\
 			F(presentation::controls::GuiControl)\
 			F(presentation::controls::GuiCustomControl)\
 			F(presentation::controls::GuiLabel)\
@@ -371,6 +400,7 @@ Type List (Controls)
 			F(presentation::controls::GuiVirtualTreeView)\
 			F(presentation::controls::GuiTreeView)\
 			F(presentation::controls::GuiComboBoxBase)\
+			F(presentation::controls::GuiComboButton)\
 			F(presentation::controls::GuiComboBoxListControl)\
 			F(presentation::controls::GuiToolstripMenu)\
 			F(presentation::controls::GuiToolstripMenuBar)\
@@ -408,6 +438,9 @@ Type List (Controls)
 Type List
 ***********************************************************************/
 
+#define GUIREFLECTIONHELPERTYPES_TYPELIST(F)\
+			F(presentation::helper_types::SiteValue)\
+
 #define GUIREFLECTIONTEMPLATES_DECL_TYPE_INFO(NAME, BASE) DECL_TYPE_INFO(presentation::templates::NAME)
 
 			GUIREFLECTIONBASIC_TYPELIST(DECL_TYPE_INFO)
@@ -418,6 +451,8 @@ Type List
 			GUIREFLECTIONCONTROLS_TYPELIST(DECL_TYPE_INFO)
 
 #undef GUIREFLECTIONTEMPLATES_DECL_TYPE_INFO
+
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 #pragma warning(push)
 #pragma warning(disable:4250)
@@ -464,7 +499,7 @@ GuiEventInfoImpl
 					return false;
 				}
 
-				void InvokeInternal(DescriptableObject* thisObject, Ptr<IValueList> arguments)override
+				void InvokeInternal(DescriptableObject* thisObject, Ptr<IValueReadonlyList> arguments)override
 				{
 					GuiGraphicsEvent<T>* eventObject=eventRetriver(thisObject, false);
 					if(eventObject)
@@ -521,11 +556,11 @@ GuiEventInfoImpl
 			};
 
 			template<typename T>
-			WString GuiEventInfoImpl<T>::attachTemplate(L"::vl::__vwsn::EventAttach($This->GetEventReceiver()->$Name, $Handler)", false);
+			WString GuiEventInfoImpl<T>::attachTemplate = WString::Unmanaged(L"::vl::__vwsn::EventAttach($This->GetEventReceiver()->$Name, $Handler)");
 			template<typename T>
-			WString GuiEventInfoImpl<T>::detachTemplate(L"::vl::__vwsn::EventDetach($This->GetEventReceiver()->$Name, $Handler)", false);
+			WString GuiEventInfoImpl<T>::detachTemplate = WString::Unmanaged(L"::vl::__vwsn::EventDetach($This->GetEventReceiver()->$Name, $Handler)");
 			template<typename T>
-			WString GuiEventInfoImpl<T>::invokeTemplate(L"::vl::__vwsn::EventInvoke($This->GetEventReceiver()->$Name, $Handler)", false);
+			WString GuiEventInfoImpl<T>::invokeTemplate = WString::Unmanaged(L"::vl::__vwsn::EventInvoke($This->GetEventReceiver()->$Name, $Handler)");
 
 			template<typename T>
 			struct GuiEventArgumentTypeRetriver
@@ -545,19 +580,19 @@ Macros
 
 #define CLASS_MEMBER_GUIEVENT(EVENTNAME)\
 			AddEvent(\
-				new GuiEventInfoImpl<GuiEventArgumentTypeRetriver<decltype(&ClassType::EVENTNAME)>::Type>(\
+				Ptr(new GuiEventInfoImpl<GuiEventArgumentTypeRetriver<decltype(&ClassType::EVENTNAME)>::Type>(\
 					this,\
 					L ## #EVENTNAME,\
 					[](DescriptableObject* thisObject, bool addEventHandler){\
 						return &thisObject->SafeAggregationCast<ClassType>()->EVENTNAME;\
 					},\
 					false\
-				)\
+				))\
 			);\
 
 #define CLASS_MEMBER_GUIEVENT_COMPOSITION(EVENTNAME)\
 			AddEvent(\
-				new GuiEventInfoImpl<GuiEventArgumentTypeRetriver<decltype(&GuiGraphicsEventReceiver::EVENTNAME)>::Type>(\
+				Ptr(new GuiEventInfoImpl<GuiEventArgumentTypeRetriver<decltype(&GuiGraphicsEventReceiver::EVENTNAME)>::Type>(\
 					this,\
 					L ## #EVENTNAME,\
 					[](DescriptableObject* thisObject, bool addEventHandler){\
@@ -569,7 +604,7 @@ Macros
 						return &composition->GetEventReceiver()->EVENTNAME;\
 					},\
 					true\
-				)\
+				))\
 			);\
 
 #define CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(PROPERTYNAME)\
@@ -675,27 +710,27 @@ Interface Proxy (Compositions)
 Interface Proxy (Controls)
 ***********************************************************************/
 
-			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::GuiListControl::IItemProviderCallback)
+			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::list::IItemProviderCallback)
 
-				void OnAttached(presentation::controls::GuiListControl::IItemProvider* provider)override
+				void OnAttached(presentation::controls::list::IItemProvider* provider)override
 				{
 					INVOKE_INTERFACE_PROXY(OnAttached, provider);
 				}
 
-				void OnItemModified(vint start, vint count, vint newCount)override
+				void OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)override
 				{
-					INVOKE_INTERFACE_PROXY(OnItemModified, start, count, newCount);
+					INVOKE_INTERFACE_PROXY(OnItemModified, start, count, newCount, itemReferenceUpdated);
 				}
 			END_INTERFACE_PROXY(presentation::controls::GuiListControl::IItemProviderCallback)
 
-			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::GuiListControl::IItemProvider)
+			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::list::IItemProvider)
 
-				bool AttachCallback(presentation::controls::GuiListControl::IItemProviderCallback* value)override
+				bool AttachCallback(presentation::controls::list::IItemProviderCallback* value)override
 				{
 					INVOKEGET_INTERFACE_PROXY(AttachCallback, value);
 				}
 
-				bool DetachCallback(presentation::controls::GuiListControl::IItemProviderCallback* value)override
+				bool DetachCallback(presentation::controls::list::IItemProviderCallback* value)override
 				{
 					INVOKEGET_INTERFACE_PROXY(DetachCallback, value);
 				}
@@ -737,7 +772,7 @@ Interface Proxy (Controls)
 			END_INTERFACE_PROXY(presentation::controls::GuiListControl::IItemProvider)
 			
 			BEGIN_INTERFACE_PROXY_SHAREDPTR(presentation::controls::GuiListControl::IItemArranger,
-				presentation::controls::GuiListControl::IItemProviderCallback
+				presentation::controls::list::IItemProviderCallback
 				)
 
 				void AttachListControl(presentation::controls::GuiListControl* value)override
@@ -785,9 +820,9 @@ Interface Proxy (Controls)
 					INVOKE_INTERFACE_PROXY(OnViewChanged, bounds);
 				}
 
-				vint FindItem(vint itemIndex, presentation::compositions::KeyDirection key)override
+				vint FindItemByVirtualKeyDirection(vint itemIndex, presentation::compositions::KeyDirection key)override
 				{
-					INVOKEGET_INTERFACE_PROXY(FindItem, itemIndex, key);
+					INVOKEGET_INTERFACE_PROXY(FindItemByVirtualKeyDirection, itemIndex, key);
 				}
 
 				presentation::controls::GuiListControl::EnsureItemVisibleResult EnsureItemVisible(vint itemIndex)override
@@ -907,6 +942,11 @@ Interface Proxy (Controls)
 					INVOKEGET_INTERFACE_PROXY_NOPARAMS(CalculateTotalVisibleNodes);
 				}
 
+				void NotifyDataModified()override
+				{
+					INVOKE_INTERFACE_PROXY_NOPARAMS(NotifyDataModified);
+				}
+
 				vint GetChildCount()override
 				{
 					INVOKEGET_INTERFACE_PROXY_NOPARAMS(GetChildCount);
@@ -989,7 +1029,7 @@ Interface Proxy (Controls)
 
 			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::list::IDataGridContext)
 
-				presentation::controls::GuiListControl::IItemProvider* GetItemProvider()override
+				presentation::controls::list::IItemProvider* GetItemProvider()override
 				{
 					INVOKEGET_INTERFACE_PROXY_NOPARAMS(GetItemProvider);
 				}
@@ -1056,7 +1096,7 @@ Interface Proxy (Controls)
 
 			BEGIN_INTERFACE_PROXY_NOPARENT_SHAREDPTR(presentation::controls::list::IDataProcessorCallback)
 
-				presentation::controls::GuiListControl::IItemProvider* GetItemProvider()override
+				presentation::controls::list::IItemProvider* GetItemProvider()override
 				{
 					INVOKEGET_INTERFACE_PROXY_NOPARAMS(GetItemProvider);
 				}
@@ -1096,6 +1136,7 @@ Interface Proxy (Controls)
 
 #pragma warning(pop)
 
+#endif
 #endif
 
 		}

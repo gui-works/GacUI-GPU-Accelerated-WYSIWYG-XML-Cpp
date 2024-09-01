@@ -44,7 +44,7 @@ DefaultTextListItemTemplate
 					virtual void							SetChecked(vint itemIndex, bool value) = 0;
 				};
 
-				class DefaultTextListItemTemplate : public templates::GuiTextListItemTemplate
+				class DefaultTextListItemTemplate : public PredefinedListItemTemplate<templates::GuiTextListItemTemplate>
 				{
 				protected:
 					using BulletStyle = templates::GuiControlTemplate;
@@ -55,6 +55,7 @@ DefaultTextListItemTemplate
 
 					virtual TemplateProperty<BulletStyle>	CreateBulletStyle();
 					void									OnInitialize()override;
+					void									OnRefresh()override;
 					void									OnFontChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 					void									OnTextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 					void									OnTextColorChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
@@ -94,6 +95,7 @@ TextItemProvider
 					WString										text;
 					bool										checked;
 
+					void										NotifyUpdate(bool raiseCheckEvent);
 				public:
 					/// <summary>Create an empty text item.</summary>
 					TextItem();
@@ -103,8 +105,8 @@ TextItemProvider
 					TextItem(const WString& _text, bool _checked=false);
 					~TextItem();
 
-					bool										operator==(const TextItem& value)const;
-					bool										operator!=(const TextItem& value)const;
+					std::strong_ordering operator<=>(const TextItem& value) const { return text <=> value.text; }
+					bool operator==(const TextItem& value) const { return text == value.text; }
 					
 					/// <summary>Get the text of this item.</summary>
 					/// <returns>The text of this item.</returns>
@@ -166,13 +168,13 @@ GuiVirtualTextList
 			protected:
 				TextListView											view = TextListView::Unknown;
 
-				void													OnStyleInstalled(vint itemIndex, ItemStyle* style)override;
+				void													OnStyleInstalled(vint itemIndex, ItemStyle* style, bool refreshPropertiesOnly)override;
 				void													OnItemTemplateChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 			public:
 				/// <summary>Create a Text list control in virtual mode.</summary>
 				/// <param name="themeName">The theme name for retriving a default control template.</param>
 				/// <param name="_itemProvider">The item provider for this control.</param>
-				GuiVirtualTextList(theme::ThemeName themeName, GuiListControl::IItemProvider* _itemProvider);
+				GuiVirtualTextList(theme::ThemeName themeName, list::IItemProvider* _itemProvider);
 				~GuiVirtualTextList();
 
 				/// <summary>Item checked changed event.</summary>

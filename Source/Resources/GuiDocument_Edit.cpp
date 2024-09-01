@@ -46,7 +46,7 @@ DocumentModel::EditRangeOperations
 				GetRunRange(paragraphs[i].Obj(), runRanges);
 			}
 
-			Ptr<DocumentModel> newDocument=new DocumentModel;
+			auto newDocument = Ptr(new DocumentModel);
 
 			// copy paragraphs
 			if(begin.row==end.row)
@@ -80,11 +80,12 @@ DocumentModel::EditRangeOperations
 
 			// copy styles
 			List<WString> styleNames;
-			FOREACH(Ptr<DocumentParagraphRun>, paragraph, newDocument->paragraphs)
+			for (auto paragraph : newDocument->paragraphs)
 			{
 				CollectStyleName(paragraph.Obj(), styleNames);
 			}
 
+			// TODO: (enumerable) foreach:alterable
 			for(vint i=0;i<styleNames.Count();i++)
 			{
 				WString styleName=styleNames[i];
@@ -93,7 +94,7 @@ DocumentModel::EditRangeOperations
 					Ptr<DocumentStyle> style=styles[styleName];
 					if(deepCopy)
 					{
-						Ptr<DocumentStyle> newStyle=new DocumentStyle;
+						auto newStyle = Ptr(new DocumentStyle);
 						newStyle->parentStyleName=style->parentStyleName;
 						newStyle->styles=CopyStyle(style->styles);
 						newStyle->resolvedStyles=CopyStyle(style->resolvedStyles);
@@ -229,6 +230,7 @@ DocumentModel::EditRun
 			List<WString> oldNames, newNames;
 			CopyFrom(oldNames, model->styles.Keys());
 			CopyFrom(newNames, model->styles.Keys());
+			// TODO: (enumerable) foreach:indexed(allow-set)
 			for(vint i=0;i<newNames.Count();i++)
 			{
 				WString name=newNames[i];
@@ -249,11 +251,11 @@ DocumentModel::EditRun
 
 			// rename model's styles
 			typedef Pair<WString, WString> NamePair;
-			FOREACH(NamePair, name, From(oldNames).Pairwise(newNames))
+			for (auto name : From(oldNames).Pairwise(newNames))
 			{
 				model->RenameStyle(name.key, name.value);
 			}
-			FOREACH(WString, name, newNames)
+			for (auto name : newNames)
 			{
 				if((name.Length()==0 || name[0]!=L'#') && !styles.Keys().Contains(name))
 				{
@@ -328,11 +330,14 @@ DocumentModel::EditRun
 				{
 					endParagraph->alignment = newEndRuns->alignment;
 				}
+
+				// TODO: (enumerable) foreach
 				for(vint i=0;i<newEndRuns->runs.Count();i++)
 				{
 					endParagraph->runs.Insert(i, newEndRuns->runs[i]);
 				}
 
+				// TODO: (enumerable) foreach:indexed
 				for(vint i=1;i<runs.Count()-1;i++)
 				{
 					paragraphs.Insert(begin.row+i, runs[i]);
@@ -383,6 +388,7 @@ DocumentModel::EditText
 
 			// create paragraphs
 			Array<Ptr<DocumentParagraphRun>> runs(text.Count());
+			// TODO: (enumerable) foreach:indexed
 			for(vint i=0;i<text.Count();i++)
 			{
 				Ptr<DocumentRun> paragraph=CopyStyledText(styleRuns, text[i]);
@@ -411,13 +417,13 @@ DocumentModel::EditImage
 
 		Ptr<DocumentImageRun> DocumentModel::EditImage(TextPos begin, TextPos end, Ptr<GuiImageData> image)
 		{
-			Ptr<DocumentImageRun> imageRun=new DocumentImageRun;
+			auto imageRun = Ptr(new DocumentImageRun);
 			imageRun->size=image->GetImage()->GetFrame(image->GetFrameIndex())->GetSize();
 			imageRun->baseline=imageRun->size.y;
 			imageRun->image=image->GetImage();
 			imageRun->frameIndex=image->GetFrameIndex();
 
-			Ptr<DocumentParagraphRun> paragraph=new DocumentParagraphRun;
+			auto paragraph = Ptr(new DocumentParagraphRun);
 			paragraph->runs.Add(imageRun);
 
 			Array<Ptr<DocumentParagraphRun>> runs(1);
@@ -441,7 +447,7 @@ DocumentModel::EditHyperlink
 			auto package = GetHyperlink(paragraphIndex, begin, end);
 			if (package->hyperlinks.Count() > 0)
 			{
-				FOREACH(Ptr<DocumentHyperlinkRun>, run, package->hyperlinks)
+				for (auto run : package->hyperlinks)
 				{
 					run->reference = reference;
 					run->normalStyleName = normalStyleName;
@@ -516,7 +522,7 @@ DocumentModel::EditStyleName
 			styles.Remove(oldStyleName);
 			styles.Add(newStyleName, style);
 
-			FOREACH(Ptr<DocumentStyle>, subStyle, styles.Values())
+			for (auto subStyle : styles.Values())
 			{
 				if(subStyle->parentStyleName==oldStyleName)
 				{
@@ -524,7 +530,7 @@ DocumentModel::EditStyleName
 				}
 			}
 
-			FOREACH(Ptr<DocumentParagraphRun>, paragraph, paragraphs)
+			for (auto paragraph : paragraphs)
 			{
 				ReplaceStyleName(paragraph.Obj(), oldStyleName, newStyleName);
 			}
@@ -600,7 +606,7 @@ DocumentModel::ClearStyle
 		END_OF_SUMMERIZING:
 			if (!style)
 			{
-				style = new DocumentStyleProperties;
+				style = Ptr(new DocumentStyleProperties);
 			}
 			return style;
 		}

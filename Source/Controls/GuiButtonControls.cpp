@@ -21,17 +21,17 @@ GuiButton
 
 			void GuiButton::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
-				GetControlTemplateObject(true)->SetState(controlState);
+				TypedControlTemplateObject(true)->SetState(controlState);
 			}
 
 			void GuiButton::OnParentLineChanged()
 			{
 				GuiControl::OnParentLineChanged();
-				if(GetRelatedControlHost()==0)
+				if (GetRelatedControlHost() == 0)
 				{
-					mousePressing=false;
-					mouseHoving=false;
+					mousePressingDirect = false;
+					mousePressingIndirect = false;
+					mouseHoving = false;
 					UpdateControlState();
 				}
 			}
@@ -57,7 +57,7 @@ GuiButton
 				{
 					newControlState = ButtonState::Pressed;
 				}
-				else if (mousePressing)
+				else if (mousePressingDirect || mousePressingIndirect)
 				{
 					if (mouseHoving)
 					{
@@ -82,71 +82,81 @@ GuiButton
 				if (controlState != newControlState)
 				{
 					controlState = newControlState;
-					GetControlTemplateObject(true)->SetState(controlState);
+					TypedControlTemplateObject(true)->SetState(controlState);
 				}
 			}
 
-			void GuiButton::CheckAndClick(compositions::GuiEventArgs& arguments)
+			void GuiButton::CheckAndClick(bool skipChecking, compositions::GuiEventArgs& arguments)
 			{
-				auto eventSource = arguments.eventSource->GetAssociatedControl();
-				while (eventSource && eventSource != this)
+				if (!skipChecking)
 				{
-					if (eventSource->GetFocusableComposition())
+					auto eventSource = arguments.eventSource->GetAssociatedControl();
+					while (eventSource && eventSource != this)
 					{
-						return;
+						if (eventSource->GetFocusableComposition())
+						{
+							return;
+						}
+						eventSource = eventSource->GetParent();
 					}
-					eventSource = eventSource->GetParent();
 				}
 				Clicked.Execute(GetNotifyEventArguments());
 			}
 
 			void GuiButton::OnLeftButtonDown(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments)
 			{
-				if(arguments.eventSource==boundsComposition)
+				if (arguments.eventSource == boundsComposition)
 				{
-					mousePressing=true;
-					if (autoFocus)
+					mousePressingDirect = true;
+				}
+				else if (!ignoreChildControlMouseEvents)
+				{
+					mousePressingIndirect = true;
+				}
+
+				if (mousePressingDirect || mousePressingIndirect)
+				{
+					if (GetVisuallyEnabled() && autoFocus)
 					{
-						SetFocus();
+						SetFocused();
 					}
 					UpdateControlState();
-					if(!clickOnMouseUp)
+					if (GetVisuallyEnabled() && !clickOnMouseUp)
 					{
-						CheckAndClick(arguments);
+						CheckAndClick(mousePressingIndirect, arguments);
 					}
 				}
 			}
 
 			void GuiButton::OnLeftButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments)
 			{
-				if(arguments.eventSource==boundsComposition)
+				if (mousePressingDirect || mousePressingIndirect)
 				{
-					mousePressing=false;
+					bool skipChecking = mousePressingIndirect;
+					mousePressingDirect = false;
+					mousePressingIndirect = false;
 					UpdateControlState();
-				}
-				if(GetVisuallyEnabled())
-				{
-					if(mouseHoving && clickOnMouseUp)
+					if (GetVisuallyEnabled() && mouseHoving && clickOnMouseUp)
 					{
-						CheckAndClick(arguments);
+						CheckAndClick(skipChecking, arguments);
 					}
 				}
 			}
 
 			void GuiButton::OnMouseEnter(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
-				if(arguments.eventSource==boundsComposition)
+				if (arguments.eventSource == boundsComposition || !ignoreChildControlMouseEvents)
 				{
-					mouseHoving=true;
+					mouseHoving = true;
 					UpdateControlState();
 				}
 			}
 
 			void GuiButton::OnMouseLeave(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
-				if(arguments.eventSource==boundsComposition)
+				if (arguments.eventSource == boundsComposition || !ignoreChildControlMouseEvents)
 				{
-					mouseHoving=false;
+					mouseHoving = false;
 					UpdateControlState();
 				}
 			}
@@ -157,11 +167,11 @@ GuiButton
 				{
 					switch (arguments.code)
 					{
-					case VKEY::_RETURN:
-						CheckAndClick(arguments);
+					case VKEY::KEY_RETURN:
+						CheckAndClick(false, arguments);
 						arguments.handled = true;
 						break;
-					case VKEY::_SPACE:
+					case VKEY::KEY_SPACE:
 						if (!arguments.autoRepeatKeyDown)
 						{
 							keyPressing = true;
@@ -180,12 +190,12 @@ GuiButton
 				{
 					switch (arguments.code)
 					{
-					case VKEY::_SPACE:
+					case VKEY::KEY_SPACE:
 						if (keyPressing)
 						{
 							keyPressing = false;
 							UpdateControlState();
-							CheckAndClick(arguments);
+							CheckAndClick(false, arguments);
 						}
 						arguments.handled = true;
 						break;
@@ -242,6 +252,16 @@ GuiButton
 				autoFocus = value;
 			}
 
+			bool GuiButton::GetIgnoreChildControlMouseEvents()
+			{
+				return ignoreChildControlMouseEvents;
+			}
+
+			void GuiButton::SetIgnoreChildControlMouseEvents(bool value)
+			{
+				ignoreChildControlMouseEvents = value;
+			}
+
 /***********************************************************************
 GuiSelectableButton::GroupController
 ***********************************************************************/
@@ -252,6 +272,7 @@ GuiSelectableButton::GroupController
 
 			GuiSelectableButton::GroupController::~GroupController()
 			{
+				// TODO: (enumerable) foreach:reversed
 				for(vint i=buttons.Count()-1;i>=0;i--)
 				{
 					buttons[i]->SetGroupController(0);
@@ -289,6 +310,7 @@ GuiSelectableButton::MutexGroupController
 				if(!suppress)
 				{
 					suppress=true;
+					// TODO: (enumerable) foreach
 					for(vint i=0;i<buttons.Count();i++)
 					{
 						buttons[i]->SetSelected(buttons[i]==button);
@@ -307,7 +329,7 @@ GuiSelectableButton
 
 			void GuiSelectableButton::AfterControlTemplateInstalled_(bool initialize)
 			{
-				GetControlTemplateObject(true)->SetSelected(isSelected);
+				TypedControlTemplateObject(true)->SetSelected(isSelected);
 			}
 
 			void GuiSelectableButton::OnClicked(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
@@ -379,7 +401,7 @@ GuiSelectableButton
 				if (isSelected != value)
 				{
 					isSelected = value;
-					GetControlTemplateObject(true)->SetSelected(isSelected);
+					TypedControlTemplateObject(true)->SetSelected(isSelected);
 					if (groupController)
 					{
 						groupController->OnSelectedChanged(this);

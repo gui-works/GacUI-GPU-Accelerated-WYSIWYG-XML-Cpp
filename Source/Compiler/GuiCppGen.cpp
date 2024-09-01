@@ -7,7 +7,6 @@ namespace vl
 		using namespace collections;
 		using namespace stream;
 		using namespace filesystem;
-		using namespace parsing;
 		using namespace workflow;
 		using namespace workflow::cppcodegen;
 
@@ -22,10 +21,11 @@ namespace vl
 
 		Ptr<GuiResourceFolder> PrecompileResource(
 			Ptr<GuiResource> resource,
+			GuiResourceCpuArchitecture targetCpuArchitecture,
 			IGuiResourcePrecompileCallback* callback,
 			collections::List<GuiResourceError>& errors)
 		{
-			auto precompiledFolder = resource->Precompile(callback, errors);
+			auto precompiledFolder = resource->Precompile(targetCpuArchitecture, callback, errors);
 			return precompiledFolder;
 		}
 
@@ -42,7 +42,7 @@ namespace vl
 					if (compiled->assembly)
 					{
 						auto& codes = compiled->assembly->insAfterCodegen->moduleCodes;
-						FOREACH_INDEXER(WString, code, codeIndex, codes)
+						for (auto [code, codeIndex] : indexed(codes))
 						{
 							text += L"================================(" + itow(codeIndex + 1) + L"/" + itow(codes.Count()) + L")================================\r\n";
 							text += code + L"\r\n";
@@ -50,18 +50,18 @@ namespace vl
 					}
 					else
 					{
-						FOREACH_INDEXER(GuiInstanceCompiledWorkflow::ModuleRecord, moduleRecord, codeIndex, compiled->modules)
+						for (auto [moduleRecord, codeIndex] : indexed(compiled->modules))
 						{
-							WString code = GenerateToStream([&](StreamWriter& writer)
+							WString code = GenerateToStream([&, module = moduleRecord.module](StreamWriter& writer)
 							{
-								WfPrint(moduleRecord.module, L"", writer);
+								WfPrint(module, L"", writer);
 							});
 							text += L"================================(" + itow(codeIndex + 1) + L"/" + itow(compiled->modules.Count()) + L")================================\r\n";
 							text += code + L"\r\n";
 						}
 					}
 
-					if (File(workflowPath).WriteAllText(text))
+					if (File(workflowPath).WriteAllText(text, true, BomEncoder::Utf8))
 					{
 						return compiled;
 					}
@@ -81,14 +81,15 @@ namespace vl
 
 			if (compiled->metadata->errors.Count() > 0)
 			{
-				FOREACH(Ptr<ParsingError>, error, compiled->metadata->errors)
+				for (auto error : compiled->metadata->errors)
 				{
-					errors.Add(GuiResourceError({ {resource} }, error->errorMessage));
+					errors.Add(GuiResourceError({ {resource} }, error.message));
 				}
 				return nullptr;
 			}
 
-			FOREACH_INDEXER(WString, fileName, index, output->cppFiles.Keys())
+			// TODO: (enumerable) foreach on dictionary
+			for (auto [fileName, index] : indexed(output->cppFiles.Keys()))
 			{
 				WString code = output->cppFiles.Values()[index];
 				File file(cppFolder / fileName);
@@ -184,7 +185,8 @@ namespace vl
 			vint length = (vint)compressedStream.Size();
 			const vint block = 1024;
 			vint remain = length % block;
-			vint rows = length / block + (remain ? 1 : 0);
+			vint solidRows = length / block;
+			vint rows = solidRows + (remain ? 1 : 0);
 
 #define PREFIX writer.WriteString(prefix);
 
@@ -212,7 +214,7 @@ namespace vl
 			const wchar_t* hex = L"0123456789ABCDEF";
 			for (vint i = 0; i < rows; i++)
 			{
-				vint size = i == rows - 1 ? remain : block;
+				vint size = i == solidRows ? remain : block;
 				compressedStream.Read(buffer, size);
 				PREFIX writer.WriteString(L"\t\"");
 				for (vint j = 0; j < size; j++)
@@ -271,22 +273,25 @@ namespace vl
 					writer.WriteLine(L"\t\t\t\t{");
 					writer.WriteLine(L"\t\t\t\t\tGUI_PLUGIN_DEPEND(GacUI_Res_Resource);");
 					writer.WriteLine(L"\t\t\t\t\tGUI_PLUGIN_DEPEND(GacUI_Res_TypeResolvers);");
-					writer.WriteLine(L"#ifndef VCZH_DEBUG_NO_REFLECTION");
+					writer.WriteLine(L"#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA");
 					writer.WriteLine(L"\t\t\t\t\tGUI_PLUGIN_DEPEND(GacUI_Instance_Reflection);");
 					writer.WriteLine(L"\t\t\t\t\tGUI_PLUGIN_DEPEND(GacUI_Compiler_WorkflowTypeResolvers);");
 					writer.WriteLine(L"#endif");
 					writer.WriteLine(L"\t\t\t\t}");
 					writer.WriteLine(L"");
-					writer.WriteLine(L"\t\t\t\tvoid Load()override");
+					writer.WriteLine(L"\t\t\t\tvoid Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override");
 					writer.WriteLine(L"\t\t\t\t{");
-					writer.WriteLine(L"\t\t\t\t\tList<GuiResourceError> errors;");
-					writer.WriteLine(L"\t\t\t\t\tMemoryStream resourceStream;");
-					writer.WriteLine(L"\t\t\t\t\t" + cppInput->assemblyName + L"ResourceReader::ReadToStream(resourceStream);");
-					writer.WriteLine(L"\t\t\t\t\tresourceStream.SeekFromBegin(0);");
-					writer.WriteLine(L"\t\t\t\t\tGetResourceManager()->LoadResourceOrPending(resourceStream, GuiResourceUsage::InstanceClass);");
+					writer.WriteLine(L"\t\t\t\t\tif (controllerRelatedPlugins)");
+					writer.WriteLine(L"\t\t\t\t\t{");
+					writer.WriteLine(L"\t\t\t\t\t\tList<GuiResourceError> errors;");
+					writer.WriteLine(L"\t\t\t\t\t\tMemoryStream resourceStream;");
+					writer.WriteLine(L"\t\t\t\t\t\t" + cppInput->assemblyName + L"ResourceReader::ReadToStream(resourceStream);");
+					writer.WriteLine(L"\t\t\t\t\t\tresourceStream.SeekFromBegin(0);");
+					writer.WriteLine(L"\t\t\t\t\t\tGetResourceManager()->LoadResourceOrPending(resourceStream, GuiResourceUsage::InstanceClass);");
+					writer.WriteLine(L"\t\t\t\t\t}");
 					writer.WriteLine(L"\t\t\t\t}");
 					writer.WriteLine(L"");
-					writer.WriteLine(L"\t\t\t\tvoid Unload()override");
+					writer.WriteLine(L"\t\t\t\tvoid Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override");
 					writer.WriteLine(L"\t\t\t\t{");
 					writer.WriteLine(L"\t\t\t\t}");
 					writer.WriteLine(L"\t\t\t};");

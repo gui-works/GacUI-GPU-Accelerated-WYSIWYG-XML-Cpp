@@ -1,5 +1,6 @@
 #include "GuiRibbonGalleryList.h"
 #include "GuiRibbonImpl.h"
+#include "../../GraphicsComposition/GuiGraphicsRepeatComposition.h"
 #include "../Templates/GuiThemeStyleFactory.h"
 
 /* CodePack:BeginIgnore() */
@@ -65,9 +66,9 @@ list::GroupedDataSource
 					{
 						if (GetGroupEnabled())
 						{
-							FOREACH_INDEXER(Value, groupValue, index, GetLazyList<Value>(itemSource))
+							for (auto [groupValue, index] : indexed(GetLazyList<Value>(itemSource)))
 							{
-								auto group = MakePtr<GalleryGroup>();
+								auto group = Ptr(new GalleryGroup);
 								group->name = titleProperty(groupValue);
 								group->itemValues = GetChildren(childrenProperty(groupValue));
 								AttachGroupChanged(group, index);
@@ -76,7 +77,7 @@ list::GroupedDataSource
 						}
 						else
 						{
-							auto group = MakePtr<GalleryGroup>();
+							auto group = Ptr(new GalleryGroup);
 							group->itemValues = GetChildren(itemSource);
 							AttachGroupChanged(group, 0);
 							groupedItemSource.Add(group);
@@ -199,12 +200,14 @@ list::GroupedDataSource
 					GroupTitlePropertyChanged.SetAssociatedComposition(associatedComposition);
 					GroupChildrenPropertyChanged.SetAssociatedComposition(associatedComposition);
 
-					groupChangedHandler = groupedItemSource.GetWrapper()->ItemChanged.Add(this, &GroupedDataSource::OnGroupChanged);
+					auto vol = UnboxValue<Ptr<IValueObservableList>>(BoxParameter(groupedItemSource));
+					groupChangedHandler = vol->ItemChanged.Add(this, &GroupedDataSource::OnGroupChanged);
 				}
 
 				GroupedDataSource::~GroupedDataSource()
 				{
-					joinedItemSource.GetWrapper()->ItemChanged.Remove(groupChangedHandler);
+					auto vol = UnboxValue<Ptr<IValueObservableList>>(BoxParameter(joinedItemSource));
+					vol->ItemChanged.Remove(groupChangedHandler);
 				}
 
 				Ptr<IValueEnumerable> GroupedDataSource::GetItemSource()
@@ -274,7 +277,7 @@ GuiBindableRibbonGalleryList
 
 			void GuiBindableRibbonGalleryList::AfterControlTemplateInstalled_(bool initialize)
 			{
-				auto ct = GetControlTemplateObject(true);
+				auto ct = TypedControlTemplateObject(true);
 				itemList->SetControlTemplate(ct->GetItemListTemplate());
 				subMenu->SetControlTemplate(ct->GetMenuTemplate());
 				groupContainer->SetControlTemplate(ct->GetGroupContainerTemplate());
@@ -284,8 +287,8 @@ GuiBindableRibbonGalleryList
 
 			void GuiBindableRibbonGalleryList::UpdateLayoutSizeOffset()
 			{
-				auto cSize = itemList->GetContainerComposition()->GetBounds();
-				auto bSize = itemList->GetBoundsComposition()->GetBounds();
+				auto cSize = itemList->GetContainerComposition()->GetCachedBounds();
+				auto bSize = itemList->GetBoundsComposition()->GetCachedBounds();
 				layout->SetSizeOffset(Size(bSize.Width() - cSize.Width(), bSize.Height() - cSize.Height()));
 
 				if (layout->GetItemWidth() > 0)
@@ -293,7 +296,7 @@ GuiBindableRibbonGalleryList
 					vint columns = layout->GetVisibleItemCount();
 					if (columns == 0) columns = 1;
 					vint rows = (visibleItemCount + columns - 1) / columns;
-					vint height = (vint)(layout->GetBounds().Height()*(rows + 0.5));
+					vint height = (vint)(layout->GetCachedBounds().Height()*(rows + 0.5));
 					groupContainer->GetBoundsComposition()->SetPreferredMinSize(Size(0, height));
 				}
 				else
@@ -305,19 +308,17 @@ GuiBindableRibbonGalleryList
 			void GuiBindableRibbonGalleryList::OnItemListSelectionChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
 				auto pos = IndexToGalleryPos(itemList->GetSelectedItemIndex());
-				if (pos.group != -1 && pos.item != -1)
+				// TODO: (enumerable) foreach
+				for (vint i = 0; i < groupedItemSource.Count(); i++)
 				{
-					for (vint i = 0; i < groupedItemSource.Count(); i++)
+					auto group = groupedItemSource[i];
+					if (group->GetItemValues())
 					{
-						auto group = groupedItemSource[i];
-						if (group->GetItemValues())
+						vint count = group->GetItemValues()->GetCount();
+						for (vint j = 0; j < count; j++)
 						{
-							vint count = group->GetItemValues()->GetCount();
-							for (vint j = 0; j < count; j++)
-							{
-								auto background = MenuGetGroupItemBackground(i, j);
-								background->SetSelected(pos.group == i && pos.item == j);
-							}
+							auto background = MenuGetGroupItemBackground(i, j);
+							background->SetSelected(pos.group == i && pos.item == j);
 						}
 					}
 				}
@@ -341,13 +342,14 @@ GuiBindableRibbonGalleryList
 				StopPreview(arguments.itemIndex);
 			}
 
-			void GuiBindableRibbonGalleryList::OnBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
+			void GuiBindableRibbonGalleryList::OnCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 			{
 				UpdateLayoutSizeOffset();
 
-				auto bounds = boundsComposition->GetBounds();
+				auto bounds = boundsComposition->GetCachedBounds();
 				subMenu->GetBoundsComposition()->SetPreferredMinSize(Size(bounds.Width() + 20, 1));
 
+				// TODO: (enumerable) foreach
 				for (vint i = 0; i < groupedItemSource.Count(); i++)
 				{
 					auto group = groupedItemSource[i];
@@ -396,7 +398,7 @@ GuiBindableRibbonGalleryList
 						groupContentStack->AddChild(item);
 
 						auto header = new GuiControl(theme::ThemeName::RibbonToolstripHeader);
-						header->SetControlTemplate(GetControlTemplateObject(true)->GetHeaderTemplate());
+						header->SetControlTemplate(TypedControlTemplateObject(true)->GetHeaderTemplate());
 						header->GetBoundsComposition()->SetAlignmentToParent(Margin(0, 0, 0, 0));
 						header->SetText(group->GetName());
 						item->AddChild(header->GetBoundsComposition());
@@ -417,7 +419,7 @@ GuiBindableRibbonGalleryList
 							groupItemTemplate->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 
 							auto backgroundButton = new GuiSelectableButton(theme::ThemeName::ListItemBackground);
-							if (auto style = GetControlTemplateObject(true)->GetBackgroundTemplate())
+							if (auto style = TypedControlTemplateObject(true)->GetBackgroundTemplate())
 							{
 								backgroundButton->SetControlTemplate(style);
 							}
@@ -545,8 +547,8 @@ GuiBindableRibbonGalleryList
 					itemListArranger = new ribbon_impl::GalleryItemArranger(this);
 					itemList = new GuiBindableTextList(theme::ThemeName::RibbonGalleryItemList);
 					itemList->GetBoundsComposition()->SetAlignmentToParent(Margin(0, 0, 0, 0));
-					itemList->SetArranger(itemListArranger);
-					itemList->SetItemSource(joinedItemSource.GetWrapper());
+					itemList->SetArranger(Ptr(itemListArranger));
+					itemList->SetItemSource(UnboxValue<Ptr<IValueObservableList>>(BoxParameter(joinedItemSource)));
 					itemList->SelectionChanged.AttachMethod(this, &GuiBindableRibbonGalleryList::OnItemListSelectionChanged);
 					itemList->ItemMouseEnter.AttachMethod(this, &GuiBindableRibbonGalleryList::OnItemListItemMouseEnter);
 					itemList->ItemMouseLeave.AttachMethod(this, &GuiBindableRibbonGalleryList::OnItemListItemMouseLeave);
@@ -564,7 +566,7 @@ GuiBindableRibbonGalleryList
 					groupStack->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
 					groupStack->SetAlignmentToParent(Margin(0, 0, 0, 0));
 					groupStack->SetDirection(GuiStackComposition::Vertical);
-					groupStack->SetItemSource(groupedItemSource.GetWrapper());
+					groupStack->SetItemSource(UnboxValue<Ptr<IValueObservableList>>(BoxParameter(groupedItemSource)));
 					groupContainer->GetContainerComposition()->AddChild(groupStack);
 					MenuResetGroupTemplate();
 				}
@@ -572,7 +574,7 @@ GuiBindableRibbonGalleryList
 				RequestedScrollUp.AttachMethod(this, &GuiBindableRibbonGalleryList::OnRequestedScrollUp);
 				RequestedScrollDown.AttachMethod(this, &GuiBindableRibbonGalleryList::OnRequestedScrollDown);
 				RequestedDropdown.AttachMethod(this, &GuiBindableRibbonGalleryList::OnRequestedDropdown);
-				boundsComposition->BoundsChanged.AttachMethod(this, &GuiBindableRibbonGalleryList::OnBoundsChanged);
+				boundsComposition->CachedBoundsChanged.AttachMethod(this, &GuiBindableRibbonGalleryList::OnCachedBoundsChanged);
 				itemListArranger->UnblockScrollUpdate();
 			}
 
@@ -600,7 +602,7 @@ GuiBindableRibbonGalleryList
 			{
 				if (0 <= index && index < joinedItemSource.Count())
 				{
-					FOREACH_INDEXER(Ptr<list::GalleryGroup>, group, groupIndex, groupedItemSource)
+					for (auto [group, groupIndex] : indexed(groupedItemSource))
 					{
 						auto itemValues = group->GetItemValues();
 						vint itemCount = itemValues ? itemValues->GetCount() : 0;

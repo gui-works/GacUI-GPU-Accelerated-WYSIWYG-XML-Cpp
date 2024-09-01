@@ -45,15 +45,7 @@ Rich Content Document (style)
 			static DocumentFontSize			Parse(const WString& value);
 			WString							ToString()const;
 
-			bool operator==(const DocumentFontSize& value)const
-			{
-				return size == value.size && relative == value.relative;
-			}
-
-			bool operator!=(const DocumentFontSize& value)const
-			{
-				return size != value.size || relative != value.relative;
-			}
+			auto operator<=>(const DocumentFontSize&) const = default;
 		};
 
 		/// <summary>Represents a text style.</summary>
@@ -375,11 +367,11 @@ Rich Content Document (model)
 			/// <param name="xml">The xml document.</param>
 			/// <param name="resolver">A document resolver to resolve symbols in non-embedded objects like image.</param>
 			/// <param name="errors">All collected errors during loading a resource.</param>
-			static Ptr<DocumentModel>		LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<parsing::xml::XmlDocument> xml, Ptr<GuiResourcePathResolver> resolver, GuiResourceError::List& errors);
+			static Ptr<DocumentModel>		LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<glr::xml::XmlDocument> xml, Ptr<GuiResourcePathResolver> resolver, GuiResourceError::List& errors);
 
 			/// <summary>Save a document model to an xml.</summary>
 			/// <returns>The saved xml document.</returns>
-			Ptr<parsing::xml::XmlDocument>	SaveToXml();
+			Ptr<glr::xml::XmlDocument>		SaveToXml();
 		};
 	}
 }

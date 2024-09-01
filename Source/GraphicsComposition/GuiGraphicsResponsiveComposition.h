@@ -32,6 +32,7 @@ GuiResponsiveCompositionBase
 			/// <summary>Base class for responsive layout compositions.</summary>
 			class GuiResponsiveCompositionBase abstract : public GuiBoundsComposition, public Description<GuiResponsiveCompositionBase>
 			{
+				friend class GuiResponsiveContainerComposition;
 			protected:
 				GuiResponsiveCompositionBase*		responsiveParent = nullptr;
 				ResponsiveDirection					direction = ResponsiveDirection::Both;
@@ -43,7 +44,7 @@ GuiResponsiveCompositionBase
 
 			public:
 				GuiResponsiveCompositionBase();
-				~GuiResponsiveCompositionBase();
+				~GuiResponsiveCompositionBase() = default;
 
 				/// <summary>LevelCount changed event.</summary>
 				GuiNotifyEvent						LevelCountChanged;
@@ -87,7 +88,7 @@ GuiResponsiveViewComposition
 
 			public:
 				GuiResponsiveSharedCollection(GuiResponsiveViewComposition* _view);
-				~GuiResponsiveSharedCollection();
+				~GuiResponsiveSharedCollection() = default;
 			};
 
 			class GuiResponsiveViewCollection : public collections::ObservableListBase<GuiResponsiveCompositionBase*>
@@ -102,7 +103,7 @@ GuiResponsiveViewComposition
 
 			public:
 				GuiResponsiveViewCollection(GuiResponsiveViewComposition* _view);
-				~GuiResponsiveViewCollection();
+				~GuiResponsiveViewCollection() = default;
 			};
 
 			/// <summary>Represents a composition, which will pick up a shared control and install inside it, when it is displayed by a [T:vl.presentation.compositions.GuiResponsiveViewComposition]</summary>
@@ -117,7 +118,7 @@ GuiResponsiveViewComposition
 
 			public:
 				GuiResponsiveSharedComposition();
-				~GuiResponsiveSharedComposition();
+				~GuiResponsiveSharedComposition() = default;
 
 				/// <summary>Get the selected shared control.</summary>
 				/// <returns>The selected shared control.</returns>
@@ -185,8 +186,8 @@ Others
 				void					OnResponsiveChildLevelUpdated()override;
 
 			public:
-				GuiResponsiveFixedComposition();
-				~GuiResponsiveFixedComposition();
+				GuiResponsiveFixedComposition() = default;
+				~GuiResponsiveFixedComposition() = default;
 
 				vint					GetLevelCount()override;
 				vint					GetCurrentLevel()override;
@@ -211,8 +212,8 @@ Others
 				bool					ChangeLevel(bool levelDown);
 
 			public:
-				GuiResponsiveStackComposition();
-				~GuiResponsiveStackComposition();
+				GuiResponsiveStackComposition() = default;
+				~GuiResponsiveStackComposition() = default;
 
 				vint					GetLevelCount()override;
 				vint					GetCurrentLevel()override;
@@ -236,8 +237,8 @@ Others
 				void					OnResponsiveChildLevelUpdated()override;
 
 			public:
-				GuiResponsiveGroupComposition();
-				~GuiResponsiveGroupComposition();
+				GuiResponsiveGroupComposition() = default;
+				~GuiResponsiveGroupComposition() = default;
 
 				vint					GetLevelCount()override;
 				vint					GetCurrentLevel()override;
@@ -252,16 +253,22 @@ GuiResponsiveContainerComposition
 			/// <summary>A composition which will automatically tell its target responsive composition to switch between views according to its size.</summary>
 			class GuiResponsiveContainerComposition : public GuiBoundsComposition, public Description<GuiResponsiveContainerComposition>
 			{
-			protected:
+			private:
 				GuiResponsiveCompositionBase*			responsiveTarget = nullptr;
-				Size									upperLevelSize;
+				Size									minSizeUpperBound;
+				Size									minSizeLowerBound;
+				bool									testX = false;
+				bool									testY = false;
 
-				void									AdjustLevel();
-				void									OnBoundsChanged(GuiGraphicsComposition* sender, GuiEventArgs& arguments);
+				std::strong_ordering					Layout_CompareSize(Size first, Size second);
+				void									Layout_AdjustLevelUp(Size containerSize);
+				void									Layout_AdjustLevelDown(Size containerSize);
+			public:
+				Rect									Layout_CalculateBounds(Size parentSize) override;
 
 			public:
 				GuiResponsiveContainerComposition();
-				~GuiResponsiveContainerComposition();
+				~GuiResponsiveContainerComposition() = default;
 
 				/// <summary>Get the responsive composition to control.</summary>
 				/// <returns>The responsive composition to control.</returns>

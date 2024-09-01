@@ -29,36 +29,41 @@ DefaultDataGridItemTemplate
 
 				class DefaultDataGridItemTemplate
 					: public DefaultListViewItemTemplate
-					, public ListViewColumnItemArranger::IColumnItemViewCallback
 				{
 				protected:
-					compositions::GuiTableComposition*					textTable = nullptr;
-					collections::Array<Ptr<IDataVisualizer>>			dataVisualizers;
-					IDataEditor*										currentEditor = nullptr;
+					compositions::GuiTableComposition*						textTable = nullptr;
+					collections::Array<IDataVisualizerFactory*>				dataVisualizerFactories;
+					collections::Array<Ptr<IDataVisualizer>>				dataVisualizers;
+					collections::Array<compositions::GuiCellComposition*>	dataCells;
+					IDataEditor*											currentEditor = nullptr;
 
-					IDataVisualizerFactory*								GetDataVisualizerFactory(vint row, vint column);
-					IDataEditorFactory*									GetDataEditorFactory(vint row, vint column);
-					vint												GetCellColumnIndex(compositions::GuiGraphicsComposition* composition);
-					bool												IsInEditor(GuiVirtualDataGrid* dataGrid, compositions::GuiMouseEventArgs& arguments);
-					void												OnCellButtonDown(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
-					void												OnCellLeftButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
-					void												OnCellRightButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
+					IDataVisualizerFactory*									GetDataVisualizerFactory(vint row, vint column);
+					IDataEditorFactory*										GetDataEditorFactory(vint row, vint column);
+					vint													GetCellColumnIndex(compositions::GuiGraphicsComposition* composition);
+					bool													IsInEditor(GuiVirtualDataGrid* dataGrid, compositions::GuiMouseEventArgs& arguments);
+					void													OnCellButtonDown(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
+					void													OnCellLeftButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
+					void													OnCellRightButtonUp(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);
 
-					void												OnColumnChanged()override;
-					void												OnInitialize()override;
-					void												OnSelectedChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
-					void												OnFontChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
-					void												OnContextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+					void													DeleteAllVisualizers();
+					void													DeleteVisualizer(vint column);
+					void													ResetDataTable(vint columnCount);
+					void													OnInitialize()override;
+					void													OnRefresh()override;
+					void													OnSelectedChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+					void													OnFontChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+					void													OnContextChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+					void													OnVisuallyEnabledChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				public:
 					DefaultDataGridItemTemplate();
 					~DefaultDataGridItemTemplate();
 
-					void												UpdateSubItemSize();
-					bool												IsEditorOpened();
-					void												NotifyOpenEditor(vint column, IDataEditor* editor);
-					void												NotifyCloseEditor();
-					void												NotifySelectCell(vint column);
-					void												NotifyCellEdited();
+					void													UpdateSubItemSize();
+					bool													IsEditorOpened();
+					void													NotifyOpenEditor(vint column, IDataEditor* editor);
+					void													NotifyCloseEditor();
+					void													NotifySelectCell(vint column);
+					void													NotifyCellEdited();
 				};
 			}
 
@@ -88,7 +93,9 @@ GuiVirtualDataGrid
 				bool													currentEditorOpeningEditor = false;
 
 				compositions::IGuiAltActionHost*						GetActivatingAltHost()override;
-				void													OnItemModified(vint start, vint count, vint newCount)override;
+				void													NotifySelectionChanged(bool triggeredByItemContentModified)override;
+				void													OnItemModified(vint start, vint count, vint newCount, bool itemReferenceUpdated)override;
+				void													OnStyleInstalled(vint index, ItemStyle* style, bool refreshPropertiesOnly)override;
 				void													OnStyleUninstalled(ItemStyle* style)override;
 
 				void													NotifyCloseEditor();
@@ -96,7 +103,6 @@ GuiVirtualDataGrid
 				bool													StartEdit(vint row, vint column);
 				void													StopEdit();
 				void													OnColumnClicked(compositions::GuiGraphicsComposition* sender, compositions::GuiItemEventArgs& arguments);
-				void													OnSelectionChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void													OnKeyDown(compositions::GuiGraphicsComposition* sender, compositions::GuiKeyEventArgs& arguments);
 				void													OnKeyUp(compositions::GuiGraphicsComposition* sender, compositions::GuiKeyEventArgs& arguments);
 
@@ -108,13 +114,13 @@ GuiVirtualDataGrid
 				/// <summary>Create a data grid control in virtual mode.</summary>
 				/// <param name="themeName">The theme name for retriving a default control template.</param>
 				/// <param name="_itemProvider">The item provider for this control.</param>
-				GuiVirtualDataGrid(theme::ThemeName themeName, GuiListControl::IItemProvider* _itemProvider);
+				GuiVirtualDataGrid(theme::ThemeName themeName, list::IItemProvider* _itemProvider);
 				~GuiVirtualDataGrid();
 
 				/// <summary>Selected cell changed event.</summary>
 				compositions::GuiNotifyEvent							SelectedCellChanged;
 
-				IItemProvider*											GetItemProvider()override;
+				list::IItemProvider*									GetItemProvider()override;
 
 				/// <summary>Change the view to data grid's default view.</summary>
 				void													SetViewToDefault();

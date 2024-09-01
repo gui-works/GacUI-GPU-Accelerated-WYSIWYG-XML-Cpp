@@ -7,32 +7,14 @@ DEVELOPER: Zihan Chen(vczh)
 /***********************************************************************
 .\BASIC.CPP
 ***********************************************************************/
-#include <time.h>
-#if defined VCZH_MSVC
-#include <Windows.h>
-#elif defined VCZH_GCC
-#include <sys/time.h>
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
-
-/***********************************************************************
-NotCopyable
-***********************************************************************/
-
-	NotCopyable::NotCopyable()
-	{
-	}
-
-	NotCopyable::NotCopyable(const NotCopyable&)
-	{
-	}
-
-	NotCopyable& NotCopyable::operator=(const NotCopyable&)
-	{
-		return *this;
-	}
 
 /***********************************************************************
 Error
@@ -47,239 +29,17 @@ Error
 	{
 		return description;
 	}
-
-/***********************************************************************
-Object
-***********************************************************************/
-
-	Object::~Object()
-	{
-	}
-
-/***********************************************************************
-DateTime
-***********************************************************************/
-
-#if defined VCZH_MSVC
-	DateTime SystemTimeToDateTime(const SYSTEMTIME& systemTime)
-	{
-		DateTime dateTime;
-		dateTime.year=systemTime.wYear;
-		dateTime.month=systemTime.wMonth;
-		dateTime.dayOfWeek=systemTime.wDayOfWeek;
-		dateTime.day=systemTime.wDay;
-		dateTime.hour=systemTime.wHour;
-		dateTime.minute=systemTime.wMinute;
-		dateTime.second=systemTime.wSecond;
-		dateTime.milliseconds=systemTime.wMilliseconds;
-
-		FILETIME fileTime;
-		SystemTimeToFileTime(&systemTime, &fileTime);
-		ULARGE_INTEGER largeInteger;
-		largeInteger.HighPart=fileTime.dwHighDateTime;
-		largeInteger.LowPart=fileTime.dwLowDateTime;
-		dateTime.filetime=largeInteger.QuadPart;
-		dateTime.totalMilliseconds=dateTime.filetime/10000;
-
-		return dateTime;
-	}
-
-	SYSTEMTIME DateTimeToSystemTime(const DateTime& dateTime)
-	{
-		ULARGE_INTEGER largeInteger;
-		largeInteger.QuadPart=dateTime.filetime;
-		FILETIME fileTime;
-		fileTime.dwHighDateTime=largeInteger.HighPart;
-		fileTime.dwLowDateTime=largeInteger.LowPart;
-
-		SYSTEMTIME systemTime;
-		FileTimeToSystemTime(&fileTime, &systemTime);
-		return systemTime;
-	}
-#elif defined VCZH_GCC
-	DateTime ConvertTMToDateTime(tm* timeinfo, vint milliseconds)
-	{
-		time_t timer = mktime(timeinfo);
-		DateTime dt;
-		dt.year = timeinfo->tm_year+1900;
-		dt.month = timeinfo->tm_mon+1;
-		dt.day = timeinfo->tm_mday;
-		dt.dayOfWeek = timeinfo->tm_wday;
-		dt.hour = timeinfo->tm_hour;
-		dt.minute = timeinfo->tm_min;
-		dt.second = timeinfo->tm_sec;
-		dt.milliseconds = milliseconds;
-        dt.filetime = (vuint64_t)timer * 1000 + milliseconds;
-		dt.totalMilliseconds = (vuint64_t)timer * 1000 + milliseconds;
-		return dt;
-	}
-
-	vint GetCurrentMilliseconds()
-	{
-		struct timeval tv;
-		gettimeofday(&tv, nullptr);
-		return tv.tv_usec / 1000;
-	}
-#endif
-
-	DateTime DateTime::LocalTime()
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME systemTime;
-		GetLocalTime(&systemTime);
-		return SystemTimeToDateTime(systemTime);
-#elif defined VCZH_GCC
-		time_t timer = time(nullptr);
-		tm* timeinfo = localtime(&timer);
-		return ConvertTMToDateTime(timeinfo, GetCurrentMilliseconds());
-#endif
-	}
-
-	DateTime DateTime::UtcTime()
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME utcTime;
-		GetSystemTime(&utcTime);
-		return SystemTimeToDateTime(utcTime);
-#elif defined VCZH_GCC
-		time_t timer = time(nullptr);
-		tm* timeinfo = gmtime(&timer);
-		return ConvertTMToDateTime(timeinfo, GetCurrentMilliseconds());
-#endif
-	}
-
-	DateTime DateTime::FromDateTime(vint _year, vint _month, vint _day, vint _hour, vint _minute, vint _second, vint _milliseconds)
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME systemTime;
-		memset(&systemTime, 0, sizeof(systemTime));
-		systemTime.wYear=(WORD)_year;
-		systemTime.wMonth=(WORD)_month;
-		systemTime.wDay=(WORD)_day;
-		systemTime.wHour=(WORD)_hour;
-		systemTime.wMinute=(WORD)_minute;
-		systemTime.wSecond=(WORD)_second;
-		systemTime.wMilliseconds=(WORD)_milliseconds;
-
-		FILETIME fileTime;
-		SystemTimeToFileTime(&systemTime, &fileTime);
-		FileTimeToSystemTime(&fileTime, &systemTime);
-		return SystemTimeToDateTime(systemTime);
-#elif defined VCZH_GCC
-		tm timeinfo;
-		memset(&timeinfo, 0, sizeof(timeinfo));
-		timeinfo.tm_year = _year-1900;
-		timeinfo.tm_mon = _month-1;
-		timeinfo.tm_mday = _day;
-		timeinfo.tm_hour = _hour;
-		timeinfo.tm_min = _minute;
-		timeinfo.tm_sec = _second;
-		timeinfo.tm_isdst = -1;
-
-		return ConvertTMToDateTime(&timeinfo, _milliseconds);
-#endif
-	}
-
-    DateTime DateTime::FromFileTime(vuint64_t filetime)
-	{
-#if defined VCZH_MSVC
-		ULARGE_INTEGER largeInteger;
-		largeInteger.QuadPart=filetime;
-		FILETIME fileTime;
-		fileTime.dwHighDateTime=largeInteger.HighPart;
-		fileTime.dwLowDateTime=largeInteger.LowPart;
-
-		SYSTEMTIME systemTime;
-		FileTimeToSystemTime(&fileTime, &systemTime);
-		return SystemTimeToDateTime(systemTime);
-#elif defined VCZH_GCC
-		time_t timer = (time_t)(filetime / 1000);
-		tm* timeinfo = localtime(&timer);
-		return ConvertTMToDateTime(timeinfo, filetime % 1000);
-#endif
-	}
-
-	DateTime::DateTime()
-		:year(0)
-		,month(0)
-		,day(0)
-		,hour(0)
-		,minute(0)
-		,second(0)
-		,milliseconds(0)
-		,filetime(0)
-	{
-	}
-
-	DateTime DateTime::ToLocalTime()
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME utcTime=DateTimeToSystemTime(*this);
-		SYSTEMTIME localTime;
-		SystemTimeToTzSpecificLocalTime(NULL, &utcTime, &localTime);
-		return SystemTimeToDateTime(localTime);
-#elif defined VCZH_GCC
-		time_t localTimer = time(nullptr);
-		time_t utcTimer = mktime(gmtime(&localTimer));
-		time_t timer = (time_t)(filetime / 1000) + localTimer - utcTimer;
-		tm* timeinfo = localtime(&timer);
-
-		return ConvertTMToDateTime(timeinfo, milliseconds);
-#endif
-	}
-
-	DateTime DateTime::ToUtcTime()
-	{
-#if defined VCZH_MSVC
-		SYSTEMTIME localTime=DateTimeToSystemTime(*this);
-		SYSTEMTIME utcTime;
-		TzSpecificLocalTimeToSystemTime(NULL, &localTime, &utcTime);
-		return SystemTimeToDateTime(utcTime);
-#elif defined VCZH_GCC
-		time_t timer = (time_t)(filetime / 1000);
-		tm* timeinfo = gmtime(&timer);
-
-		return ConvertTMToDateTime(timeinfo, milliseconds);
-#endif
-	}
-
-	DateTime DateTime::Forward(vuint64_t milliseconds)
-	{
-#if defined VCZH_MSVC
-		return FromFileTime(filetime+milliseconds*10000);
-#elif defined VCZH_GCC
-		return FromFileTime(filetime+milliseconds);
-#endif
-	}
-
-	DateTime DateTime::Backward(vuint64_t milliseconds)
-	{
-#if defined VCZH_MSVC
-		return FromFileTime(filetime-milliseconds*10000);
-#elif defined VCZH_GCC
-		return FromFileTime(filetime-milliseconds);
-#endif
-	}
-
-/***********************************************************************
-Interface
-***********************************************************************/
-
-	Interface::~Interface()
-	{
-	}
 }
 
 
 /***********************************************************************
 .\CONSOLE.CPP
 ***********************************************************************/
-#if defined VCZH_MSVC
-#elif defined VCZH_GCC
-#include <iostream>
-#include <string>
-using namespace std;
-#endif
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -289,31 +49,6 @@ namespace vl
 /***********************************************************************
 Console
 ***********************************************************************/
-
-		void Console::Write(const wchar_t* string, vint length)
-		{
-#if defined VCZH_MSVC
-			HANDLE outHandle=GetStdHandle(STD_OUTPUT_HANDLE);
-			DWORD fileMode=0;
-			DWORD written=0;
-			if((GetFileType(outHandle) & FILE_TYPE_CHAR) && GetConsoleMode(outHandle, &fileMode))
-			{
-				WriteConsole(outHandle, string, (int)length, &written,0);
-			}
-			else
-			{
-				int codePage = GetConsoleOutputCP();
-				int charCount = WideCharToMultiByte(codePage, 0, string, -1, 0, 0, 0, 0);
-				char* codePageBuffer = new char[charCount];
-				WideCharToMultiByte(codePage, 0, string, -1, codePageBuffer, charCount, 0, 0);
-				WriteFile(outHandle, codePageBuffer, charCount-1, &written, 0);
-				delete[] codePageBuffer;
-			}
-#elif defined VCZH_GCC
-			wstring s(string, string+length);
-			wcout<<s<<ends;
-#endif
-		}
 
 		void Console::Write(const wchar_t* string)
 		{
@@ -330,63 +65,6 @@ Console
 			Write(string);
 			Write(L"\r\n");
 		}
-
-		WString Console::Read()
-		{
-#if defined VCZH_MSVC
-			WString result;
-			DWORD count;
-			for(;;)
-			{
-				wchar_t buffer;
-				ReadConsole(GetStdHandle(STD_INPUT_HANDLE),&buffer,1,&count,0);
-				if(buffer==L'\r')
-				{
-					ReadConsole(GetStdHandle(STD_INPUT_HANDLE),&buffer,1,&count,0);
-					break;
-				}
-				else if(buffer==L'\n')
-				{
-					break;
-				}
-				else
-				{
-					result=result+buffer;
-				}
-			}
-			return result;
-#elif defined VCZH_GCC
-			wstring s;
-			getline(wcin, s, L'\n');
-			return s.c_str();
-#endif
-		}
-
-		void Console::SetColor(bool red, bool green, bool blue, bool light)
-		{
-#if defined VCZH_MSVC
-			WORD attribute=0;
-			if(red)attribute		|=FOREGROUND_RED;
-			if(green)attribute		|=FOREGROUND_GREEN;
-			if(blue)attribute		|=FOREGROUND_BLUE;
-			if(light)attribute		|=FOREGROUND_INTENSITY;
-			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),attribute);
-			SetConsoleTextAttribute(GetStdHandle(STD_INPUT_HANDLE),attribute);
-#elif defined VCZH_GCC
-			int color = (blue?1:0)*4 + (green?1:0)*2 + (red?1:0);
-			if(light)
-				wprintf(L"\x1B[00;3%dm", color);
-			else
-				wprintf(L"\x1B[01;3%dm", color);
-#endif
-		}
-
-		void Console::SetTitle(const WString& string)
-		{
-#if defined VCZH_MSVC
-			SetConsoleTitle(string.Buffer());
-#endif
-		}
 	}
 }
 
@@ -394,6 +72,11 @@ Console
 /***********************************************************************
 .\EXCEPTION.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -431,502 +114,648 @@ ArgumentException
 	{
 		return name;
 	}
-
-/***********************************************************************
-ParsingException
-***********************************************************************/
-
-	ParsingException::ParsingException(const WString& _message, const WString& _expression, vint _position)
-		:Exception(_message)
-		,expression(_expression)
-		,position(_position)
-	{
-	}
-
-	const WString& ParsingException::GetExpression()const
-	{
-		return expression;
-	}
-
-	vint ParsingException::GetPosition()const
-	{
-		return position;
-	}
 }
 
 /***********************************************************************
 .\GLOBALSTORAGE.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
 	using namespace collections;
 
-	class GlobalStorageManager
-	{
-	public:
-		Ptr<Dictionary<WString, GlobalStorage*>> storages;
+/***********************************************************************
+Helper Functions
+***********************************************************************/
 
-		GlobalStorageManager()
+	GlobalStorageDescriptor* firstGlobalStorageDescriptor = nullptr;
+	GlobalStorageDescriptor** lastGlobalStorageDescriptor = &firstGlobalStorageDescriptor;
+
+	void RegisterStorageDescriptor(GlobalStorageDescriptor* globalStorageDescriptor)
+	{
+		*lastGlobalStorageDescriptor = globalStorageDescriptor;
+		lastGlobalStorageDescriptor = &globalStorageDescriptor->next;
+	}
+
+	void FinalizeGlobalStorage()
+	{
+		auto current = firstGlobalStorageDescriptor;
+		while (current)
 		{
+			current->globalStorage->EnsureFinalized();
+			current = current->next;
 		}
-	};
-
-	GlobalStorageManager& GetGlobalStorageManager()
-	{
-		static GlobalStorageManager globalStorageManager;
-		return globalStorageManager;
 	}
 
 /***********************************************************************
 GlobalStorage
 ***********************************************************************/
 
-	GlobalStorage::GlobalStorage(const wchar_t* key)
-		:cleared(false)
+	GlobalStorage::GlobalStorage()
 	{
-		InitializeGlobalStorage();
-		GetGlobalStorageManager().storages->Add(key, this);
 	}
 
 	GlobalStorage::~GlobalStorage()
 	{
 	}
 
-	bool GlobalStorage::Cleared()
+	bool GlobalStorage::IsInitialized()
 	{
-		return cleared;
+		return initialized;
 	}
 
-/***********************************************************************
-Helper Functions
-***********************************************************************/
-
-	GlobalStorage* GetGlobalStorage(const wchar_t* key)
+	void GlobalStorage::EnsureInitialized()
 	{
-		return GetGlobalStorage(WString(key, false));
-	}
-
-	GlobalStorage* GetGlobalStorage(const WString& key)
-	{
-		return GetGlobalStorageManager().storages->Get(key);
-	}
-
-	void InitializeGlobalStorage()
-	{
-		if(!GetGlobalStorageManager().storages)
+		if (!initialized)
 		{
-			GetGlobalStorageManager().storages=new Dictionary<WString, GlobalStorage*>;
+			initialized = true;
+			InitializeResource();
 		}
 	}
 
-	void FinalizeGlobalStorage()
+	void GlobalStorage::EnsureFinalized()
 	{
-		if(GetGlobalStorageManager().storages)
+		if (initialized)
 		{
-			for(vint i=0;i<GetGlobalStorageManager().storages->Count();i++)
-			{
-				GetGlobalStorageManager().storages->Values().Get(i)->ClearResource();
-			}
-			GetGlobalStorageManager().storages=0;
+			initialized = false;
+			FinalizeResource();
 		}
 	}
 }
 
 
 /***********************************************************************
-.\STRING.CPP
+.\COLLECTIONS\PARTIALORDERING.CPP
 ***********************************************************************/
-#if defined VCZH_MSVC
-#elif defined VCZH_GCC
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	namespace collections
+	{
+		using namespace po;
+
+/***********************************************************************
+PartialOrderingProcessor
+***********************************************************************/
+
+		void PartialOrderingProcessor::InitNodes(vint itemCount)
+		{
+			nodes.Resize(itemCount);
+
+			for (vint i = 0; i < itemCount; i++)
+			{
+				auto& node = nodes[i];
+				node.ins = &emptyList;
+				node.outs = &emptyList;
+
+				vint inIndex = ins.Keys().IndexOf(i);
+				vint outIndex = outs.Keys().IndexOf(i);
+
+				if (inIndex != -1)
+				{
+					node.ins = &ins.GetByIndex(inIndex);
+				}
+				if (outIndex != -1)
+				{
+					node.outs = &outs.GetByIndex(outIndex);
+				}
+			}
+		}
+
+		void PartialOrderingProcessor::VisitUnvisitedNode(po::Node& node, Array<vint>& reversedOrder, vint& used)
+		{
+			node.visited = true;
+			for (vint i = node.outs->Count() - 1; i >= 0; i--)
+			{
+				auto& outNode = nodes[node.outs->Get(i)];
+				if (!outNode.visited)
+				{
+					VisitUnvisitedNode(outNode, reversedOrder, used);
+				}
+			}
+			reversedOrder[used++] = (vint)(&node - &nodes[0]);
+		}
+
+		void PartialOrderingProcessor::AssignUnassignedNode(po::Node& node, vint componentIndex, vint& used)
+		{
+			node.component = componentIndex;
+			firstNodesBuffer[used++] = (vint)(&node - &nodes[0]);
+			for (vint i = 0; i < node.ins->Count(); i++)
+			{
+				auto& inNode = nodes[node.ins->Get(i)];
+				if (inNode.component == -1)
+				{
+					AssignUnassignedNode(inNode, componentIndex, used);
+				}
+			}
+		}
+
+		void PartialOrderingProcessor::Sort()
+		{
+			// Kosaraju's Algorithm
+			CHECK_ERROR(components.Count() == 0, L"PartialOrdering::Sort()#Sorting twice is not allowed.");
+
+			Array<vint> reversedOrder(nodes.Count());
+			{
+				vint used = 0;
+				for (vint i = nodes.Count() - 1; i >= 0; i--)
+				{
+					auto& node = nodes[i];
+					if (!node.visited)
+					{
+						VisitUnvisitedNode(node, reversedOrder, used);
+					}
+				}
+			}
+
+			firstNodesBuffer.Resize(nodes.Count());
+			{
+				vint lastUsed = 0;
+				vint used = 0;
+				for (vint i = reversedOrder.Count() - 1; i >= 0; i--)
+				{
+					auto& node = nodes[reversedOrder[i]];
+					if (node.component == -1)
+					{
+						AssignUnassignedNode(node, components.Count(), used);
+
+						Component component;
+						component.firstNode = &firstNodesBuffer[lastUsed];
+						component.nodeCount = used - lastUsed;
+						lastUsed = used;
+						components.Add(component);
+					}
+				}
+			}
+		}
+	}
+}
+
+/***********************************************************************
+.\PRIMITIVES\DATETIME.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+
+namespace vl
+{
+	extern IDateTimeImpl* GetOSDateTimeImpl();
+
+	IDateTimeImpl* dateTimeImpl = nullptr;
+
+	IDateTimeImpl* GetDateTimeImpl()
+	{
+		return dateTimeImpl ? dateTimeImpl : GetOSDateTimeImpl();
+	}
+
+	void InjectDateTimeImpl(IDateTimeImpl* impl)
+	{
+		dateTimeImpl = impl;
+	}
+
+/***********************************************************************
+DateTime
+***********************************************************************/
+
+	DateTime DateTime::LocalTime()
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->LocalTime());
+	}
+
+	DateTime DateTime::UtcTime()
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->UtcTime());
+	}
+
+	DateTime DateTime::FromDateTime(vint _year, vint _month, vint _day, vint _hour, vint _minute, vint _second, vint _milliseconds)
+	{
+		return GetDateTimeImpl()->FromDateTime(_year, _month, _day, _hour, _minute, _second, _milliseconds);
+	}
+
+	DateTime DateTime::FromOSInternal(vuint64_t _osInternal)
+	{
+		return GetDateTimeImpl()->FromOSInternal(_osInternal);
+	}
+
+	DateTime DateTime::ToLocalTime()
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->UtcToLocalTime(osInternal));
+	}
+
+	DateTime DateTime::ToUtcTime()
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->LocalToUtcTime(osInternal));
+	}
+
+	DateTime DateTime::Forward(vuint64_t milliseconds)
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->Forward(osInternal, milliseconds));
+	}
+
+	DateTime DateTime::Backward(vuint64_t milliseconds)
+	{
+		return GetDateTimeImpl()->FromOSInternal(GetDateTimeImpl()->Backward(osInternal, milliseconds));
+	}
+}
+
+
+/***********************************************************************
+.\STRINGS\CONVERSION.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+#if defined VCZH_GCC
 #include <stdio.h>
 #include <ctype.h>
 #include <wctype.h>
-#define _strtoi64 strtoll
-#define _strtoui64 strtoull
-#define _wcstoi64 wcstoll
-#define _wcstoui64 wcstoull
 #endif
 
 namespace vl
 {
-#if defined VCZH_GCC
-	void _itoa_s(vint32_t value, char* buffer, size_t size, vint radix)
+	namespace encoding
 	{
-		sprintf(buffer, "%d", value);
-	}
-
-	void _itow_s(vint32_t value, wchar_t* buffer, size_t size, vint radix)
-	{
-		swprintf(buffer, size - 1, L"%d", value);
-	}
-
-	void _i64toa_s(vint64_t value, char* buffer, size_t size, vint radix)
-	{
-		sprintf(buffer, "%ld", value);
-	}
-
-	void _i64tow_s(vint64_t value, wchar_t* buffer, size_t size, vint radix)
-	{
-		swprintf(buffer, size - 1, L"%ld", value);
-	}
-
-	void _uitoa_s(vuint32_t value, char* buffer, size_t size, vint radix)
-	{
-		sprintf(buffer, "%u", value);
-	}
-
-	void _uitow_s(vuint32_t value, wchar_t* buffer, size_t size, vint radix)
-	{
-		swprintf(buffer, size - 1, L"%u", value);
-	}
-
-	void _ui64toa_s(vuint64_t value, char* buffer, size_t size, vint radix)
-	{
-		sprintf(buffer, "%lu", value);
-	}
-
-	void _ui64tow_s(vuint64_t value, wchar_t* buffer, size_t size, vint radix)
-	{
-		swprintf(buffer, size - 1, L"%lu", value);
-	}
-
-	void _gcvt_s(char* buffer, size_t size, double value, vint numberOfDigits)
-	{
-		sprintf(buffer, "%f", value);
-		char* point = strchr(buffer, '.');
-		if(!point) return;
-		char* zero = buffer + strlen(buffer);
-		while(zero[-1] == '0')
+		__forceinline bool IsInvalid(char32_t c)
 		{
-			*--zero = '\0';
+			return 0xD800U <= c && c <= 0xDFFFU;
 		}
-		if(zero[-1] == '.') *--zero = '\0';
-	}
 
-	void _strlwr_s(char* buffer, size_t size)
-	{
-		while(*buffer)
+/***********************************************************************
+UtfConversion<wchar_t>
+***********************************************************************/
+
+		vint UtfConversion<wchar_t>::From32(char32_t source, wchar_t(&dest)[BufferLength])
 		{
-			*buffer=(char)tolower(*buffer);
-			buffer++;
-		}
-	}
-
-	void _strupr_s(char* buffer, size_t size)
-	{
-		while(*buffer)
-		{
-			*buffer=(char)toupper(*buffer);
-			buffer++;
-		}
-	}
-
-	void _wcslwr_s(wchar_t* buffer, size_t size)
-	{
-		while(*buffer)
-		{
-			*buffer=(char)towlower(*buffer);
-			buffer++;
-		}
-	}
-
-	void _wcsupr_s(wchar_t* buffer, size_t size)
-	{
-		while(*buffer)
-		{
-			*buffer=(char)towupper(*buffer);
-			buffer++;
-		}
-	}
-
-	void wcscpy_s(wchar_t* buffer, size_t size, const wchar_t* text)
-	{
-		wcscpy(buffer, text);
-	}
+#if defined VCZH_WCHAR_UTF16
+			return UtfConversion<char16_t>::From32(source, reinterpret_cast<char16_t(&)[BufferLength]>(dest));
+#elif defined VCZH_WCHAR_UTF32
+			dest[0] = static_cast<wchar_t>(source);
+			return 1;
 #endif
-
-	vint atoi_test(const AString& string, bool& success)
-	{
-		char* endptr = 0;
-		vint result = strtol(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && itoa(result) == string;
-		return result;
-	}
-
-	vint wtoi_test(const WString& string, bool& success)
-	{
-		wchar_t* endptr = 0;
-		vint result = wcstol(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && itow(result) == string;
-		return result;
-	}
-
-	vint64_t atoi64_test(const AString& string, bool& success)
-	{
-		char* endptr = 0;
-		vint64_t result = _strtoi64(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && i64toa(result) == string;
-		return result;
-	}
-
-	vint64_t wtoi64_test(const WString& string, bool& success)
-	{
-		wchar_t* endptr = 0;
-		vint64_t result = _wcstoi64(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && i64tow(result) == string;
-		return result;
-	}
-
-	vuint atou_test(const AString& string, bool& success)
-	{
-		char* endptr = 0;
-		vuint result = strtoul(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && utoa(result) == string;
-		return result;
-	}
-
-	vuint wtou_test(const WString& string, bool& success)
-	{
-		wchar_t* endptr = 0;
-		vuint result = wcstoul(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && utow(result) == string;
-		return result;
-	}
-
-	vuint64_t atou64_test(const AString& string, bool& success)
-	{
-		char* endptr = 0;
-		vuint64_t result = _strtoui64(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && u64toa(result) == string;
-		return result;
-	}
-
-	vuint64_t wtou64_test(const WString& string, bool& success)
-	{
-		wchar_t* endptr = 0;
-		vuint64_t result = _wcstoui64(string.Buffer(), &endptr, 10);
-		success = endptr == string.Buffer() + string.Length() && u64tow(result) == string;
-		return result;
-	}
-
-	double atof_test(const AString& string, bool& success)
-	{
-		char* endptr = 0;
-		double result = strtod(string.Buffer(), &endptr);
-		success = endptr == string.Buffer() + string.Length();
-		return result;
-	}
-
-	double wtof_test(const WString& string, bool& success)
-	{
-		wchar_t* endptr = 0;
-		double result = wcstod(string.Buffer(), &endptr);
-		success = endptr == string.Buffer() + string.Length();
-		return result;
-	}
-
-	vint atoi(const AString& string)
-	{
-		bool success = false;
-		return atoi_test(string, success);
-	}
-
-	vint wtoi(const WString& string)
-	{
-		bool success = false;
-		return wtoi_test(string, success);
-	}
-
-	vint64_t atoi64(const AString& string)
-	{
-		bool success = false;
-		return atoi64_test(string, success);
-	}
-
-	vint64_t wtoi64(const WString& string)
-	{
-		bool success = false;
-		return wtoi64_test(string, success);
-	}
-
-	vuint atou(const AString& string)
-	{
-		bool success = false;
-		return atou_test(string, success);
-	}
-
-	vuint wtou(const WString& string)
-	{
-		bool success = false;
-		return wtou_test(string, success);
-	}
-
-	vuint64_t atou64(const AString& string)
-	{
-		bool success = false;
-		return atou64_test(string, success);
-	}
-
-	vuint64_t wtou64(const WString& string)
-	{
-		bool success = false;
-		return wtou64_test(string, success);
-	}
-
-	double atof(const AString& string)
-	{
-		bool success = false;
-		return atof_test(string, success);
-	}
-
-	double wtof(const WString& string)
-	{
-		bool success = false;
-		return wtof_test(string, success);
-	}
-
-	AString itoa(vint number)
-	{
-		char buffer[100];
-		ITOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	WString itow(vint number)
-	{
-		wchar_t buffer[100];
-		ITOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	AString i64toa(vint64_t number)
-	{
-		char buffer[100];
-		I64TOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	WString i64tow(vint64_t number)
-	{
-		wchar_t buffer[100];
-		I64TOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	AString utoa(vuint number)
-	{
-		char buffer[100];
-		UITOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	WString utow(vuint number)
-	{
-		wchar_t buffer[100];
-		UITOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	AString u64toa(vuint64_t number)
-	{
-		char buffer[100];
-		UI64TOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	WString u64tow(vuint64_t number)
-	{
-		wchar_t buffer[100];
-		UI64TOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
-		return buffer;
-	}
-
-	AString ftoa(double number)
-	{
-		char buffer[320];
-		_gcvt_s(buffer, 320, number, 30);
-		vint len = (vint)strlen(buffer);
-		if (buffer[len - 1] == '.')
-		{
-			buffer[len - 1] = '\0';
 		}
-		return buffer;
-	}
 
-	WString ftow(double number)
-	{
-		return atow(ftoa(number));
-	}
-
-	vint _wtoa(const wchar_t* w, char* a, vint chars)
-	{
-#if defined VCZH_MSVC
-		return WideCharToMultiByte(CP_THREAD_ACP, 0, w, -1, a, (int)(a ? chars : 0), 0, 0);
-#elif defined VCZH_GCC
-		return wcstombs(a, w, chars-1)+1;
+		vint UtfConversion<wchar_t>::To32(const wchar_t* source, vint sourceLength, char32_t& dest)
+		{
+#if defined VCZH_WCHAR_UTF16
+			return UtfConversion<char16_t>::To32(reinterpret_cast<const char16_t*>(source), sourceLength, dest);
+#elif defined VCZH_WCHAR_UTF32
+			if (sourceLength <= 0) return -1;
+			dest = static_cast<char32_t>(source[0]);
+			return 1;
 #endif
+		}
+
+/***********************************************************************
+UtfConversion<char8_t>
+***********************************************************************/
+
+		/*
+		How UCS-4 translates to UTF-8
+			U-00000000 - U-0000007F:  0xxxxxxx
+			U-00000080 - U-000007FF:  110xxxxx 10xxxxxx
+			U-00000800 - U-0000FFFF:  1110xxxx 10xxxxxx 10xxxxxx
+			U-00010000 - U-001FFFFF:  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+			U-00200000 - U-03FFFFFF:  111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+			U-04000000 - U-7FFFFFFF:  1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+		*/
+
+		vint UtfConversion<char8_t>::From32(char32_t source, char8_t(&dest)[BufferLength])
+		{
+			if (IsInvalid(source)) return -1;
+			vuint32_t c = static_cast<vuint32_t>(source);
+			vuint8_t(&ds)[BufferLength] = reinterpret_cast<vuint8_t(&)[BufferLength]>(dest);
+
+			if (c <= 0x0000007FUL)
+			{
+				ds[0] = static_cast<vuint8_t>(c);
+				return 1;
+			}
+			else if (c <= 0x000007FFUL)
+			{
+				ds[0] = static_cast<vuint8_t>((c >> 6) | 0b11000000U);
+				ds[1] = static_cast<vuint8_t>((c & 0b00111111U) | 0b10000000U);
+				return 2;
+			}
+			else if (c <= 0x0000FFFFUL)
+			{
+				ds[0] = static_cast<vuint8_t>((c >> 12) | 0b11100000U);
+				ds[1] = static_cast<vuint8_t>(((c >> 6) & 0b00111111U) | 0b10000000U);
+				ds[2] = static_cast<vuint8_t>((c & 0b00111111U) | 0b10000000U);
+				return 3;
+			}
+			else if (c <= 0x001FFFFFUL)
+			{
+				ds[0] = static_cast<vuint8_t>((c >> 18) | 0b11110000U);
+				ds[1] = static_cast<vuint8_t>(((c >> 12) & 0b00111111U) | 0b10000000U);
+				ds[2] = static_cast<vuint8_t>(((c >> 6) & 0b00111111U) | 0b10000000U);
+				ds[3] = static_cast<vuint8_t>((c & 0b00111111U) | 0b10000000U);
+				return 4;
+			}
+			else if (c <= 0x03FFFFFFUL)
+			{
+				ds[0] = static_cast<vuint8_t>((c >> 24) | 0b11111000U);
+				ds[1] = static_cast<vuint8_t>(((c >> 18) & 0b00111111U) | 0b10000000U);
+				ds[2] = static_cast<vuint8_t>(((c >> 12) & 0b00111111U) | 0b10000000U);
+				ds[3] = static_cast<vuint8_t>(((c >> 6) & 0b00111111U) | 0b10000000U);
+				ds[4] = static_cast<vuint8_t>((c & 0b00111111U) | 0b10000000U);
+				return 5;
+			}
+			else if (c <= 0x7FFFFFFFUL)
+			{
+				ds[0] = static_cast<vuint8_t>((c >> 30) | 0b11111100U);
+				ds[1] = static_cast<vuint8_t>(((c >> 24) & 0b00111111U) | 0b10000000U);
+				ds[2] = static_cast<vuint8_t>(((c >> 18) & 0b00111111U) | 0b10000000U);
+				ds[3] = static_cast<vuint8_t>(((c >> 12) & 0b00111111U) | 0b10000000U);
+				ds[4] = static_cast<vuint8_t>(((c >> 6) & 0b00111111U) | 0b10000000U);
+				ds[5] = static_cast<vuint8_t>((c & 0b00111111U) | 0b10000000U);
+				return 6;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+
+		vint UtfConversion<char8_t>::To32(const char8_t* source, vint sourceLength, char32_t& dest)
+		{
+			const vuint8_t* cs = reinterpret_cast<const vuint8_t*>(source);
+			vuint32_t& d = reinterpret_cast<vuint32_t&>(dest);
+			if (sourceLength <= 0) return -1;
+
+			if (cs[0] < 0b10000000U)
+			{
+				d = cs[0];
+				return 1;
+			}
+			else if (cs[0] < 0b11100000U)
+			{
+				if (sourceLength < 2) return -1;
+				d = ((static_cast<vuint32_t>(cs[0]) & 0b00011111U) << 6) |
+					((static_cast<vuint32_t>(cs[1]) & 0b00111111U));
+				return 2;
+			}
+			else if (cs[0] < 0b11110000U)
+			{
+				if (sourceLength < 3) return -1;
+				d = ((static_cast<vuint32_t>(cs[0]) & 0b00001111U) << 12) |
+					((static_cast<vuint32_t>(cs[1]) & 0b00111111U) << 6) |
+					((static_cast<vuint32_t>(cs[2]) & 0b00111111U));
+				return 3;
+			}
+			else if (cs[0] < 0b11111000U)
+			{
+				if (sourceLength < 4) return -1;
+				d = ((static_cast<vuint32_t>(cs[0]) & 0b00000111U) << 18) |
+					((static_cast<vuint32_t>(cs[1]) & 0b00111111U) << 12) |
+					((static_cast<vuint32_t>(cs[2]) & 0b00111111U) << 6) |
+					((static_cast<vuint32_t>(cs[3]) & 0b00111111U));
+				return 4;
+			}
+			else if (cs[0] < 0b11111100U)
+			{
+				if (sourceLength < 5) return -1;
+				d = ((static_cast<vuint32_t>(cs[0]) & 0b00000011U) << 24) |
+					((static_cast<vuint32_t>(cs[1]) & 0b00111111U) << 18) |
+					((static_cast<vuint32_t>(cs[2]) & 0b00111111U) << 12) |
+					((static_cast<vuint32_t>(cs[3]) & 0b00111111U) << 6) |
+					((static_cast<vuint32_t>(cs[4]) & 0b00111111U));
+				return 5;
+			}
+			else
+			{
+				if (sourceLength < 6) return -1;
+				d = ((static_cast<vuint32_t>(cs[0]) & 0b00000001U) << 30) |
+					((static_cast<vuint32_t>(cs[1]) & 0b00111111U) << 24) |
+					((static_cast<vuint32_t>(cs[2]) & 0b00111111U) << 18) |
+					((static_cast<vuint32_t>(cs[3]) & 0b00111111U) << 12) |
+					((static_cast<vuint32_t>(cs[4]) & 0b00111111U) << 6) |
+					((static_cast<vuint32_t>(cs[5]) & 0b00111111U));
+				return 6;
+			}
+			if (IsInvalid(dest)) return -1;
+			return 1;
+		}
+
+/***********************************************************************
+UtfConversion<char16_t>
+***********************************************************************/
+
+		/*
+		How UCS-4 translates to UTF-16 Surrogate Pair
+			U' = yyyyyyyyyyxxxxxxxxxx  // U - 0x10000
+			W1 = 110110yyyyyyyyyy      // 0xD800 + yyyyyyyyyy
+			W2 = 110111xxxxxxxxxx      // 0xDC00 + xxxxxxxxxx
+		*/
+
+		vint UtfConversion<char16_t>::From32(char32_t source, char16_t(&dest)[BufferLength])
+		{
+			if (IsInvalid(source)) return -1;
+			vuint32_t c = static_cast<vuint32_t>(source);
+			vuint16_t(&ds)[BufferLength] = reinterpret_cast<vuint16_t(&)[BufferLength]>(dest);
+
+			if (0x000000UL <= c && c <= 0x00D7FFUL)
+			{
+				ds[0] = static_cast<vuint16_t>(c);
+				return 1;
+			}
+			else if (0x00E000UL <= c && c <= 0x00FFFFUL)
+			{
+				ds[0] = static_cast<vuint16_t>(c);
+				return 1;
+			}
+			else if (0x010000UL <= c && c <= 0x10FFFFUL)
+			{
+				c -= 0x010000UL;
+				ds[0] = static_cast<vuint16_t>((c >> 10) | 0xD800U);
+				ds[1] = static_cast<vuint16_t>((c & 0x03FFU) | 0xDC00U);
+				return 2;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+
+		vint UtfConversion<char16_t>::To32(const char16_t* source, vint sourceLength, char32_t& dest)
+		{
+			const vuint16_t* cs = reinterpret_cast<const vuint16_t* >(source);
+			vuint32_t& d = reinterpret_cast<vuint32_t&>(dest);
+			if (sourceLength <= 0) return -1;
+
+			if ((cs[0] & 0xFC00U) == 0xD800U)
+			{
+				if (sourceLength < 2) return -1;
+				if ((cs[1] & 0xFC00U) == 0xDC00U)
+				{
+					d = 0x010000UL + (
+						((static_cast<vuint32_t>(cs[0]) & 0x03FF) << 10) |
+						(static_cast<vuint32_t>(cs[1]) & 0x03FF)
+						);
+					if (IsInvalid(dest)) return -1;
+					return 2;
+				}
+				else
+				{
+					return -1;
+				}
+			}
+			else
+			{
+				d = cs[0];
+				if (IsInvalid(dest)) return -1;
+				return 1;
+			}
+		}
+
+/***********************************************************************
+UtfConversion<char16be_t>
+***********************************************************************/
+
+		vint UtfConversion<char16be_t>::From32(char32_t source, char16be_t(&dest)[BufferLength])
+		{
+			char16_t destle[BufferLength];
+			vint result = UtfConversion<char16_t>::From32(source, destle);
+			SwapByteForUtf16BE(destle[0]);
+			SwapByteForUtf16BE(destle[1]);
+			dest[0].value = destle[0];
+			dest[1].value = destle[1];
+			return result;
+		}
+
+		vint UtfConversion<char16be_t>::To32(const char16be_t* source, vint sourceLength, char32_t& dest)
+		{
+			char16_t destle[BufferLength];
+			if (sourceLength >= 1) destle[0] = source[0].value;
+			if (sourceLength >= 2) destle[1] = source[1].value;
+			SwapByteForUtf16BE(destle[0]);
+			SwapByteForUtf16BE(destle[1]);
+			return UtfConversion<char16_t>::To32(destle, sourceLength, dest);
+		}
 	}
 
-	AString wtoa(const WString& string)
+/***********************************************************************
+String Conversions (buffer walkthrough)
+***********************************************************************/
+
+	template<typename TFrom, typename TTo, typename TReader>
+	vint _utftoutf_reader(const TFrom* s, TTo* d, vint chars)
 	{
-		vint len = _wtoa(string.Buffer(), 0, 0);
-		char* buffer = new char[len];
-		memset(buffer, 0, len*sizeof(*buffer));
-		_wtoa(string.Buffer(), buffer, (int)len);
-		AString s = buffer;
-		delete[] buffer;
-		return s;
+		TReader reader(s);
+		vint size = 0;
+		if (d == nullptr)
+		{
+			while (reader.Read()) size++;
+			return size + 1;
+		}
+		else
+		{
+			while (true)
+			{
+				if (chars == 0) break;
+				auto c = reader.Read();
+				*d++ = c;
+				size++;
+				chars--;
+				if (!c) break;
+			}
+			return size;
+		}
 	}
 
-	vint _atow(const char* a, wchar_t* w, vint chars)
+	template<typename TFrom, typename TTo>
+	vint _utftoutf(const TFrom* s, TTo* d, vint chars)
 	{
-#if defined VCZH_MSVC
-		return MultiByteToWideChar(CP_THREAD_ACP, 0, a, -1, w, (int)(w ? chars : 0));
-#elif defined VCZH_GCC
-		return mbstowcs(w, a, chars-1)+1;
+		return _utftoutf_reader<TFrom, TTo, encoding::UtfStringToStringReader<TFrom, TTo>>(s, d, chars);
+	}
+
+	template vint			_utftoutf<wchar_t, char8_t>(const wchar_t* s, char8_t* d, vint chars);
+	template vint			_utftoutf<wchar_t, char16_t>(const wchar_t* s, char16_t* d, vint chars);
+	template vint			_utftoutf<char8_t, wchar_t>(const char8_t* s, wchar_t* d, vint chars);
+	template vint			_utftoutf<char8_t, char16_t>(const char8_t* s, char16_t* d, vint chars);
+	template vint			_utftoutf<char16_t, wchar_t>(const char16_t* s, wchar_t* d, vint chars);
+	template vint			_utftoutf<char16_t, char8_t>(const char16_t* s, char8_t* d, vint chars);
+
+	template vint			_utftoutf<char32_t, char8_t>(const char32_t* s, char8_t* d, vint chars);
+	template vint			_utftoutf<char32_t, char16_t>(const char32_t* s, char16_t* d, vint chars);
+	template vint			_utftoutf<char32_t, wchar_t>(const char32_t* s, wchar_t* d, vint chars);
+	template vint			_utftoutf<char8_t, char32_t>(const char8_t* s, char32_t* d, vint chars);
+	template vint			_utftoutf<char16_t, char32_t>(const char16_t* s, char32_t* d, vint chars);
+	template vint			_utftoutf<wchar_t, char32_t>(const wchar_t* s, char32_t* d, vint chars);
+
+/***********************************************************************
+String Conversions (direct)
+***********************************************************************/
+
+	template<typename TFrom, typename TTo, vint(*Convert)(const TFrom*, TTo*, vint)>
+	ObjectString<TTo> ConvertStringDirect(const ObjectString<TFrom>& source)
+	{
+		vint len = Convert(source.Buffer(), nullptr, 0);
+		if (len < 1) return {};
+		TTo* buffer = new TTo[len];
+		memset(buffer, 0, len * sizeof(TTo));
+		Convert(source.Buffer(), buffer, len);
+		return ObjectString<TTo>::TakeOver(buffer, len - 1);
+	}
+#if defined VCZH_WCHAR_UTF16
+	U32String				wtou32	(const WString& source)		{ return ConvertStringDirect<wchar_t, char32_t, _utftoutf<wchar_t, char32_t>>(source); }
+	WString					u32tow	(const U32String& source)	{ return ConvertStringDirect<char32_t, wchar_t, _utftoutf<char32_t, wchar_t>>(source); }
+#elif defined VCZH_WCHAR_UTF32
+	U32String				wtou32	(const WString& source)		{ return U32String::UnsafeCastFrom(source); }
+	WString					u32tow	(const U32String& source)	{ return WString::UnsafeCastFrom(source); }
 #endif
-	}
+	U32String				u8tou32	(const U8String& source)	{ return ConvertStringDirect<char8_t, char32_t, _utftoutf<char8_t, char32_t>>(source); }
+	U8String				u32tou8	(const U32String& source)	{ return ConvertStringDirect<char32_t, char8_t, _utftoutf<char32_t, char8_t>>(source); }
+	U32String				u16tou32(const U16String& source)	{ return ConvertStringDirect<char16_t, char32_t, _utftoutf<char16_t, char32_t>>(source); }
+	U16String				u32tou16(const U32String& source)	{ return ConvertStringDirect<char32_t, char16_t, _utftoutf<char32_t, char16_t>>(source); }
 
-	WString atow(const AString& string)
-	{
-		vint len = _atow(string.Buffer(), 0, 0);
-		wchar_t* buffer = new wchar_t[len];
-		memset(buffer, 0, len*sizeof(*buffer));
-		_atow(string.Buffer(), buffer, (int)len);
-		WString s = buffer;
-		delete[] buffer;
-		return s;
-	}
+/***********************************************************************
+String Conversions (unicode indirect)
+***********************************************************************/
 
-	AString alower(const AString& string)
-	{
-		AString result = string.Buffer();
-		_strlwr_s((char*)result.Buffer(), result.Length() + 1);
-		return result;
-	}
+	AString					wtoa	(const WString& source)		{ return ConvertStringDirect<wchar_t, char, _wtoa>(source); }
+	WString					atow	(const AString& source)		{ return ConvertStringDirect<char, wchar_t, _atow>(source); }
 
-	WString wlower(const WString& string)
-	{
-		WString result = string.Buffer();
-		_wcslwr_s((wchar_t*)result.Buffer(), result.Length() + 1);
-		return result;
-	}
+	U8String				wtou8	(const WString& source)		{ return ConvertStringDirect<wchar_t, char8_t, _utftoutf<wchar_t, char8_t>>(source); }
+	WString					u8tow	(const U8String& source)	{ return ConvertStringDirect<char8_t, wchar_t, _utftoutf<char8_t, wchar_t>>(source); }
+#if defined VCZH_WCHAR_UTF16
+	U16String				wtou16	(const WString& source)		{ return U16String::UnsafeCastFrom(source); }
+	WString					u16tow	(const U16String& source)	{ return WString::UnsafeCastFrom(source); }
+#elif defined VCZH_WCHAR_UTF32
+	U16String				wtou16	(const WString& source)		{ return ConvertStringDirect<wchar_t, char16_t, _utftoutf<wchar_t, char16_t>>(source); }
+	WString					u16tow	(const U16String& source)	{ return ConvertStringDirect<char16_t, wchar_t, _utftoutf<char16_t, wchar_t>>(source); }
+#endif
+	U16String				u8tou16	(const U8String& source)	{ return ConvertStringDirect<char8_t, char16_t, _utftoutf<char8_t, char16_t>>(source); }
+	U8String				u16tou8	(const U16String& source)	{ return ConvertStringDirect<char16_t, char8_t, _utftoutf<char16_t, char8_t>>(source); }
+}
 
-	AString aupper(const AString& string)
-	{
-		AString result = string.Buffer();
-		_strupr_s((char*)result.Buffer(), result.Length() + 1);
-		return result;
-	}
 
-	WString wupper(const WString& string)
-	{
-		WString result = string.Buffer();
-		_wcsupr_s((wchar_t*)result.Buffer(), result.Length() + 1);
-		return result;
-	}
+/***********************************************************************
+.\STRINGS\LOREMIPSUM.CPP
+***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
 
+#include <time.h>
+
+namespace vl
+{
 	WString LoremIpsum(vint bestLength, LoremIpsumCasing casing)
 	{
 		static const wchar_t* words[] =
@@ -1080,115 +909,390 @@ namespace vl
 
 
 /***********************************************************************
-.\COLLECTIONS\PARTIALORDERING.CPP
+.\STRINGS\STRING.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
+#if defined VCZH_MSVC
+#elif defined VCZH_GCC
+#define _strtoi64 strtoll
+#define _strtoui64 strtoull
+#define _wcstoi64 wcstoll
+#define _wcstoui64 wcstoull
+#endif
 
 namespace vl
 {
-	namespace collections
+	template class ObjectString<char>;
+	template class ObjectString<wchar_t>;
+	template class ObjectString<char8_t>;
+	template class ObjectString<char16_t>;
+	template class ObjectString<char32_t>;
+
+#if defined VCZH_GCC
+	void _itoa_s(vint32_t value, char* buffer, size_t size, vint radix)
 	{
-		using namespace po;
+		sprintf(buffer, "%d", value);
+	}
 
-/***********************************************************************
-PartialOrderingProcessor
-***********************************************************************/
+	void _itow_s(vint32_t value, wchar_t* buffer, size_t size, vint radix)
+	{
+		swprintf(buffer, size - 1, L"%d", value);
+	}
 
-		void PartialOrderingProcessor::InitNodes(vint itemCount)
+	void _i64toa_s(vint64_t value, char* buffer, size_t size, vint radix)
+	{
+		sprintf(buffer, "%ld", value);
+	}
+
+	void _i64tow_s(vint64_t value, wchar_t* buffer, size_t size, vint radix)
+	{
+		swprintf(buffer, size - 1, L"%ld", value);
+	}
+
+	void _uitoa_s(vuint32_t value, char* buffer, size_t size, vint radix)
+	{
+		sprintf(buffer, "%u", value);
+	}
+
+	void _uitow_s(vuint32_t value, wchar_t* buffer, size_t size, vint radix)
+	{
+		swprintf(buffer, size - 1, L"%u", value);
+	}
+
+	void _ui64toa_s(vuint64_t value, char* buffer, size_t size, vint radix)
+	{
+		sprintf(buffer, "%lu", value);
+	}
+
+	void _ui64tow_s(vuint64_t value, wchar_t* buffer, size_t size, vint radix)
+	{
+		swprintf(buffer, size - 1, L"%lu", value);
+	}
+
+	void _gcvt_s(char* buffer, size_t size, double value, vint numberOfDigits)
+	{
+		sprintf(buffer, "%f", value);
+		char* point = strchr(buffer, '.');
+		if(!point) return;
+		char* zero = buffer + strlen(buffer);
+		while(zero[-1] == '0')
 		{
-			nodes.Resize(itemCount);
-
-			for (vint i = 0; i < itemCount; i++)
-			{
-				auto& node = nodes[i];
-				node.ins = &emptyList;
-				node.outs = &emptyList;
-
-				vint inIndex = ins.Keys().IndexOf(i);
-				vint outIndex = outs.Keys().IndexOf(i);
-
-				if (inIndex != -1)
-				{
-					node.ins = &ins.GetByIndex(inIndex);
-				}
-				if (outIndex != -1)
-				{
-					node.outs = &outs.GetByIndex(outIndex);
-				}
-			}
+			*--zero = '\0';
 		}
+		if(zero[-1] == '.') *--zero = '\0';
+	}
 
-		void PartialOrderingProcessor::VisitUnvisitedNode(po::Node& node, Array<vint>& reversedOrder, vint& used)
+	void _strlwr_s(char* buffer, size_t size)
+	{
+		while(*buffer)
 		{
-			node.visited = true;
-			for (vint i = node.outs->Count() - 1; i >= 0; i--)
-			{
-				auto& outNode = nodes[node.outs->Get(i)];
-				if (!outNode.visited)
-				{
-					VisitUnvisitedNode(outNode, reversedOrder, used);
-				}
-			}
-			reversedOrder[used++] = (vint)(&node - &nodes[0]);
-		}
-
-		void PartialOrderingProcessor::AssignUnassignedNode(po::Node& node, vint componentIndex, vint& used)
-		{
-			node.component = componentIndex;
-			firstNodesBuffer[used++] = (vint)(&node - &nodes[0]);
-			for (vint i = 0; i < node.ins->Count(); i++)
-			{
-				auto& inNode = nodes[node.ins->Get(i)];
-				if (inNode.component == -1)
-				{
-					AssignUnassignedNode(inNode, componentIndex, used);
-				}
-			}
-		}
-
-		void PartialOrderingProcessor::Sort()
-		{
-			// Kosaraju's Algorithm
-			CHECK_ERROR(components.Count() == 0, L"PartialOrdering::Sort()#Sorting twice is not allowed.");
-
-			Array<vint> reversedOrder(nodes.Count());
-			{
-				vint used = 0;
-				for (vint i = nodes.Count() - 1; i >= 0; i--)
-				{
-					auto& node = nodes[i];
-					if (!node.visited)
-					{
-						VisitUnvisitedNode(node, reversedOrder, used);
-					}
-				}
-			}
-
-			firstNodesBuffer.Resize(nodes.Count());
-			{
-				vint lastUsed = 0;
-				vint used = 0;
-				for (vint i = reversedOrder.Count() - 1; i >= 0; i--)
-				{
-					auto& node = nodes[reversedOrder[i]];
-					if (node.component == -1)
-					{
-						AssignUnassignedNode(node, components.Count(), used);
-
-						Component component;
-						component.firstNode = &firstNodesBuffer[lastUsed];
-						component.nodeCount = used - lastUsed;
-						lastUsed = used;
-						components.Add(component);
-					}
-				}
-			}
+			*buffer=(char)tolower(*buffer);
+			buffer++;
 		}
 	}
+
+	void _strupr_s(char* buffer, size_t size)
+	{
+		while(*buffer)
+		{
+			*buffer=(char)toupper(*buffer);
+			buffer++;
+		}
+	}
+
+	void _wcslwr_s(wchar_t* buffer, size_t size)
+	{
+		while(*buffer)
+		{
+			*buffer=(char)towlower(*buffer);
+			buffer++;
+		}
+	}
+
+	void _wcsupr_s(wchar_t* buffer, size_t size)
+	{
+		while(*buffer)
+		{
+			*buffer=(char)towupper(*buffer);
+			buffer++;
+		}
+	}
+
+	void wcscpy_s(wchar_t* buffer, size_t size, const wchar_t* text)
+	{
+		wcscpy(buffer, text);
+	}
+#endif
+
+	vint atoi_test(const AString& string, bool& success)
+	{
+		char* endptr = 0;
+		vint result = strtol(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && itoa(result) == string;
+		if (success) success &= (_I32_MIN <= result && result <= _I32_MAX);
+		return result;
+	}
+
+	vint wtoi_test(const WString& string, bool& success)
+	{
+		wchar_t* endptr = 0;
+		vint result = wcstol(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && itow(result) == string;
+		if (success) success &= (_I32_MIN <= result && result <= _I32_MAX);
+		return result;
+	}
+
+	vint64_t atoi64_test(const AString& string, bool& success)
+	{
+		char* endptr = 0;
+		vint64_t result = _strtoi64(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && i64toa(result) == string;
+		return result;
+	}
+
+	vint64_t wtoi64_test(const WString& string, bool& success)
+	{
+		wchar_t* endptr = 0;
+		vint64_t result = _wcstoi64(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && i64tow(result) == string;
+		return result;
+	}
+
+	vuint atou_test(const AString& string, bool& success)
+	{
+		char* endptr = 0;
+		vuint result = strtoul(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && utoa(result) == string;
+		if (success) success &= (result <= _UI32_MAX);
+		return result;
+	}
+
+	vuint wtou_test(const WString& string, bool& success)
+	{
+		wchar_t* endptr = 0;
+		vuint result = wcstoul(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && utow(result) == string;
+		if (success) success &= (result <= _UI32_MAX);
+		return result;
+	}
+
+	vuint64_t atou64_test(const AString& string, bool& success)
+	{
+		char* endptr = 0;
+		vuint64_t result = _strtoui64(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && u64toa(result) == string;
+		return result;
+	}
+
+	vuint64_t wtou64_test(const WString& string, bool& success)
+	{
+		wchar_t* endptr = 0;
+		vuint64_t result = _wcstoui64(string.Buffer(), &endptr, 10);
+		success = endptr == string.Buffer() + string.Length() && u64tow(result) == string;
+		return result;
+	}
+
+	double atof_test(const AString& string, bool& success)
+	{
+		char* endptr = 0;
+		double result = strtod(string.Buffer(), &endptr);
+		success = endptr == string.Buffer() + string.Length();
+		return result;
+	}
+
+	double wtof_test(const WString& string, bool& success)
+	{
+		wchar_t* endptr = 0;
+		double result = wcstod(string.Buffer(), &endptr);
+		success = endptr == string.Buffer() + string.Length();
+		return result;
+	}
+
+	vint atoi(const AString& string)
+	{
+		bool success = false;
+		vint result = atoi_test(string, success);
+		return success ? result : 0;
+	}
+
+	vint wtoi(const WString& string)
+	{
+		bool success = false;
+		vint result = wtoi_test(string, success);
+		return success ? result : 0;
+	}
+
+	vint64_t atoi64(const AString& string)
+	{
+		bool success = false;
+		vint64_t result = atoi64_test(string, success);
+		return success ? result : 0;
+	}
+
+	vint64_t wtoi64(const WString& string)
+	{
+		bool success = false;
+		vint64_t result = wtoi64_test(string, success);
+		return success ? result : 0;
+	}
+
+	vuint atou(const AString& string)
+	{
+		bool success = false;
+		vuint result = atou_test(string, success);
+		return success ? result : 0;
+	}
+
+	vuint wtou(const WString& string)
+	{
+		bool success = false;
+		vuint result = wtou_test(string, success);
+		return success ? result : 0;
+	}
+
+	vuint64_t atou64(const AString& string)
+	{
+		bool success = false;
+		vuint64_t result = atou64_test(string, success);
+		return success ? result : 0;
+	}
+
+	vuint64_t wtou64(const WString& string)
+	{
+		bool success = false;
+		vuint64_t result = wtou64_test(string, success);
+		return success ? result : 0;
+	}
+
+	double atof(const AString& string)
+	{
+		bool success = false;
+		double result = atof_test(string, success);
+		return success ? result : 0;
+	}
+
+	double wtof(const WString& string)
+	{
+		bool success = false;
+		double result = wtof_test(string, success);
+		return success ? result : 0;
+	}
+
+	AString itoa(vint number)
+	{
+		char buffer[100];
+		ITOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	WString itow(vint number)
+	{
+		wchar_t buffer[100];
+		ITOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	AString i64toa(vint64_t number)
+	{
+		char buffer[100];
+		I64TOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	WString i64tow(vint64_t number)
+	{
+		wchar_t buffer[100];
+		I64TOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	AString utoa(vuint number)
+	{
+		char buffer[100];
+		UITOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	WString utow(vuint number)
+	{
+		wchar_t buffer[100];
+		UITOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	AString u64toa(vuint64_t number)
+	{
+		char buffer[100];
+		UI64TOA_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	WString u64tow(vuint64_t number)
+	{
+		wchar_t buffer[100];
+		UI64TOW_S(number, buffer, sizeof(buffer) / sizeof(*buffer), 10);
+		return buffer;
+	}
+
+	AString ftoa(double number)
+	{
+		char buffer[320];
+		_gcvt_s(buffer, 320, number, 30);
+		vint len = (vint)strlen(buffer);
+		if (buffer[len - 1] == '.')
+		{
+			buffer[len - 1] = '\0';
+		}
+		return buffer;
+	}
+
+	WString ftow(double number)
+	{
+		return atow(ftoa(number));
+	}
+
+	AString alower(const AString& string)
+	{
+		AString result = string.Buffer();
+		_strlwr_s((char*)result.Buffer(), result.Length() + 1);
+		return result;
+	}
+
+	WString wlower(const WString& string)
+	{
+		WString result = string.Buffer();
+		_wcslwr_s((wchar_t*)result.Buffer(), result.Length() + 1);
+		return result;
+	}
+
+	AString aupper(const AString& string)
+	{
+		AString result = string.Buffer();
+		_strupr_s((char*)result.Buffer(), result.Length() + 1);
+		return result;
+	}
+
+	WString wupper(const WString& string)
+	{
+		WString result = string.Buffer();
+		_wcsupr_s((wchar_t*)result.Buffer(), result.Length() + 1);
+		return result;
+	}
 }
+
 
 /***********************************************************************
 .\UNITTEST\UNITTEST.CPP
 ***********************************************************************/
+/***********************************************************************
+Author: Zihan Chen (vczh)
+Licensed under https://github.com/vczh-libraries/License
+***********************************************************************/
+
 
 namespace vl
 {
@@ -1200,56 +1304,279 @@ namespace vl
 UnitTest
 ***********************************************************************/
 
-		void UnitTest::PrintMessage(const WString& string)
+		namespace execution_impl
 		{
-			Console::SetColor(false, true, false, true);
-			Console::WriteLine(string);
+			UnitTestLink*					testHead = nullptr;
+			UnitTestLink**					testTail = &testHead;
+
+			enum class UnitTestContextKind
+			{
+				File,
+				Category,
+				Case,
+			};
+			
+			struct UnitTestContext
+			{
+				UnitTestContext*			parent = nullptr;
+				WString						indentation;
+				UnitTestContextKind			kind = UnitTestContextKind::File;
+				bool						failed = false;
+			};
+
+			UnitTestContext*				testContext = nullptr;
+			vint							totalFiles = 0;
+			vint							passedFiles = 0;
+			vint							totalCases = 0;
+			vint							passedCases = 0;
+			bool							suppressFailure = false;
+
+			template<typename TMessage>
+			void RecordFailure(TMessage errorMessage)
+			{
+				UnitTest::PrintMessage(errorMessage, UnitTest::MessageKind::Error);
+				auto current = testContext;
+				while (current)
+				{
+					current->failed = true;
+					current = current->parent;
+				}
+			}
+
+			template<typename TCallback>
+			void SuppressCppFailure(TCallback&& callback)
+			{
+				try
+				{
+					callback();
+				}
+				catch (const UnitTestAssertError& e)
+				{
+					RecordFailure(e.message);
+				}
+				catch (const UnitTestConfigError& e)
+				{
+					RecordFailure(e.message);
+				}
+				catch (const Error& e)
+				{
+					RecordFailure(e.Description());
+				}
+				catch (const Exception& e)
+				{
+					RecordFailure(e.Message());
+				}
+				catch (...)
+				{
+					RecordFailure(L"Unknown exception occurred!");
+				}
+			}
+
+			template<typename TCallback>
+			void SuppressCFailure(TCallback&& callback)
+			{
+#ifdef VCZH_MSVC
+				__try
+				{
+					SuppressCppFailure(std::forward<TCallback&&>(callback));
+				}
+				__except (/*EXCEPTION_EXECUTE_HANDLER*/ 1)
+				{
+					RecordFailure(L"Runtime exception occurred!");
+				}
+#else
+				SuppressCppFailure(callback);
+#endif
+			}
+
+			template<typename TCallback>
+			void ExecuteAndSuppressFailure(TCallback&& callback)
+			{
+				if (suppressFailure)
+				{
+					SuppressCFailure(std::forward<TCallback&&>(callback));
+				}
+				else
+				{
+					callback();
+				}
+			}
+		}
+		using namespace execution_impl;
+
+		void UnitTest::PrintMessage(const WString& string, MessageKind kind)
+		{
+			if (kind != MessageKind::Error && !testContext)
+			{
+				throw UnitTestConfigError(L"Cannot print message when unit test is not running.");
+			}
+
+			switch (kind)
+			{
+			case MessageKind::Error:
+				Console::SetColor(true, false, false, true);
+				break;
+			case MessageKind::Info:
+				Console::SetColor(true, true, true, true);
+				break;
+			case MessageKind::File:
+				Console::SetColor(true, false, true, true);
+				break;
+			case MessageKind::Category:
+				Console::SetColor(true, true, false, true);
+				break;
+			case MessageKind::Case:
+				Console::SetColor(false, true, false, true);
+				break;
+			}
+			Console::WriteLine((testContext ? testContext->indentation : L"") + string);
 			Console::SetColor(true, true, true, false);
 		}
 
-		void UnitTest::PrintInfo(const WString& string)
+		int UnitTest::PrintUsages()
 		{
-			Console::SetColor(true, true, true, true);
-			Console::WriteLine(string);
-			Console::SetColor(true, true, true, false);
+			PrintMessage(L"Usage: [/D | /R]", MessageKind::Error);
+			return 1;
 		}
 
-		void UnitTest::PrintError(const WString& string)
+		int UnitTest::RunAndDisposeTests(Nullable<WString> option)
 		{
-			Console::SetColor(true, false, false, true);
-			Console::WriteLine(string);
-			Console::SetColor(true, true, true, false);
+			if (option)
+			{
+				if (option.Value() == L"/D")
+				{
+					suppressFailure = false;
+				}
+				else if (option.Value() == L"/R")
+				{
+					suppressFailure = true;
+				}
+				else
+				{
+					return PrintUsages();
+				}
+			}
+			else if (IsDebuggerAttached())
+			{
+				suppressFailure = false;
+			}
+			else
+			{
+				suppressFailure = true;
+			}
+
+			{
+				UnitTestContext context;
+				testContext = &context;
+				totalFiles = 0;
+				passedFiles = 0;
+				totalCases = 0;
+				passedCases = 0;
+
+				if (suppressFailure)
+				{
+					PrintMessage(L"Failures are suppressed.", MessageKind::Info);
+				}
+				else
+				{
+					PrintMessage(L"Failures are not suppressed.", MessageKind::Info);
+				}
+
+				auto current = testHead;
+				while (current)
+				{
+					context.failed = false;
+					PrintMessage(atow(AString::Unmanaged(current->fileName)), MessageKind::File);
+					context.indentation = L"    ";
+					ExecuteAndSuppressFailure(current->testProc);
+					if (!testContext->failed) passedFiles++;
+					totalFiles++;
+					context.indentation = L"";
+					current = current->next;
+				}
+
+				bool passed = totalFiles == passedFiles;
+				auto messageKind = passed ? MessageKind::Case : MessageKind::Error;
+				PrintMessage(L"Passed test files: " + itow(passedFiles) + L"/" + itow(totalFiles), messageKind);
+				PrintMessage(L"Passed test cases: " + itow(passedCases) + L"/" + itow(totalCases), messageKind);
+				testContext = nullptr;
+				return passed ? 0 : 1;
+			}
 		}
 
-		struct UnitTestLink
+		int UnitTest::RunAndDisposeTests(int argc, wchar_t* argv[])
 		{
-			UnitTest::TestProc			testProc = nullptr;
-			UnitTestLink*				next = nullptr;
-		};
-		UnitTestLink*					testHead = nullptr;
-		UnitTestLink**					testTail = &testHead;
+			if (argc < 3)
+			{
+				if (argc == 2)
+				{
+					return RunAndDisposeTests({ argv[1] });
+				}
+				else
+				{
+					return RunAndDisposeTests({});
+				}
+			}
+			else
+			{
+				return PrintUsages();
+			}
+		}
 
-		void UnitTest::PushTest(TestProc testProc)
+		int UnitTest::RunAndDisposeTests(int argc, char* argv[])
 		{
-			auto link = new UnitTestLink;
-			link->testProc = testProc;
+			if (argc < 3)
+			{
+				if (argc == 2)
+				{
+					return RunAndDisposeTests({ atow(argv[1]) });
+				}
+				else
+				{
+					return RunAndDisposeTests({});
+				}
+			}
+			else
+			{
+				return PrintUsages();
+			}
+		}
+
+		void UnitTest::RegisterTestFile(UnitTestLink* link)
+		{
 			*testTail = link;
 			testTail = &link->next;
 		}
 
-		void UnitTest::RunAndDisposeTests()
+		void UnitTest::RunCategoryOrCase(const WString& description, bool isCategory, Func<void()>&& callback)
 		{
-			auto current = testHead;
-			testHead = nullptr;
-			testTail = nullptr;
+			if (!testContext) throw UnitTestConfigError(L"TEST_CATEGORY is not allowed to execute outside of TEST_FILE.");
+			if (testContext->kind == UnitTestContextKind::Case) throw UnitTestConfigError(
+				isCategory ?
+				L"TEST_CATEGORY is not allowed to execute inside TEST_CASE" :
+				L"TEST_CASE is not allowed to execute inside TEST_CASE");
 
-			while (current)
+			PrintMessage(description, (isCategory ? MessageKind::Category : MessageKind::Case));
+
+			UnitTestContext context;
+			context.parent = testContext;
+			context.indentation = testContext->indentation + L"    ";
+			context.kind = isCategory ? UnitTestContextKind::Category : UnitTestContextKind::Case;
+
+			testContext = &context;
+			ExecuteAndSuppressFailure(callback);
+			if (!isCategory)
 			{
-				current->testProc();
-				auto temp = current;
-				current = current->next;
-				delete temp;
+				if (!testContext->failed) passedCases++;
+				totalCases++;
 			}
+			testContext = context.parent;
+		}
+
+		void UnitTest::EnsureLegalToAssert()
+		{
+			if (!testContext) throw UnitTestConfigError(L"Assertion is not allowed to execute outside of TEST_CASE.");
+			if (testContext->kind != UnitTestContextKind::Case) throw UnitTestConfigError(L"Assertion is not allowed to execute outside of TEST_CASE.");
 		}
 	}
 }

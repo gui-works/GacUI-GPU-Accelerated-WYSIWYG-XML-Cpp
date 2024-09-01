@@ -10,7 +10,7 @@ Interfaces:
 #define VCZH_PRESENTATION_REFLECTION_GUIINSTANCECOMPILEDWORKFLOW
 
 #include "../Resources/GuiResource.h"
-#include "../../Import/VlppWorkflowCompiler.h"
+#include <VlppWorkflowCompiler.h>
 
 namespace vl
 {
@@ -44,9 +44,16 @@ namespace vl
 
 			AssemblyType										type = AssemblyType::Shared;
 			Ptr<workflow::runtime::WfAssembly>					assembly;
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 			Ptr<workflow::runtime::WfRuntimeGlobalContext>		context;
+#endif
+
+			GuiInstanceCompiledWorkflow();
+			~GuiInstanceCompiledWorkflow();
 
 			bool												Initialize(bool initializeContext, workflow::runtime::WfAssemblyLoadErrors& loadErrors);
+			void												UnloadAssembly();
+			void												UnloadTypes();
 		};
 	}
 }

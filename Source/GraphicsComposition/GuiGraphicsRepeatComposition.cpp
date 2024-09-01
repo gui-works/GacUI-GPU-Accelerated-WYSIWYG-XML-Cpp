@@ -8,74 +8,10 @@ namespace vl
 		namespace compositions
 		{
 			using namespace reflection::description;
-			using namespace collections;
-			using namespace controls;
-			using namespace elements;
 
 /***********************************************************************
 GuiRepeatCompositionBase
 ***********************************************************************/
-
-			void GuiRepeatCompositionBase::OnItemChanged(vint index, vint oldCount, vint newCount)
-			{
-				if (itemTemplate && itemSource)
-				{
-					for (vint i = oldCount - 1; i >= 0; i--)
-					{
-						RemoveItem(index + i);
-					}
-
-					for (vint i = 0; i < newCount; i++)
-					{
-						InstallItem(index + i);
-					}
-				}
-			}
-
-			void GuiRepeatCompositionBase::RemoveItem(vint index)
-			{
-				GuiItemEventArgs arguments(dynamic_cast<GuiGraphicsComposition*>(this));
-				arguments.itemIndex = index;
-				ItemRemoved.Execute(arguments);
-
-				auto item = RemoveRepeatComposition(index);
-				SafeDeleteComposition(item);
-			}
-
-			void GuiRepeatCompositionBase::InstallItem(vint index)
-			{
-				auto source = itemSource->Get(index);
-				auto templateItem = itemTemplate(source);
-				auto item = InsertRepeatComposition(index);
-
-				templateItem->SetAlignmentToParent(Margin(0, 0, 0, 0));
-				item->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
-				item->AddChild(templateItem);
-
-				GuiItemEventArgs arguments(dynamic_cast<GuiGraphicsComposition*>(this));
-				arguments.itemIndex = index;
-				ItemInserted.Execute(arguments);
-			}
-
-			void GuiRepeatCompositionBase::ClearItems()
-			{
-				for (vint i = GetRepeatCompositionCount() - 1; i >= 0; i--)
-				{
-					RemoveItem(i);
-				}
-			}
-
-			void GuiRepeatCompositionBase::InstallItems()
-			{
-				if (itemTemplate && itemSource)
-				{
-					vint count = itemSource->GetCount();
-					for (vint i = 0; i < count; i++)
-					{
-						InstallItem(i);
-					}
-				}
-			}
 
 			GuiRepeatCompositionBase::GuiRepeatCompositionBase()
 			{
@@ -83,6 +19,10 @@ GuiRepeatCompositionBase
 
 			GuiRepeatCompositionBase::~GuiRepeatCompositionBase()
 			{
+				if (itemChangedHandler)
+				{
+					itemSource.Cast<IValueObservableList>()->ItemChanged.Remove(itemChangedHandler);
+				}
 			}
 
 			GuiRepeatCompositionBase::ItemStyleProperty GuiRepeatCompositionBase::GetItemTemplate()
@@ -92,11 +32,11 @@ GuiRepeatCompositionBase
 
 			void GuiRepeatCompositionBase::SetItemTemplate(ItemStyleProperty value)
 			{
-				ClearItems();
+				OnClearItems();
 				itemTemplate = value;
 				if (itemTemplate && itemSource)
 				{
-					InstallItems();
+					OnInstallItems();
 				}
 			}
 
@@ -112,9 +52,10 @@ GuiRepeatCompositionBase
 					if (itemChangedHandler)
 					{
 						itemSource.Cast<IValueObservableList>()->ItemChanged.Remove(itemChangedHandler);
+						itemChangedHandler = {};
 					}
 
-					ClearItems();
+					OnClearItems();
 					itemSource = value.Cast<IValueList>();
 					if (!itemSource && value)
 					{
@@ -123,7 +64,7 @@ GuiRepeatCompositionBase
 
 					if (itemTemplate && itemSource)
 					{
-						InstallItems();
+						OnInstallItems();
 					}
 					if (auto observable = itemSource.Cast<IValueObservableList>())
 					{
@@ -132,62 +73,21 @@ GuiRepeatCompositionBase
 				}
 			}
 
-/***********************************************************************
-GuiRepeatStackComposition
-***********************************************************************/
-
-			vint GuiRepeatStackComposition::GetRepeatCompositionCount()
+			description::Value GuiRepeatCompositionBase::GetContext()
 			{
-				return stackItems.Count();
+				return itemContext;
 			}
 
-			GuiGraphicsComposition* GuiRepeatStackComposition::GetRepeatComposition(vint index)
+			void GuiRepeatCompositionBase::SetContext(const description::Value& value)
 			{
-				return stackItems[index];
-			}
+				if (itemContext != value)
+				{
+					itemContext = value;
+					OnUpdateContext();
 
-			GuiGraphicsComposition* GuiRepeatStackComposition::InsertRepeatComposition(vint index)
-			{
-				CHECK_ERROR(0 <= index && index <= stackItems.Count(), L"GuiRepeatStackComposition::InsertRepeatComposition(vint)#Index out of range.");
-				auto item = new GuiStackItemComposition;
-				InsertStackItem(index, item);
-				return item;
-			}
-
-			GuiGraphicsComposition* GuiRepeatStackComposition::RemoveRepeatComposition(vint index)
-			{
-				auto item = stackItems[index];
-				RemoveChild(item);
-				return item;
-			}
-
-/***********************************************************************
-GuiRepeatFlowComposition
-***********************************************************************/
-
-			vint GuiRepeatFlowComposition::GetRepeatCompositionCount()
-			{
-				return flowItems.Count();
-			}
-
-			GuiGraphicsComposition* GuiRepeatFlowComposition::GetRepeatComposition(vint index)
-			{
-				return flowItems[index];
-			}
-
-			GuiGraphicsComposition* GuiRepeatFlowComposition::InsertRepeatComposition(vint index)
-			{
-				CHECK_ERROR(0 <= index && index <= flowItems.Count(), L"GuiRepeatStackComposition::InsertRepeatComposition(vint)#Index out of range.");
-				auto item = new GuiFlowItemComposition;
-				InsertFlowItem(index, item);
-				return item;
-			}
-
-			GuiGraphicsComposition* GuiRepeatFlowComposition::RemoveRepeatComposition(vint index)
-			{
-				auto item = flowItems[index];
-				RemoveChild(item);
-				return item;
+					GuiEventArgs arguments(dynamic_cast<GuiGraphicsComposition*>(this));
+					ContextChanged.Execute(arguments);
+				}
 			}
 		}
 	}

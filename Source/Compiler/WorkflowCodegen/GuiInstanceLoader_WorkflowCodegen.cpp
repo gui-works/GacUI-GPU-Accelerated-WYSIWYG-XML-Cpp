@@ -6,7 +6,6 @@ namespace vl
 {
 	namespace presentation
 	{
-		using namespace parsing;
 		using namespace workflow;
 		using namespace workflow::analyzer;
 		using namespace workflow::runtime;
@@ -23,13 +22,13 @@ FindInstanceLoadingSource
 
 		template<typename TCallback>
 		auto FindByTag(Ptr<GuiInstanceContext> context, GlobalStringKey namespaceName, const WString& typeName, TCallback callback)
-			-> typename RemoveCVR<decltype(callback({}).Value())>::Type
+			-> std::remove_cvref_t<decltype(callback({}).Value())>
 		{
 			vint index = context->namespaces.Keys().IndexOf(namespaceName);
 			if (index != -1)
 			{
 				Ptr<GuiInstanceContext::NamespaceInfo> namespaceInfo = context->namespaces.Values()[index];
-				FOREACH(Ptr<GuiInstanceNamespace>, ns, namespaceInfo->namespaces)
+				for (auto ns : namespaceInfo->namespaces)
 				{
 					auto fullName = GlobalStringKey::Get(ns->prefix + typeName + ns->postfix);
 					if (auto nullable = callback(fullName))
@@ -120,18 +119,19 @@ WorkflowEventNamesVisitor
 				if (auto eventInfo = resolvedTypeInfo.typeInfo->GetTypeDescriptor()->GetEventByName(propertyName.ToString(), true))
 				{
 					auto decl = Workflow_GenerateEventHandler(precompileContext, eventInfo);
+					decl->functionKind = WfFunctionKind::Normal;
 					decl->anonymity = WfFunctionAnonymity::Named;
 					decl->name.value = handler->value;
 
 					{
-						auto att = MakePtr<WfAttribute>();
+						auto att = Ptr(new WfAttribute);
 						att->category.value = L"cpp";
 						att->name.value = L"Protected";
 
 						decl->attributes.Add(att);
 					}
 					{
-						auto att = MakePtr<WfAttribute>();
+						auto att = Ptr(new WfAttribute);
 						att->category.value = L"cpp";
 						att->name.value = L"UserImpl";
 
@@ -139,19 +139,16 @@ WorkflowEventNamesVisitor
 					}
 
 					{
-						auto block = MakePtr<WfBlockStatement>();
+						auto block = Ptr(new WfBlockStatement);
 						decl->statement = block;
 
-						auto stringExpr = MakePtr<WfStringExpression>();
+						auto stringExpr = Ptr(new WfStringExpression);
 						stringExpr->value.value = L"Not Implemented: " + handler->value;
 
-						auto raiseStat = MakePtr<WfRaiseExceptionStatement>();
+						auto raiseStat = Ptr(new WfRaiseExceptionStatement);
 						raiseStat->expression = stringExpr;
 						block->statements.Add(raiseStat);
 					}
-
-					decl->classMember = MakePtr<WfClassMember>();
-					decl->classMember->kind = WfClassMemberKind::Normal;
 					return decl;
 				}
 				else
@@ -174,14 +171,15 @@ WorkflowEventNamesVisitor
 
 			void Visit(GuiAttSetterRepr* repr)override
 			{
-				FOREACH_INDEXER(Ptr<GuiAttSetterRepr::SetterValue>, setter, index, repr->setters.Values())
+				// TODO: (enumerable) foreach on dictionary
+				for (auto [setter, index] : indexed(repr->setters.Values()))
 				{
 					auto loader = GetInstanceLoaderManager()->GetLoader(resolvedTypeInfo.typeName);
 					List<types::PropertyResolving> possibleInfos;
 					auto prop = repr->setters.Keys()[index];
 
 					WString errorPrefix;
-					if (Workflow_GetPropertyTypes(errorPrefix, resolvingResult, loader, resolvedTypeInfo, prop, setter, possibleInfos, errors))
+					if (Workflow_GetPropertyTypes(precompileContext, errorPrefix, resolvingResult, loader, resolvedTypeInfo, prop, setter, possibleInfos, errors))
 					{
 						if (setter->binding == GlobalStringKey::_Set)
 						{
@@ -203,7 +201,7 @@ WorkflowEventNamesVisitor
 						}
 						else
 						{
-							FOREACH(Ptr<GuiValueRepr>, value, setter->values)
+							for (auto value : setter->values)
 							{
 								WorkflowEventNamesVisitor visitor(precompileContext, resolvingResult, possibleInfos, instanceClass, errors);
 								value->Accept(&visitor);
@@ -212,7 +210,8 @@ WorkflowEventNamesVisitor
 					}
 				}
 
-				FOREACH_INDEXER(Ptr<GuiAttSetterRepr::EventValue>, handler, index, repr->eventHandlers.Values())
+				// TODO: (enumerable) foreach on dictionary
+				for (auto [handler, index] : indexed(repr->eventHandlers.Values()))
 				{
 					if (handler->binding == GlobalStringKey::Empty)
 					{
@@ -319,9 +318,9 @@ Workflow_GenerateInstanceClass
 ***********************************************************************/
 
 		class ReplaceDeclImplVisitor
-			: public empty_visitor::DeclarationVisitor
-			, public empty_visitor::VirtualCfeDeclarationVisitor
-			, public empty_visitor::VirtualCseDeclarationVisitor
+			: public workflow::empty_visitor::DeclarationVisitor
+			, public workflow::empty_visitor::VirtualCfeDeclarationVisitor
+			, public workflow::empty_visitor::VirtualCseDeclarationVisitor
 		{
 		public:
 			Func<Ptr<WfStatement>()>			statCtor;
@@ -427,19 +426,19 @@ Workflow_GenerateInstanceClass
 
 				List<WString> fragments;
 				SplitTypeName(baseTypeContext->className, fragments);
-				for (vint i = 0; i < fragments.Count(); i++)
+				for (auto fragment : fragments)
 				{
 					if (baseWfType)
 					{
-						auto type = MakePtr<WfChildType>();
+						auto type = Ptr(new WfChildType);
 						type->parent = baseWfType;
-						type->name.value = fragments[i];
+						type->name.value = fragment;
 						baseWfType = type;
 					}
 					else
 					{
-						auto type = MakePtr<WfTopQualifiedType>();
-						type->name.value = fragments[i];
+						auto type = Ptr(new WfTopQualifiedType);
+						type->name.value = fragment;
 						baseWfType = type;
 					}
 				}
@@ -458,17 +457,17 @@ Workflow_GenerateInstanceClass
 				}
 				else
 				{
-					auto typeInfo = MakePtr<TypeDescriptorTypeInfo>(baseType->GetTypeDescriptor(), TypeInfoHint::Normal);
+					auto typeInfo = Ptr(new TypeDescriptorTypeInfo(baseType->GetTypeDescriptor(), TypeInfoHint::Normal));
 					auto baseType = GetTypeFromTypeInfo(typeInfo.Obj());
 					instanceClass->baseTypes.Add(baseType);
 				}
 
 				if (context->codeBehind)
 				{
-					auto value = MakePtr<WfStringExpression>();
+					auto value = Ptr(new WfStringExpression);
 					value->value.value = instanceClass->name.value;
 
-					auto att = MakePtr<WfAttribute>();
+					auto att = Ptr(new WfAttribute);
 					att->category.value = L"cpp";
 					att->name.value = L"File";
 					att->value = value;
@@ -483,15 +482,15 @@ Workflow_GenerateInstanceClass
 
 			if (needFunctionBody)
 			{
-				auto baseConstructorType = MakePtr<WfReferenceType>();
+				auto baseConstructorType = Ptr(new WfReferenceType);
 				baseConstructorType->name.value = instanceClass->name.value + L"Constructor";
 				instanceClass->baseTypes.Add(baseConstructorType);
 
 				{
-					auto value = MakePtr<WfTypeOfTypeExpression>();
+					auto value = Ptr(new WfTypeOfTypeExpression);
 					value->type = CopyType(baseConstructorType);
 
-					auto att = MakePtr<WfAttribute>();
+					auto att = Ptr(new WfAttribute);
 					att->category.value = L"cpp";
 					att->name.value = L"Friend";
 					att->value = value;
@@ -513,21 +512,14 @@ Workflow_GenerateInstanceClass
 				}
 			};
 
-			auto addDecl = [=](Ptr<WfDeclaration> decl)
-			{
-				decl->classMember = MakePtr<WfClassMember>();
-				decl->classMember->kind = WfClassMemberKind::Normal;
-				instanceClass->declarations.Add(decl);
-			};
-
 			auto notImplemented = []()
 			{
-				auto block = MakePtr<WfBlockStatement>();
+				auto block = Ptr(new WfBlockStatement);
 
-				auto stringExpr = MakePtr<WfStringExpression>();
+				auto stringExpr = Ptr(new WfStringExpression);
 				stringExpr->value.value = L"Not Implemented";
 
-				auto raiseStat = MakePtr<WfRaiseExceptionStatement>();
+				auto raiseStat = Ptr(new WfRaiseExceptionStatement);
 				raiseStat->expression = stringExpr;
 
 				block->statements.Add(raiseStat);
@@ -548,7 +540,7 @@ Workflow_GenerateInstanceClass
 
 				if (paramTd)
 				{
-					auto typeInfo = Workflow_GetSuggestedParameterType(paramTd);
+					auto typeInfo = Workflow_GetSuggestedParameterType(precompileContext, paramTd);
 					switch (typeInfo->GetDecorator())
 					{
 					case ITypeInfo::RawPtr: return { typeInfo,className + L"*" };
@@ -574,6 +566,7 @@ Workflow_GenerateInstanceClass
 					CopyFrom(unprocessed, memberDecls);
 
 					ReplaceDeclImplVisitor visitor(notImplemented, unprocessed);
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i < unprocessed.Count(); i++)
 					{
 						unprocessed[i]->Accept(&visitor);
@@ -587,32 +580,33 @@ Workflow_GenerateInstanceClass
 			// Constructor Declaration
 			///////////////////////////////////////////////////////////////
 
-			auto ctor = MakePtr<WfConstructorDeclaration>();
+			auto ctor = Ptr(new WfConstructorDeclaration);
 			ctor->constructorType = WfConstructorType::RawPtr;
-			auto ctorBlock = (!needFunctionBody ? notImplemented() : MakePtr<WfBlockStatement>());
+			auto ctorBlock = (!needFunctionBody ? notImplemented() : Ptr(new WfBlockStatement));
 			ctor->statement = ctorBlock;
 
 			if (baseWfType)
 			{
-				auto call = MakePtr<WfBaseConstructorCall>();
+				auto call = Ptr(new WfBaseConstructorCall);
 				ctor->baseConstructorCalls.Add(call);
 				call->type = CopyType(instanceClass->baseTypes[0]);
 				baseTypeContext = baseTypeResourceItem->GetContent().Cast<GuiInstanceContext>();
 
-				FOREACH(Ptr<GuiInstanceParameter>, parameter, baseTypeContext->parameters)
+				// TODO: (enumerable) foreach
+				for (auto parameter : baseTypeContext->parameters)
 				{
 					auto parameterTypeInfoTuple = getDefaultType(parameter->className.ToString());
 					auto expression = Workflow_ParseExpression(
 						precompileContext,
 						parameter->classPosition.originalLocation,
-						L"cast("+parameterTypeInfoTuple.f1+L") (null of object)",
+						L"cast("+parameterTypeInfoTuple.get<1>() + L") (null of object)",
 						parameter->classPosition,
 						errors,
 						{ 0,5 }
 						);
 					if (!expression)
 					{
-						auto nullExpr = MakePtr<WfLiteralExpression>();
+						auto nullExpr = Ptr(new WfLiteralExpression);
 						nullExpr->value = WfLiteralValue::Null;
 						expression = nullExpr;
 					}
@@ -634,7 +628,7 @@ Workflow_GenerateInstanceClass
 					}
 					else
 					{
-						auto call = MakePtr<WfBaseConstructorCall>();
+						auto call = Ptr(new WfBaseConstructorCall);
 						ctor->baseConstructorCalls.Add(call);
 
 						call->type = CopyType(instanceClass->baseTypes[0]);
@@ -650,7 +644,7 @@ Workflow_GenerateInstanceClass
 			// ref.LocalizedString (Property)
 			///////////////////////////////////////////////////////////////
 
-			FOREACH(Ptr<GuiInstanceLocalized>, localized, context->localizeds)
+			for (auto localized : context->localizeds)
 			{
 				if (auto lsTd = GetTypeDescriptor(localized->className.ToString()))
 				{
@@ -675,27 +669,28 @@ Workflow_GenerateInstanceClass
 
 					if (lsiTd)
 					{
-						auto prop = MakePtr<WfAutoPropertyDeclaration>();
-						addDecl(prop);
+						auto prop = Ptr(new WfAutoPropertyDeclaration);
+						instanceClass->declarations.Add(prop);
 
+						prop->functionKind = WfFunctionKind::Normal;
 						prop->name.value = localized->name.ToString();
-						prop->type = GetTypeFromTypeInfo(Workflow_GetSuggestedParameterType(lsiTd).Obj());
+						prop->type = GetTypeFromTypeInfo(Workflow_GetSuggestedParameterType(precompileContext, lsiTd).Obj());
 						prop->configConst = WfAPConst::Writable;
 						prop->configObserve = WfAPObserve::Observable;
 
-						auto localeNameExpr = MakePtr<WfStringExpression>();
+						auto localeNameExpr = Ptr(new WfStringExpression);
 						localeNameExpr->value.value = L"en-US";
 
-						auto defaultLocalExpr = MakePtr<WfTypeCastingExpression>();
+						auto defaultLocalExpr = Ptr(new WfTypeCastingExpression);
 						defaultLocalExpr->strategy = WfTypeCastingStrategy::Strong;
 						defaultLocalExpr->type = GetTypeFromTypeInfo(TypeInfoRetriver<Locale>::CreateTypeInfo().Obj());
 						defaultLocalExpr->expression = localeNameExpr;
 
-						auto getExpr = MakePtr<WfChildExpression>();
+						auto getExpr = Ptr(new WfChildExpression);
 						getExpr->parent = GetExpressionFromTypeDescriptor(lsTd);
 						getExpr->name.value = L"Get";
 
-						auto callExpr = MakePtr<WfCallExpression>();
+						auto callExpr = Ptr(new WfCallExpression);
 						callExpr->function = getExpr;
 						callExpr->arguments.Add(defaultLocalExpr);
 						prop->expression = callExpr;
@@ -725,13 +720,13 @@ Workflow_GenerateInstanceClass
 			// ref.Parameter (Variable, Getter, CtorArgument)
 			///////////////////////////////////////////////////////////////
 
-			FOREACH(Ptr<GuiInstanceParameter>, parameter, context->parameters)
+			for (auto parameter : context->parameters)
 			{
 				auto parameterTypeInfoTuple = getDefaultType(parameter->className.ToString());
 				vint errorCount = errors.Count();
-				auto type = Workflow_ParseType(precompileContext, { resolvingResult.resource }, parameterTypeInfoTuple.f1, parameter->classPosition, errors);
+				auto type = Workflow_ParseType(precompileContext, { resolvingResult.resource }, parameterTypeInfoTuple.get<1>(), parameter->classPosition, errors);
 
-				if (!needFunctionBody && !parameterTypeInfoTuple.f0 && errorCount == errors.Count())
+				if (!needFunctionBody && !parameterTypeInfoTuple.get<0>() && errorCount == errors.Count())
 				{
 					if (!type || type.Cast<WfReferenceType>() || type.Cast<WfChildType>() || type.Cast<WfTopQualifiedType>())
 					{
@@ -742,31 +737,37 @@ Workflow_GenerateInstanceClass
 				{
 					if (needFunctionBody)
 					{
-						auto decl = MakePtr<WfVariableDeclaration>();
-						addDecl(decl);
+						auto decl = Ptr(new WfVariableDeclaration);
+						instanceClass->declarations.Add(decl);
 
 						decl->name.value = L"<parameter>" + parameter->name.ToString();
 						decl->type = CopyType(type);
-						decl->expression = CreateDefaultValue(parameterTypeInfoTuple.f0.Obj());
+						decl->expression = CreateDefaultValue(parameterTypeInfoTuple.get<0>().Obj());
+
+						auto att = Ptr(new WfAttribute);
+						att->category.value = L"cpp";
+						att->name.value = L"Private";
+						decl->attributes.Add(att);
 
 						Workflow_RecordScriptPosition(precompileContext, parameter->tagPosition, (Ptr<WfDeclaration>)decl);
 					}
 					{
-						auto decl = MakePtr<WfFunctionDeclaration>();
-						addDecl(decl);
+						auto decl = Ptr(new WfFunctionDeclaration);
+						instanceClass->declarations.Add(decl);
 
+						decl->functionKind = WfFunctionKind::Normal;
 						decl->anonymity = WfFunctionAnonymity::Named;
 						decl->name.value = L"Get" + parameter->name.ToString();
 						decl->returnType = CopyType(type);
 						if (needFunctionBody)
 						{
-							auto block = MakePtr<WfBlockStatement>();
+							auto block = Ptr(new WfBlockStatement);
 							decl->statement = block;
 
-							auto ref = MakePtr<WfReferenceExpression>();
+							auto ref = Ptr(new WfReferenceExpression);
 							ref->name.value = L"<parameter>" + parameter->name.ToString();
 
-							auto returnStat = MakePtr<WfReturnStatement>();
+							auto returnStat = Ptr(new WfReturnStatement);
 							returnStat->expression = ref;
 							block->statements.Add(returnStat);
 						}
@@ -778,8 +779,8 @@ Workflow_GenerateInstanceClass
 						Workflow_RecordScriptPosition(precompileContext, parameter->tagPosition, (Ptr<WfDeclaration>)decl);
 					}
 					{
-						auto decl = MakePtr<WfPropertyDeclaration>();
-						addDecl(decl);
+						auto decl = Ptr(new WfPropertyDeclaration);
+						instanceClass->declarations.Add(decl);
 
 						decl->name.value = parameter->name.ToString();
 						decl->type = type;
@@ -788,25 +789,25 @@ Workflow_GenerateInstanceClass
 						Workflow_RecordScriptPosition(precompileContext, parameter->tagPosition, (Ptr<WfDeclaration>)decl);
 					}
 					{
-						auto argument = MakePtr<WfFunctionArgument>();
+						auto argument = Ptr(new WfFunctionArgument);
 						argument->name.value = L"<ctor-parameter>" + parameter->name.ToString();
 						argument->type = CopyType(type);
 						ctor->arguments.Add(argument);
 					}
 					if (needFunctionBody)
 					{
-						auto refLeft = MakePtr<WfReferenceExpression>();
+						auto refLeft = Ptr(new WfReferenceExpression);
 						refLeft->name.value = L"<parameter>" + parameter->name.ToString();
 
-						auto refRight = MakePtr<WfReferenceExpression>();
+						auto refRight = Ptr(new WfReferenceExpression);
 						refRight->name.value = L"<ctor-parameter>" + parameter->name.ToString();
 
-						auto assignExpr = MakePtr<WfBinaryExpression>();
+						auto assignExpr = Ptr(new WfBinaryExpression);
 						assignExpr->op = WfBinaryOperator::Assign;
 						assignExpr->first = refLeft;
 						assignExpr->second = refRight;
 
-						auto exprStat = MakePtr<WfExpressionStatement>();
+						auto exprStat = Ptr(new WfExpressionStatement);
 						exprStat->expression = assignExpr;
 
 						ctorBlock->statements.Add(exprStat);
@@ -827,7 +828,7 @@ Workflow_GenerateInstanceClass
 				context->instance->Accept(&visitor);
 			}
 
-			addDecl(ctor);
+			instanceClass->declarations.Add(ctor);
 
 			///////////////////////////////////////////////////////////////
 			// Calling Constructor Class
@@ -836,89 +837,89 @@ Workflow_GenerateInstanceClass
 			if (needFunctionBody)
 			{
 				{
-					auto getRmExpr = MakePtr<WfChildExpression>();
+					auto getRmExpr = Ptr(new WfChildExpression);
 					getRmExpr->parent = GetExpressionFromTypeDescriptor(description::GetTypeDescriptor<IGuiResourceManager>());
 					getRmExpr->name.value = L"GetResourceManager";
 
-					auto call1Expr = MakePtr<WfCallExpression>();
+					auto call1Expr = Ptr(new WfCallExpression);
 					call1Expr->function = getRmExpr;
 
-					auto getResExpr = MakePtr<WfMemberExpression>();
+					auto getResExpr = Ptr(new WfMemberExpression);
 					getResExpr->parent = call1Expr;
 					getResExpr->name.value = L"GetResourceFromClassName";
 
-					auto classNameExpr = MakePtr<WfStringExpression>();
+					auto classNameExpr = Ptr(new WfStringExpression);
 					classNameExpr->value.value = context->className;
 
-					auto call2Expr = MakePtr<WfCallExpression>();
+					auto call2Expr = Ptr(new WfCallExpression);
 					call2Expr->function = getResExpr;
 					call2Expr->arguments.Add(classNameExpr);
 
-					auto varDecl = MakePtr<WfVariableDeclaration>();
+					auto varDecl = Ptr(new WfVariableDeclaration);
 					varDecl->name.value = L"<resource>";
 					varDecl->expression = call2Expr;
 
-					auto varStat = MakePtr<WfVariableStatement>();
+					auto varStat = Ptr(new WfVariableStatement);
 					varStat->variable = varDecl;
 
 					ctorBlock->statements.Add(varStat);
 				}
 				{
-					auto resRef = MakePtr<WfReferenceExpression>();
+					auto resRef = Ptr(new WfReferenceExpression);
 					resRef->name.value = L"<resource>";
 
-					auto resRef2 = MakePtr<WfReferenceExpression>();
+					auto resRef2 = Ptr(new WfReferenceExpression);
 					resRef2->name.value = L"<resource>";
 
-					auto wdRef = MakePtr<WfMemberExpression>();
+					auto wdRef = Ptr(new WfMemberExpression);
 					wdRef->parent = resRef2;
 					wdRef->name.value = L"WorkingDirectory";
 
-					auto newClassExpr = MakePtr<WfNewClassExpression>();
+					auto newClassExpr = Ptr(new WfNewClassExpression);
 					newClassExpr->type = GetTypeFromTypeInfo(TypeInfoRetriver<Ptr<GuiResourcePathResolver>>::CreateTypeInfo().Obj());
 					newClassExpr->arguments.Add(resRef);
 					newClassExpr->arguments.Add(wdRef);
 
-					auto varDecl = MakePtr<WfVariableDeclaration>();
+					auto varDecl = Ptr(new WfVariableDeclaration);
 					varDecl->name.value = L"<resolver>";
 					varDecl->expression = newClassExpr;
 
-					auto varStat = MakePtr<WfVariableStatement>();
+					auto varStat = Ptr(new WfVariableStatement);
 					varStat->variable = varDecl;
 
 					ctorBlock->statements.Add(varStat);
 				}
 				{
-					auto setRef = MakePtr<WfMemberExpression>();
-					setRef->parent = MakePtr<WfThisExpression>();
+					auto setRef = Ptr(new WfMemberExpression);
+					setRef->parent = Ptr(new WfThisExpression);
 					setRef->name.value = L"SetResourceResolver";
 
-					auto resolverRef = MakePtr<WfReferenceExpression>();
+					auto resolverRef = Ptr(new WfReferenceExpression);
 					resolverRef->name.value = L"<resolver>";
 
-					auto callExpr = MakePtr<WfCallExpression>();
+					auto callExpr = Ptr(new WfCallExpression);
 					callExpr->function = setRef;
 					callExpr->arguments.Add(resolverRef);
 
-					auto stat = MakePtr<WfExpressionStatement>();
+					auto stat = Ptr(new WfExpressionStatement);
 					stat->expression = callExpr;
 
 					ctorBlock->statements.Add(stat);
 				}
 				{
-					auto initRef = MakePtr<WfMemberExpression>();
-					initRef->parent = MakePtr<WfThisExpression>();
+					auto initRef = Ptr(new WfMemberExpression);
+					initRef->parent = Ptr(new WfThisExpression);
 					{
 						List<WString> fragments;
 						SplitTypeName(resolvingResult.context->className, fragments);
 						initRef->name.value = L"<" + From(fragments).Aggregate([](const WString& a, const WString& b) {return a + L"-" + b; }) + L">Initialize";
 					}
 
-					auto callExpr = MakePtr<WfCallExpression>();
+					auto callExpr = Ptr(new WfCallExpression);
 					callExpr->function = initRef;
-					callExpr->arguments.Add(MakePtr<WfThisExpression>());
+					callExpr->arguments.Add(Ptr(new WfThisExpression));
 
-					auto stat = MakePtr<WfExpressionStatement>();
+					auto stat = Ptr(new WfExpressionStatement);
 					stat->expression = callExpr;
 
 					ctorBlock->statements.Add(stat);
@@ -937,26 +938,27 @@ Workflow_GenerateInstanceClass
 					{
 						if (!stat.Cast<WfBlockStatement>())
 						{
-							auto block = MakePtr<WfBlockStatement>();
+							auto block = Ptr(new WfBlockStatement);
 							block->statements.Add(stat);
 							stat = block;
 						}
 
-						auto decl = MakePtr<WfFunctionDeclaration>();
+						auto decl = Ptr(new WfFunctionDeclaration);
+						decl->functionKind = WfFunctionKind::Normal;
 						decl->anonymity = WfFunctionAnonymity::Named;
 						decl->name.value = L"<instance-ctor>";
 						decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<void>::CreateTypeInfo().Obj());
 						decl->statement = stat;
-						addDecl(decl);
+						instanceClass->declarations.Add(decl);
 
 						{
-							auto refCtor = MakePtr<WfReferenceExpression>();
+							auto refCtor = Ptr(new WfReferenceExpression);
 							refCtor->name.value = L"<instance-ctor>";
 
-							auto callExpr = MakePtr<WfCallExpression>();
+							auto callExpr = Ptr(new WfCallExpression);
 							callExpr->function = refCtor;
 
-							auto exprStat = MakePtr<WfExpressionStatement>();
+							auto exprStat = Ptr(new WfExpressionStatement);
 							exprStat->expression = callExpr;
 							ctorBlock->statements.Add(exprStat);
 						}
@@ -968,8 +970,8 @@ Workflow_GenerateInstanceClass
 			// Destructor
 			///////////////////////////////////////////////////////////////
 
-			auto dtor = MakePtr<WfDestructorDeclaration>();
-			auto dtorBlock = MakePtr<WfBlockStatement>();
+			auto dtor = Ptr(new WfDestructorDeclaration);
+			auto dtorBlock = Ptr(new WfBlockStatement);
 			dtor->statement = dtorBlock;
 
 			///////////////////////////////////////////////////////////////
@@ -984,26 +986,27 @@ Workflow_GenerateInstanceClass
 					{
 						if (!stat.Cast<WfBlockStatement>())
 						{
-							auto block = MakePtr<WfBlockStatement>();
+							auto block = Ptr(new WfBlockStatement);
 							block->statements.Add(stat);
 							stat = block;
 						}
 
-						auto decl = MakePtr<WfFunctionDeclaration>();
+						auto decl = Ptr(new WfFunctionDeclaration);
+						decl->functionKind = WfFunctionKind::Normal;
 						decl->anonymity = WfFunctionAnonymity::Named;
 						decl->name.value = L"<instance-dtor>";
 						decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<void>::CreateTypeInfo().Obj());
 						decl->statement = stat;
-						addDecl(decl);
+						instanceClass->declarations.Add(decl);
 
 						{
-							auto refDtor = MakePtr<WfReferenceExpression>();
+							auto refDtor = Ptr(new WfReferenceExpression);
 							refDtor->name.value = L"<instance-dtor>";
 
-							auto callExpr = MakePtr<WfCallExpression>();
+							auto callExpr = Ptr(new WfCallExpression);
 							callExpr->function = refDtor;
 
-							auto exprStat = MakePtr<WfExpressionStatement>();
+							auto exprStat = Ptr(new WfExpressionStatement);
 							exprStat->expression = callExpr;
 							dtorBlock->statements.Add(exprStat);
 						}
@@ -1016,10 +1019,10 @@ Workflow_GenerateInstanceClass
 			///////////////////////////////////////////////////////////////
 
 			{
-				auto ref = MakePtr<WfReferenceExpression>();
+				auto ref = Ptr(new WfReferenceExpression);
 				ref->name.value = L"FinalizeGeneralInstance";
 
-				Ptr<WfExpression> thisExpr = MakePtr<WfThisExpression>();
+				Ptr<WfExpression> thisExpr = Ptr(new WfThisExpression);
 				ITypeDescriptor* types[] =
 				{
 					description::GetTypeDescriptor<GuiTemplate>(),
@@ -1049,10 +1052,10 @@ Workflow_GenerateInstanceClass
 						{
 							ref->name.value = L"FinalizeInstanceRecursively";
 
-							Ptr<ITypeInfo> typeInfo = MakePtr<TypeDescriptorTypeInfo>(td, TypeInfoHint::Normal);
-							typeInfo = MakePtr<RawPtrTypeInfo>(typeInfo);
+							Ptr<ITypeInfo> typeInfo = Ptr(new TypeDescriptorTypeInfo(td, TypeInfoHint::Normal));
+							typeInfo = Ptr(new RawPtrTypeInfo(typeInfo));
 
-							auto inferExpr = MakePtr<WfInferExpression>();
+							auto inferExpr = Ptr(new WfInferExpression);
 							inferExpr->type = GetTypeFromTypeInfo(typeInfo.Obj());
 							inferExpr->expression = thisExpr;
 							thisExpr = inferExpr;
@@ -1061,16 +1064,16 @@ Workflow_GenerateInstanceClass
 					}
 				}
 
-				auto call = MakePtr<WfCallExpression>();
+				auto call = Ptr(new WfCallExpression);
 				call->function = ref;
 				call->arguments.Add(thisExpr);
 
-				auto stat = MakePtr<WfExpressionStatement>();
+				auto stat = Ptr(new WfExpressionStatement);
 				stat->expression = call;
 				dtorBlock->statements.Add(stat);
 			}
 
-			addDecl(dtor);
+			instanceClass->declarations.Add(dtor);
 
 			return module;
 		}
@@ -1087,6 +1090,7 @@ GuiWorkflowSharedManagerPlugin
 		class GuiWorkflowSharedManagerPlugin : public Object, public IGuiPlugin
 		{
 		protected:
+			workflow::Parser				workflowParser;
 			Ptr<WfLexicalScopeManager>		workflowManager;
 
 		public:
@@ -1095,21 +1099,44 @@ GuiWorkflowSharedManagerPlugin
 			{
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				sharedManagerPlugin = this;
+				if (controllerUnrelatedPlugins)
+				{
+					sharedManagerPlugin = this;
+				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				sharedManagerPlugin = 0;
+				if (controllerUnrelatedPlugins)
+				{
+					sharedManagerPlugin = 0;
+				}
 			}
 
-			WfLexicalScopeManager* GetWorkflowManager()
+			WfLexicalScopeManager* GetWorkflowManager(GuiResourceCpuArchitecture targetCpuArchitecture)
 			{
+				WfCpuArchitecture wfCpuArchitecture = WfCpuArchitecture::AsExecutable;
+				switch (targetCpuArchitecture)
+				{
+				case GuiResourceCpuArchitecture::x86:
+					wfCpuArchitecture = WfCpuArchitecture::x86;
+					break;
+				case GuiResourceCpuArchitecture::x64:
+					wfCpuArchitecture = WfCpuArchitecture::x64;
+					break;
+				default:
+					CHECK_FAIL(L"The target CPU architecture is unspecified.");
+				}
+
 				if (!workflowManager)
 				{
-					workflowManager = new WfLexicalScopeManager(GetParserManager()->GetParsingTable(L"WORKFLOW"));
+					workflowManager = Ptr(new WfLexicalScopeManager(workflowParser, wfCpuArchitecture));
+				}
+				else
+				{
+					CHECK_ERROR(workflowManager->cpuArchitecture == wfCpuArchitecture, L"The target CPU architecture cannot be changed.");
 				}
 				return workflowManager.Obj();
 			}
@@ -1123,9 +1150,9 @@ GuiWorkflowSharedManagerPlugin
 		};
 		GUI_REGISTER_PLUGIN(GuiWorkflowSharedManagerPlugin)
 
-		WfLexicalScopeManager* Workflow_GetSharedManager()
+		WfLexicalScopeManager* Workflow_GetSharedManager(GuiResourceCpuArchitecture targetCpuArchitecture)
 		{
-			return sharedManagerPlugin->GetWorkflowManager();
+			return sharedManagerPlugin->GetWorkflowManager(targetCpuArchitecture);
 		}
 
 		Ptr<WfLexicalScopeManager> Workflow_TransferSharedManager()

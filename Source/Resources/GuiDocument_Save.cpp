@@ -5,7 +5,7 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace parsing::xml;
+		using namespace glr::xml;
 
 /***********************************************************************
 document_operation_visitors::SerializeRunVisitor
@@ -31,7 +31,7 @@ document_operation_visitors::SerializeRunVisitor
 						parent->subNodes.Add(replacedParent);
 						Ptr<XmlElement> oldParent = parent;
 						parent = replacedParent;
-						FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+						for (auto subRun : run->runs)
 						{
 							subRun->Accept(this);
 						}
@@ -39,7 +39,7 @@ document_operation_visitors::SerializeRunVisitor
 					}
 					else
 					{
-						FOREACH(Ptr<DocumentRun>, subRun, run->runs)
+						for (auto subRun : run->runs)
 						{
 							subRun->Accept(this);
 						}
@@ -103,7 +103,7 @@ document_operation_visitors::SerializeRunVisitor
 					Ptr<XmlElement> oldParent = parent;
 					if (sp->face || sp->size || sp->color)
 					{
-						Ptr<XmlElement> element = new XmlElement;
+						auto element = Ptr(new XmlElement);
 						element->name.value = L"font";
 						parent->subNodes.Add(element);
 
@@ -128,28 +128,28 @@ document_operation_visitors::SerializeRunVisitor
 					}
 					if (sp->bold)
 					{
-						Ptr<XmlElement> element = new XmlElement;
+						auto element = Ptr(new XmlElement);
 						element->name.value = sp->bold.Value() ? L"b" : L"b-";
 						parent->subNodes.Add(element);
 						parent = element;
 					}
 					if (sp->italic)
 					{
-						Ptr<XmlElement> element = new XmlElement;
+						auto element = Ptr(new XmlElement);
 						element->name.value = sp->italic.Value() ? L"i" : L"i-";
 						parent->subNodes.Add(element);
 						parent = element;
 					}
 					if (sp->underline)
 					{
-						Ptr<XmlElement> element = new XmlElement;
+						auto element = Ptr(new XmlElement);
 						element->name.value = sp->underline.Value() ? L"u" : L"u-";
 						parent->subNodes.Add(element);
 						parent = element;
 					}
 					if (sp->strikeline)
 					{
-						Ptr<XmlElement> element = new XmlElement;
+						auto element = Ptr(new XmlElement);
 						element->name.value = sp->strikeline.Value() ? L"s" : L"s-";
 						parent->subNodes.Add(element);
 						parent = element;
@@ -160,21 +160,21 @@ document_operation_visitors::SerializeRunVisitor
 						bool va = sp->verticalAntialias ? sp->verticalAntialias.Value() : false;
 						if (!ha)
 						{
-							Ptr<XmlElement> element = new XmlElement;
+							auto element = Ptr(new XmlElement);
 							element->name.value = L"ha";
 							parent->subNodes.Add(element);
 							parent = element;
 						}
 						else if (!va)
 						{
-							Ptr<XmlElement> element = new XmlElement;
+							auto element = Ptr(new XmlElement);
 							element->name.value = L"va";
 							parent->subNodes.Add(element);
 							parent = element;
 						}
 						else
 						{
-							Ptr<XmlElement> element = new XmlElement;
+							auto element = Ptr(new XmlElement);
 							element->name.value = L"na";
 							parent->subNodes.Add(element);
 							parent = element;
@@ -186,7 +186,7 @@ document_operation_visitors::SerializeRunVisitor
 
 				void Visit(DocumentStyleApplicationRun* run)override
 				{
-					Ptr<XmlElement> element = new XmlElement;
+					auto element = Ptr(new XmlElement);
 					element->name.value = L"div";
 					XmlElementWriter(element).Attribute(L"style", run->styleName);
 					VisitContainer(element, run);
@@ -194,7 +194,7 @@ document_operation_visitors::SerializeRunVisitor
 
 				void Visit(DocumentHyperlinkRun* run)override
 				{
-					Ptr<XmlElement> element = new XmlElement;
+					auto element = Ptr(new XmlElement);
 					element->name.value = L"a";
 					XmlElementWriter writer(element);
 					if (run->normalStyleName != L"#NormalLink")
@@ -236,7 +236,7 @@ document_operation_visitors::SerializeRunVisitor
 
 				void Visit(DocumentParagraphRun* run)override
 				{
-					Ptr<XmlElement> element = new XmlElement;
+					auto element = Ptr(new XmlElement);
 					element->name.value = L"p";
 
 					XmlElementWriter writer(element);
@@ -265,28 +265,29 @@ document_operation_visitors::SerializeRunVisitor
 DocumentModel
 ***********************************************************************/
 
-		Ptr<parsing::xml::XmlDocument> DocumentModel::SaveToXml()
+		Ptr<glr::xml::XmlDocument> DocumentModel::SaveToXml()
 		{
-			Ptr<XmlDocument> xml=new XmlDocument;
-			Ptr<XmlElement> doc=new XmlElement;
+			auto xml = Ptr(new XmlDocument);
+			auto doc = Ptr(new XmlElement);
 			doc->name.value=L"Doc";
 			xml->rootElement=doc;
 			{
-				Ptr<XmlElement> content=new XmlElement;
+				auto content = Ptr(new XmlElement);
 				content->name.value=L"Content";
 				doc->subNodes.Add(content);
 				
-				FOREACH(Ptr<DocumentParagraphRun>, p, paragraphs)
+				for (auto p : paragraphs)
 				{
 					SerializeRunVisitor visitor(content);
 					p->Accept(&visitor);
 				}
 			}
 			{
-				Ptr<XmlElement> stylesElement=new XmlElement;
+				auto stylesElement = Ptr(new XmlElement);
 				stylesElement->name.value=L"Styles";
 				doc->subNodes.Add(stylesElement);
 
+				// TODO: (enumerable) foreach
 				for(vint i=0;i<styles.Count();i++)
 				{
 					WString name=styles.Keys()[i];
@@ -294,7 +295,7 @@ DocumentModel
 
 					Ptr<DocumentStyle> style=styles.Values().Get(i);
 					Ptr<DocumentStyleProperties> sp=style->styles;
-					Ptr<XmlElement> styleElement=new XmlElement;
+					auto styleElement = Ptr(new XmlElement);
 					styleElement->name.value=L"Style";
 					stylesElement->subNodes.Add(styleElement);
 

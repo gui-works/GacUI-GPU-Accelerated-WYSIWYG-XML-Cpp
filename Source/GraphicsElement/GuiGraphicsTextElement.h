@@ -81,8 +81,9 @@ Colorized Plain Text (model)
 					~TextLine();
 
 					static vint						CalculateBufferLength(vint dataLength);
-					bool							operator==(const TextLine& value)const{return false;}
-					bool							operator!=(const TextLine& value)const{return true;}
+
+					std::partial_ordering			operator<=>(const TextLine&) const { return std::partial_ordering::unordered; }
+					bool							operator==(const TextLine& value) const { return false; }
 
 					/// <summary>
 					/// Initialize the <see cref="TextLine"/> instance to be an empty line.
@@ -432,8 +433,7 @@ Colorized Plain Text (model)
 					/// </summary>
 					Color							background;
 
-					bool							operator==(const ColorItem& value)const { return text == value.text && background == value.background; }
-					bool							operator!=(const ColorItem& value)const { return !(*this == value); }
+					GUI_DEFINE_COMPARE_OPERATORS(ColorItem)
 				};
 				
 				/// <summary>
@@ -454,8 +454,7 @@ Colorized Plain Text (model)
 					/// </summary>
 					ColorItem						selectedUnfocused;
 
-					bool							operator==(const ColorEntry& value)const {return normal == value.normal && selectedFocused == value.selectedFocused && selectedUnfocused == value.selectedUnfocused;}
-					bool							operator!=(const ColorEntry& value)const {return !(*this == value);}
+					GUI_DEFINE_COMPARE_OPERATORS(ColorEntry)
 				};
 			}
 
@@ -468,10 +467,11 @@ Colorized Plain Text (element)
 			/// </summary>
 			class GuiColorizedTextElement : public GuiElementBase<GuiColorizedTextElement>
 			{
-				DEFINE_GUI_GRAPHICS_ELEMENT(GuiColorizedTextElement, L"ColorizedText");
-
+				friend class GuiElementBase<GuiColorizedTextElement>;
 				friend class text::TextLines;
+
 				typedef collections::Array<text::ColorEntry>			ColorArray;
+				static constexpr const wchar_t*							ElementTypeName = L"ColorizedText";
 			public:
 				/// <summary>
 				/// An callback interface. Member functions will be called when colors or fonts of a <see cref="GuiColorizedTextElement"/> changed.

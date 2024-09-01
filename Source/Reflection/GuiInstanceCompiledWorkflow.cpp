@@ -1,5 +1,5 @@
 #include "GuiInstanceCompiledWorkflow.h"
-#include "../Controls/GuiApplication.h"
+#include "../Application/Controls/GuiApplication.h"
 
 namespace vl
 {
@@ -8,10 +8,21 @@ namespace vl
 		using namespace stream;
 		using namespace workflow::runtime;
 		using namespace controls;
+		using namespace reflection;
+		using namespace reflection::description;
 
 /***********************************************************************
 GuiInstanceSharedScript
 ***********************************************************************/
+
+		GuiInstanceCompiledWorkflow::GuiInstanceCompiledWorkflow()
+		{
+		}
+
+		GuiInstanceCompiledWorkflow::~GuiInstanceCompiledWorkflow()
+		{
+			UnloadAssembly();
+		}
 
 		bool GuiInstanceCompiledWorkflow::Initialize(bool initializeContext, workflow::runtime::WfAssemblyLoadErrors& loadErrors)
 		{
@@ -22,16 +33,50 @@ GuiInstanceSharedScript
 				{
 					return false;
 				}
-				context = nullptr;
 				binaryToLoad = nullptr;
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+				context = nullptr;
+#endif
 			}
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 			if (initializeContext && !context)
 			{
-				context = new WfRuntimeGlobalContext(assembly);
+				context = Ptr(new WfRuntimeGlobalContext(assembly));
 				LoadFunction<void()>(context, L"<initialize>")();
 			}
+#endif
+			if (initializeContext)
+			{
+				if (assembly->typeImpl)
+				{
+					if (auto tm = GetGlobalTypeManager())
+					{
+						tm->AddTypeLoader(assembly->typeImpl);
+					}
+				}
+			}
 			return true;
+		}
+
+		void GuiInstanceCompiledWorkflow::UnloadAssembly()
+		{
+			UnloadTypes();
+			assembly = nullptr;
+		}
+
+		void GuiInstanceCompiledWorkflow::UnloadTypes()
+		{
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+			context = nullptr;
+#endif
+			if (assembly && assembly->typeImpl)
+			{
+				if (auto tm = GetGlobalTypeManager())
+				{
+					tm->RemoveTypeLoader(assembly->typeImpl);
+				}
+			}
 		}
 
 /***********************************************************************
@@ -60,9 +105,15 @@ Compiled Workflow Type Resolver (Workflow)
 				return true;
 			}
 
-			vint GetMaxPassIndex()override
+			bool GetInitializePassSupport(vint passIndex)override
 			{
-				return 1;
+				switch (passIndex)
+				{
+				case Workflow_Initialize:
+					return true;
+				default:
+					return false;
+				}
 			}
 
 			void Initialize(Ptr<GuiResourceItem> resource, GuiResourceInitializeContext& context, GuiResourceError::List& errors)override
@@ -79,15 +130,15 @@ Compiled Workflow Type Resolver (Workflow)
 								WfAssemblyLoadErrors loadErrors;
 								if (!compiled->Initialize(true, loadErrors))
 								{
-									FOREACH(WString, loadError, loadErrors.duplicatedTypes)
+									for (auto loadError : loadErrors.duplicatedTypes)
 									{
 										errors.Add({ {resource},L"Failed to add an existing type: " + loadError });
 									}
-									FOREACH(WString, loadError, loadErrors.unresolvedTypes)
+									for (auto loadError : loadErrors.unresolvedTypes)
 									{
 										errors.Add({ {resource},L"Unable to resolve type: " + loadError });
 									}
-									FOREACH(WString, loadError, loadErrors.unresolvedMembers)
+									for (auto loadError : loadErrors.unresolvedMembers)
 									{
 										errors.Add({ {resource},L"Unable to resolve member: " + loadError });
 									}
@@ -109,37 +160,37 @@ Compiled Workflow Type Resolver (Workflow)
 				return this;
 			}
 
-			void SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& stream)override
+			void SerializePrecompiled(Ptr<GuiResourceItem> resource, Ptr<DescriptableObject> content, stream::IStream& resourceStream)override
 			{
 				if (auto obj = content.Cast<GuiInstanceCompiledWorkflow>())
 				{
-					internal::ContextFreeWriter writer(stream);
+					internal::ContextFreeWriter writer(resourceStream);
 
 					vint type = (vint)obj->type;
 					writer << type;
 
 					if (obj->type == GuiInstanceCompiledWorkflow::InstanceClass)
 					{
-						MemoryStream memoryStream;
+						stream::MemoryStream memoryStream;
 						obj->assembly->Serialize(memoryStream);
-						writer << (IStream&)memoryStream;
+						writer << (stream::IStream&)memoryStream;
 					}
 				}
 			}
 
-			Ptr<DescriptableObject> ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& stream, GuiResourceError::List& errors)override
+			Ptr<DescriptableObject> ResolveResourcePrecompiled(Ptr<GuiResourceItem> resource, stream::IStream& resourceStream, GuiResourceError::List& errors)override
 			{
-				internal::ContextFreeReader reader(stream);
+				internal::ContextFreeReader reader(resourceStream);
 
 				vint type;
 				reader << type;
-				
-				auto obj = MakePtr<GuiInstanceCompiledWorkflow>();
+
+				auto obj = Ptr(new GuiInstanceCompiledWorkflow);
 				obj->type = (GuiInstanceCompiledWorkflow::AssemblyType)type;
 				if (obj->type == GuiInstanceCompiledWorkflow::InstanceClass)
 				{
-					auto memoryStream = MakePtr<MemoryStream>();
-					reader << (IStream&)*memoryStream.Obj();
+					auto memoryStream = Ptr(new stream::MemoryStream);
+					reader << (stream::IStream&)*memoryStream.Obj();
 					obj->binaryToLoad = memoryStream;
 				}
 				return obj;
@@ -159,13 +210,16 @@ Plugin
 				GUI_PLUGIN_DEPEND(GacUI_Res_ResourceResolver);
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				IGuiResourceResolverManager* manager = GetResourceResolverManager();
-				manager->SetTypeResolver(new GuiResourceCompiledWorkflowTypeResolver);
+				if (controllerUnrelatedPlugins)
+				{
+					IGuiResourceResolverManager* manager = GetResourceResolverManager();
+					manager->SetTypeResolver(Ptr(new GuiResourceCompiledWorkflowTypeResolver));
+				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
 			}
 		};

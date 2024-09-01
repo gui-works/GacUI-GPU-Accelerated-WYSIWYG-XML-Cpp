@@ -45,9 +45,9 @@ DataVisualizerBase
 					visualizerTemplate = nullptr;
 				}
 
-				void DataVisualizerBase::BeforeVisualizeCell(GuiListControl::IItemProvider* itemProvider, vint row, vint column)
+				void DataVisualizerBase::BeforeVisualizeCell(list::IItemProvider* itemProvider, vint row, vint column)
 				{
-					if (auto listViewItemView = dynamic_cast<IListViewItemView*>(dataGridContext->GetItemProvider()->RequestView(IListViewItemView::Identifier)))
+					if (auto listViewItemView = dynamic_cast<IListViewItemView*>(dataGridContext->GetItemProvider()->RequestView(WString::Unmanaged(IListViewItemView::Identifier))))
 					{
 						auto style = dataGridContext->GetListViewControlTemplate();
 						visualizerTemplate->SetPrimaryTextColor(style->GetPrimaryTextColor());
@@ -58,7 +58,7 @@ DataVisualizerBase
 						visualizerTemplate->SetSmallImage(listViewItemView->GetSmallImage(row));
 						visualizerTemplate->SetText(column == 0 ? listViewItemView->GetText(row) : listViewItemView->GetSubItem(row, column - 1));
 					}
-					if (auto dataGridView = dynamic_cast<IDataGridView*>(dataGridContext->GetItemProvider()->RequestView(IDataGridView::Identifier)))
+					if (auto dataGridView = dynamic_cast<IDataGridView*>(dataGridContext->GetItemProvider()->RequestView(WString::Unmanaged(IDataGridView::Identifier))))
 					{
 						visualizerTemplate->SetRowValue(itemProvider->GetBindingValue(row));
 						visualizerTemplate->SetCellValue(dataGridView->GetBindingCellValue(row, column));
@@ -118,7 +118,7 @@ DataVisualizerFactory
 
 				Ptr<controls::list::IDataVisualizer> DataVisualizerFactory::CreateVisualizer(controls::list::IDataGridContext* dataGridContext)
 				{
-					auto dataVisualizer = MakePtr<DataVisualizerBase>();
+					auto dataVisualizer = Ptr(new DataVisualizerBase);
 					dataVisualizer->factory = this;
 					dataVisualizer->dataGridContext = dataGridContext;
 					dataVisualizer->visualizerTemplate = CreateItemTemplate(dataGridContext);
@@ -162,9 +162,9 @@ DataEditorBase
 					editorTemplate = nullptr;
 				}
 
-				void DataEditorBase::BeforeEditCell(GuiListControl::IItemProvider* itemProvider, vint row, vint column)
+				void DataEditorBase::BeforeEditCell(list::IItemProvider* itemProvider, vint row, vint column)
 				{
-					if (auto listViewItemView = dynamic_cast<IListViewItemView*>(dataGridContext->GetItemProvider()->RequestView(IListViewItemView::Identifier)))
+					if (auto listViewItemView = dynamic_cast<IListViewItemView*>(dataGridContext->GetItemProvider()->RequestView(WString::Unmanaged(IListViewItemView::Identifier))))
 					{
 						auto style = dataGridContext->GetListViewControlTemplate();
 						editorTemplate->SetPrimaryTextColor(style->GetPrimaryTextColor());
@@ -175,7 +175,7 @@ DataEditorBase
 						editorTemplate->SetSmallImage(listViewItemView->GetSmallImage(row));
 						editorTemplate->SetText(column == 0 ? listViewItemView->GetText(row) : listViewItemView->GetSubItem(row, column - 1));
 					}
-					if (auto dataGridView = dynamic_cast<IDataGridView*>(dataGridContext->GetItemProvider()->RequestView(IDataGridView::Identifier)))
+					if (auto dataGridView = dynamic_cast<IDataGridView*>(dataGridContext->GetItemProvider()->RequestView(WString::Unmanaged(IDataGridView::Identifier))))
 					{
 						editorTemplate->SetRowValue(itemProvider->GetBindingValue(row));
 						editorTemplate->SetCellValue(dataGridView->GetBindingCellValue(row, column));
@@ -207,7 +207,7 @@ DataEditorFactory
 
 				Ptr<IDataEditor> DataEditorFactory::CreateEditor(controls::list::IDataGridContext* dataGridContext)
 				{
-					auto editor = MakePtr<DataEditorBase>();
+					auto editor = Ptr(new DataEditorBase);
 					editor->factory = this;
 					editor->dataGridContext = dataGridContext;
 
@@ -268,18 +268,22 @@ MainColumnVisualizerTemplate
 
 						image = GuiImageFrameElement::Create();
 						image->SetStretch(true);
-						cell->SetOwnedElement(image);
+						cell->SetOwnedElement(Ptr(image));
 					}
 					{
 						GuiCellComposition* cell = new GuiCellComposition;
 						table->AddChild(cell);
 						cell->SetSite(0, 1, 3, 1);
-						cell->SetMargin(Margin(0, 0, 8, 0));
+
+						auto textBounds = new GuiBoundsComposition;
+						cell->AddChild(textBounds);
+						textBounds->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElement);
+						textBounds->SetAlignmentToParent(Margin(0, 0, 8, 0));
 
 						text = GuiSolidLabelElement::Create();
 						text->SetAlignments(Alignment::Left, Alignment::Center);
 						text->SetEllipse(true);
-						cell->SetOwnedElement(text);
+						textBounds->SetOwnedElement(Ptr(text));
 					}
 					table->SetAlignmentToParent(Margin(0, 0, 0, 0));
 
@@ -322,12 +326,17 @@ SubColumnVisualizerTemplate
 
 				void SubColumnVisualizerTemplate::Initialize(bool fixTextColor)
 				{
+					SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
+
+					auto textBounds = new GuiBoundsComposition;
+					AddChild(textBounds);
+					textBounds->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElement);
+					textBounds->SetAlignmentToParent(Margin(8, 0, 8, 0));
+
 					text = GuiSolidLabelElement::Create();
 					text->SetVerticalAlignment(Alignment::Center);
-
-					SetMinSizeLimitation(GuiGraphicsComposition::LimitToElementAndChildren);
-					SetMargin(Margin(8, 0, 8, 0));
-					SetOwnedElement(text);
+					text->SetEllipse(true);
+					textBounds->SetOwnedElement(Ptr(text));
 
 					TextChanged.AttachMethod(this, &SubColumnVisualizerTemplate::OnTextChanged);
 					FontChanged.AttachMethod(this, &SubColumnVisualizerTemplate::OnFontChanged);
@@ -405,7 +414,7 @@ CellBorderVisualizerTemplate
 
 					focusComposition = new GuiBoundsComposition();
 					{
-						auto focus = GuiFocusRectangleElement::Create();
+						auto focus = Ptr(GuiFocusRectangleElement::Create());
 						focusComposition->SetOwnedElement(focus);
 						focusComposition->SetAlignmentToParent(Margin(1, 1, 1, 1));
 					}
@@ -444,13 +453,13 @@ CellBorderVisualizerTemplate
 					auto bounds1 = new GuiBoundsComposition;
 					{
 						border1 = GuiSolidBorderElement::Create();
-						bounds1->SetOwnedElement(border1);
+						bounds1->SetOwnedElement(Ptr(border1));
 						bounds1->SetAlignmentToParent(Margin(-1, 0, 0, 0));
 					}
 					auto bounds2 = new GuiBoundsComposition;
 					{
 						border2 = GuiSolidBorderElement::Create();
-						bounds2->SetOwnedElement(border2);
+						bounds2->SetOwnedElement(Ptr(border2));
 						bounds2->SetAlignmentToParent(Margin(0, -1, 0, 0));
 					}
 					auto container = new GuiBoundsComposition();

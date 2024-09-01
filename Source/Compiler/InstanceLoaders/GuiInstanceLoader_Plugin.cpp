@@ -22,9 +22,11 @@ GuiInstanceLoader_Document.cpp
 		default: Ptr<GuiDocumentItem>
 GuiInstanceLoader_List.cpp
 	GuiComboBox
-		ctor: _ListControl(GuiListControl*)
-	GuiTreeView, GuiBindableTreeView
+		ctor: ListControl(GuiListControl*)
+	GuiTreeView
 		Nodes: array(Ptr<tree::MemoryNodeProvider>)
+	GuiBindableTreeView
+		ctor: ReverseMappingProperty(WritableItemProperty<Value>)
 	tree::TreeNode
 		ctor: Text, Image
 		Tag
@@ -73,12 +75,12 @@ GuiControlInstanceLoader
 					return typeName;
 				}
 
-				void GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
+				void GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames)override
 				{
 					propertyNames.Add(GlobalStringKey::Empty);
 				}
 
-				Ptr<GuiInstancePropertyInfo> GetPropertyType(const PropertyInfo& propertyInfo)override
+				Ptr<GuiInstancePropertyInfo> GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo)override
 				{
 					if (propertyInfo.propertyName == GlobalStringKey::Empty)
 					{
@@ -91,14 +93,15 @@ GuiControlInstanceLoader
 						}
 						return info;
 					}
-					return IGuiInstanceLoader::GetPropertyType(propertyInfo);
+					return IGuiInstanceLoader::GetPropertyType(precompileContext, propertyInfo);
 				}
 
 				Ptr<workflow::WfStatement> AssignParameters(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, GlobalStringKey variableName, ArgumentMap& arguments, GuiResourceTextPos attPosition, GuiResourceError::List& errors)override
 				{
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 
-					FOREACH_INDEXER(GlobalStringKey, prop, index, arguments.Keys())
+					// TODO: (enumerable) foreach on group
+					for (auto [prop, index] : indexed(arguments.Keys()))
 					{
 						const auto& values = arguments.GetByIndex(index);
 						if (prop == GlobalStringKey::Empty)
@@ -109,14 +112,14 @@ GuiControlInstanceLoader
 							Ptr<WfExpression> expr;
 							if (td->CanConvertTo(description::GetTypeDescriptor<GuiComponent>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refAddComponent = MakePtr<WfMemberExpression>();
+								auto refAddComponent = Ptr(new WfMemberExpression);
 								refAddComponent->parent = refControl;
 								refAddComponent->name.value = L"AddComponent";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddComponent;
 								call->arguments.Add(value);
 
@@ -124,14 +127,14 @@ GuiControlInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiControlHost>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refAddControlHostComponent = MakePtr<WfMemberExpression>();
+								auto refAddControlHostComponent = Ptr(new WfMemberExpression);
 								refAddControlHostComponent->parent = refControl;
 								refAddControlHostComponent->name.value = L"AddControlHostComponent";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddControlHostComponent;
 								call->arguments.Add(value);
 
@@ -139,14 +142,14 @@ GuiControlInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiControl>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refAddChild = MakePtr<WfMemberExpression>();
+								auto refAddChild = Ptr(new WfMemberExpression);
 								refAddChild->parent = refControl;
 								refAddChild->name.value = L"AddChild";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddChild;
 								call->arguments.Add(value);
 
@@ -154,18 +157,18 @@ GuiControlInstanceLoader
 							}
 							else if (td->CanConvertTo(description::GetTypeDescriptor<GuiGraphicsComposition>()))
 							{
-								auto refControl = MakePtr<WfReferenceExpression>();
+								auto refControl = Ptr(new WfReferenceExpression);
 								refControl->name.value = variableName.ToString();
 
-								auto refContainerComposition = MakePtr<WfMemberExpression>();
+								auto refContainerComposition = Ptr(new WfMemberExpression);
 								refContainerComposition->parent = refControl;
 								refContainerComposition->name.value = L"ContainerComposition";
 
-								auto refAddChild = MakePtr<WfMemberExpression>();
+								auto refAddChild = Ptr(new WfMemberExpression);
 								refAddChild->parent = refContainerComposition;
 								refAddChild->name.value = L"AddChild";
 
-								auto call = MakePtr<WfCallExpression>();
+								auto call = Ptr(new WfCallExpression);
 								call->function = refAddChild;
 								call->arguments.Add(value);
 
@@ -174,7 +177,7 @@ GuiControlInstanceLoader
 
 							if (expr)
 							{
-								auto stat = MakePtr<WfExpressionStatement>();
+								auto stat = Ptr(new WfExpressionStatement);
 								stat->expression = expr;
 								block->statements.Add(stat);
 							}
@@ -195,30 +198,23 @@ GuiControlInstanceLoader
 GuiPredefinedInstanceLoadersPlugin
 ***********************************************************************/
 
-			Ptr<WfExpression> CreateTrue(IGuiInstanceLoader::ArgumentMap&)
-			{
-				auto expr = MakePtr<WfLiteralExpression>();
-				expr->value = WfLiteralValue::True;
-				return expr;
-			}
-
 			void InitializeTrackerProgressBar(const WString& variableName, Ptr<WfBlockStatement> block)
 			{
-				auto refVariable = MakePtr<WfReferenceExpression>();
+				auto refVariable = Ptr(new WfReferenceExpression);
 				refVariable->name.value = variableName;
 
-				auto refSetPageSize = MakePtr<WfMemberExpression>();
+				auto refSetPageSize = Ptr(new WfMemberExpression);
 				refSetPageSize->parent = refVariable;
 				refSetPageSize->name.value = L"SetPageSize";
 
-				auto refZero = MakePtr<WfIntegerExpression>();
+				auto refZero = Ptr(new WfIntegerExpression);
 				refZero->value.value = L"0";
 
-				auto call = MakePtr<WfCallExpression>();
+				auto call = Ptr(new WfCallExpression);
 				call->function = refSetPageSize;
 				call->arguments.Add(refZero);
 
-				auto stat = MakePtr<WfExpressionStatement>();
+				auto stat = Ptr(new WfExpressionStatement);
 				stat->expression = call;
 				block->statements.Add(stat);
 			}
@@ -236,106 +232,109 @@ GuiPredefinedInstanceLoadersPlugin
 				GUI_PLUGIN_NAME(GacUI_Instance_TypeLoaders)
 				{
 					GUI_PLUGIN_DEPEND(GacUI_Res_ResourceResolver);
-					GUI_PLUGIN_DEPEND(GacUI_Instance_Reflection);
 					GUI_PLUGIN_DEPEND(GacUI_Instance);
+					GUI_PLUGIN_DEPEND(GacUI_Instance_Reflection);
 				}
 
-				void Load()override
+				void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 				{
-	#ifndef VCZH_DEBUG_NO_REFLECTION
-					IGuiInstanceLoaderManager* manager=GetInstanceLoaderManager();
+#ifndef VCZH_DEBUG_NO_REFLECTION
+					if (controllerUnrelatedPlugins)
+					{
+						IGuiInstanceLoaderManager* manager=GetInstanceLoaderManager();
 
-	#define ADD_TEMPLATE_CONTROL(TYPENAME, THEME_NAME)\
-		manager->SetLoader(\
-		new GuiTemplateControlInstanceLoader<TYPENAME>(\
-				L"presentation::controls::" L ## #TYPENAME,\
-				theme::ThemeName::THEME_NAME\
-				)\
-			)
+#define ADD_TEMPLATE_CONTROL(TYPENAME, THEME_NAME)\
+						manager->SetLoader(\
+						Ptr(new GuiTemplateControlInstanceLoader<TYPENAME>(\
+								L"presentation::controls::" L ## #TYPENAME,\
+								theme::ThemeName::THEME_NAME\
+								)\
+							))
 
-	#define ADD_VIRTUAL_CONTROL(VIRTUALTYPENAME, TYPENAME, THEME_NAME)\
-		manager->CreateVirtualType(GlobalStringKey::Get(description::TypeInfo<TYPENAME>::content.typeName),\
-		new GuiTemplateControlInstanceLoader<TYPENAME>(\
-				L"presentation::controls::Gui" L ## #VIRTUALTYPENAME,\
-				theme::ThemeName::THEME_NAME\
-				)\
-			)
+#define ADD_VIRTUAL_CONTROL(VIRTUALTYPENAME, TYPENAME, THEME_NAME)\
+						manager->CreateVirtualType(GlobalStringKey::Get(description::TypeInfo<TYPENAME>::content.typeName),\
+						Ptr(new GuiTemplateControlInstanceLoader<TYPENAME>(\
+								L"presentation::controls::Gui" L ## #VIRTUALTYPENAME,\
+								theme::ThemeName::THEME_NAME\
+								)\
+							))
 
-	#define ADD_VIRTUAL_CONTROL_F(VIRTUALTYPENAME, TYPENAME, THEME_NAME, INIT_FUNCTION)\
-		manager->CreateVirtualType(GlobalStringKey::Get(description::TypeInfo<TYPENAME>::content.typeName),\
-		new GuiTemplateControlInstanceLoader<TYPENAME>(\
-				L"presentation::controls::Gui" L ## #VIRTUALTYPENAME,\
-				theme::ThemeName::THEME_NAME,\
-				nullptr,\
-				INIT_FUNCTION\
-				)\
-			)
+#define ADD_VIRTUAL_CONTROL_F(VIRTUALTYPENAME, TYPENAME, THEME_NAME, INIT_FUNCTION)\
+						manager->CreateVirtualType(GlobalStringKey::Get(description::TypeInfo<TYPENAME>::content.typeName),\
+						Ptr(new GuiTemplateControlInstanceLoader<TYPENAME>(\
+								L"presentation::controls::Gui" L ## #VIRTUALTYPENAME,\
+								theme::ThemeName::THEME_NAME,\
+								nullptr,\
+								INIT_FUNCTION\
+								)\
+							))
 
-					manager->SetLoader(new GuiControlInstanceLoader);
+						manager->SetLoader(Ptr(new GuiControlInstanceLoader));
 
-					/*													REAL-CONTROL-TYPE				THEME-NAME											*/
-					ADD_TEMPLATE_CONTROL	(							GuiCustomControl,				CustomControl										);
-					ADD_TEMPLATE_CONTROL	(							GuiLabel,						Label												);
-					ADD_TEMPLATE_CONTROL	(							GuiButton,						Button												);
-					ADD_TEMPLATE_CONTROL	(							GuiTabPage,						CustomControl										);
-					ADD_TEMPLATE_CONTROL	(							GuiTab,							Tab													);
-					ADD_TEMPLATE_CONTROL	(							GuiScrollContainer,				ScrollView											);
-					ADD_TEMPLATE_CONTROL	(							GuiWindow,						Window												);
-					ADD_TEMPLATE_CONTROL	(							GuiTextList,					TextList											);
-					ADD_TEMPLATE_CONTROL	(							GuiBindableTextList,			TextList											);
-					ADD_TEMPLATE_CONTROL	(							GuiListView,					ListView											);
-					ADD_TEMPLATE_CONTROL	(							GuiBindableListView,			ListView											);
-					ADD_TEMPLATE_CONTROL	(							GuiMultilineTextBox,			MultilineTextBox									);
-					ADD_TEMPLATE_CONTROL	(							GuiSinglelineTextBox,			SinglelineTextBox									);
-					ADD_TEMPLATE_CONTROL	(							GuiDatePicker,					DatePicker											);
-					ADD_TEMPLATE_CONTROL	(							GuiDateComboBox,				DateComboBox										);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonTab,					RibbonTab											);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonTabPage,				CustomControl										);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonGroup,					RibbonGroup											);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonIconLabel,				RibbonIconLabel										);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonToolstrips,			RibbonToolstrips									);
-					ADD_TEMPLATE_CONTROL	(							GuiRibbonGallery,				RibbonGallery										);
-					ADD_TEMPLATE_CONTROL	(							GuiBindableRibbonGalleryList,	RibbonGalleryList									);
+						/*													REAL-CONTROL-TYPE				THEME-NAME											*/
+						ADD_TEMPLATE_CONTROL	(							GuiCustomControl,				CustomControl										);
+						ADD_TEMPLATE_CONTROL	(							GuiLabel,						Label												);
+						ADD_TEMPLATE_CONTROL	(							GuiButton,						Button												);
+						ADD_TEMPLATE_CONTROL	(							GuiTabPage,						CustomControl										);
+						ADD_TEMPLATE_CONTROL	(							GuiTab,							Tab													);
+						ADD_TEMPLATE_CONTROL	(							GuiScrollContainer,				ScrollView											);
+						ADD_TEMPLATE_CONTROL	(							GuiWindow,						Window												);
+						ADD_TEMPLATE_CONTROL	(							GuiTextList,					TextList											);
+						ADD_TEMPLATE_CONTROL	(							GuiBindableTextList,			TextList											);
+						ADD_TEMPLATE_CONTROL	(							GuiListView,					ListView											);
+						ADD_TEMPLATE_CONTROL	(							GuiBindableListView,			ListView											);
+						ADD_TEMPLATE_CONTROL	(							GuiBindableDataGrid,			ListView											);
+						ADD_TEMPLATE_CONTROL	(							GuiMultilineTextBox,			MultilineTextBox									);
+						ADD_TEMPLATE_CONTROL	(							GuiSinglelineTextBox,			SinglelineTextBox									);
+						ADD_TEMPLATE_CONTROL	(							GuiDatePicker,					DatePicker											);
+						ADD_TEMPLATE_CONTROL	(							GuiDateComboBox,				DateComboBox										);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonTab,					RibbonTab											);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonTabPage,				CustomControl										);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonGroup,					RibbonGroup											);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonIconLabel,				RibbonIconLabel										);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonToolstrips,			RibbonToolstrips									);
+						ADD_TEMPLATE_CONTROL	(							GuiRibbonGallery,				RibbonGallery										);
+						ADD_TEMPLATE_CONTROL	(							GuiBindableRibbonGalleryList,	RibbonGalleryList									);
 
-					/*						VIRTUAL-CONTROL-TYPE		REAL-CONTROL-TYPE				THEME-NAME											*/
-					ADD_VIRTUAL_CONTROL		(GroupBox,					GuiControl,						GroupBox											);
-					ADD_VIRTUAL_CONTROL		(MenuSplitter,				GuiControl,						MenuSplitter										);
-					ADD_VIRTUAL_CONTROL		(MenuBarButton,				GuiToolstripButton,				MenuBarButton										);
-					ADD_VIRTUAL_CONTROL		(MenuItemButton,			GuiToolstripButton,				MenuItemButton										);
-					ADD_VIRTUAL_CONTROL		(ToolstripDropdownButton,	GuiToolstripButton,				ToolstripDropdownButton								);
-					ADD_VIRTUAL_CONTROL		(ToolstripSplitButton,		GuiToolstripButton,				ToolstripSplitButton								);
-					ADD_VIRTUAL_CONTROL		(ToolstripSplitter,			GuiControl,						ToolstripSplitter									);
-					ADD_VIRTUAL_CONTROL		(RibbonSmallButton,			GuiToolstripButton,				RibbonSmallButton									);
-					ADD_VIRTUAL_CONTROL		(RibbonSmallDropdownButton,	GuiToolstripButton,				RibbonSmallDropdownButton							);
-					ADD_VIRTUAL_CONTROL		(RibbonSmallSplitButton,	GuiToolstripButton,				RibbonSmallSplitButton								);
-					ADD_VIRTUAL_CONTROL		(RibbonLargeButton,			GuiToolstripButton,				RibbonLargeButton									);
-					ADD_VIRTUAL_CONTROL		(RibbonLargeDropdownButton,	GuiToolstripButton,				RibbonLargeDropdownButton							);
-					ADD_VIRTUAL_CONTROL		(RibbonLargeSplitButton,	GuiToolstripButton,				RibbonLargeSplitButton								);
-					ADD_VIRTUAL_CONTROL		(RibbonSmallIconLabel,		GuiRibbonIconLabel,				RibbonSmallIconLabel								);
-					ADD_VIRTUAL_CONTROL		(RibbonSplitter,			GuiControl,						RibbonSplitter										);
-					ADD_VIRTUAL_CONTROL		(RibbonToolstripHeader,		GuiControl,						RibbonToolstripHeader								);
-					ADD_VIRTUAL_CONTROL		(CheckBox,					GuiSelectableButton,			CheckBox											);
-					ADD_VIRTUAL_CONTROL		(RadioButton,				GuiSelectableButton,			RadioButton											);
-					ADD_VIRTUAL_CONTROL		(HScroll,					GuiScroll,						HScroll												);
-					ADD_VIRTUAL_CONTROL		(VScroll,					GuiScroll,						VScroll												);
-					ADD_VIRTUAL_CONTROL		(DocumentTextBox,			GuiDocumentLabel,				DocumentTextBox										);
-					ADD_VIRTUAL_CONTROL_F	(HTracker,					GuiScroll,						HTracker,				InitializeTrackerProgressBar);
-					ADD_VIRTUAL_CONTROL_F	(VTracker,					GuiScroll,						VTracker,				InitializeTrackerProgressBar);
-					ADD_VIRTUAL_CONTROL_F	(ProgressBar,				GuiScroll,						ProgressBar,			InitializeTrackerProgressBar);
+						/*						VIRTUAL-CONTROL-TYPE		REAL-CONTROL-TYPE				THEME-NAME											*/
+						ADD_VIRTUAL_CONTROL		(GroupBox,					GuiControl,						GroupBox											);
+						ADD_VIRTUAL_CONTROL		(MenuSplitter,				GuiControl,						MenuSplitter										);
+						ADD_VIRTUAL_CONTROL		(MenuBarButton,				GuiToolstripButton,				MenuBarButton										);
+						ADD_VIRTUAL_CONTROL		(MenuItemButton,			GuiToolstripButton,				MenuItemButton										);
+						ADD_VIRTUAL_CONTROL		(ToolstripDropdownButton,	GuiToolstripButton,				ToolstripDropdownButton								);
+						ADD_VIRTUAL_CONTROL		(ToolstripSplitButton,		GuiToolstripButton,				ToolstripSplitButton								);
+						ADD_VIRTUAL_CONTROL		(ToolstripSplitter,			GuiControl,						ToolstripSplitter									);
+						ADD_VIRTUAL_CONTROL		(RibbonSmallButton,			GuiToolstripButton,				RibbonSmallButton									);
+						ADD_VIRTUAL_CONTROL		(RibbonSmallDropdownButton,	GuiToolstripButton,				RibbonSmallDropdownButton							);
+						ADD_VIRTUAL_CONTROL		(RibbonSmallSplitButton,	GuiToolstripButton,				RibbonSmallSplitButton								);
+						ADD_VIRTUAL_CONTROL		(RibbonLargeButton,			GuiToolstripButton,				RibbonLargeButton									);
+						ADD_VIRTUAL_CONTROL		(RibbonLargeDropdownButton,	GuiToolstripButton,				RibbonLargeDropdownButton							);
+						ADD_VIRTUAL_CONTROL		(RibbonLargeSplitButton,	GuiToolstripButton,				RibbonLargeSplitButton								);
+						ADD_VIRTUAL_CONTROL		(RibbonSmallIconLabel,		GuiRibbonIconLabel,				RibbonSmallIconLabel								);
+						ADD_VIRTUAL_CONTROL		(RibbonSplitter,			GuiControl,						RibbonSplitter										);
+						ADD_VIRTUAL_CONTROL		(RibbonToolstripHeader,		GuiControl,						RibbonToolstripHeader								);
+						ADD_VIRTUAL_CONTROL		(CheckBox,					GuiSelectableButton,			CheckBox											);
+						ADD_VIRTUAL_CONTROL		(RadioButton,				GuiSelectableButton,			RadioButton											);
+						ADD_VIRTUAL_CONTROL		(HScroll,					GuiScroll,						HScroll												);
+						ADD_VIRTUAL_CONTROL		(VScroll,					GuiScroll,						VScroll												);
+						ADD_VIRTUAL_CONTROL		(DocumentTextBox,			GuiDocumentLabel,				DocumentTextBox										);
+						ADD_VIRTUAL_CONTROL_F	(HTracker,					GuiScroll,						HTracker,				InitializeTrackerProgressBar);
+						ADD_VIRTUAL_CONTROL_F	(VTracker,					GuiScroll,						VTracker,				InitializeTrackerProgressBar);
+						ADD_VIRTUAL_CONTROL_F	(ProgressBar,				GuiScroll,						ProgressBar,			InitializeTrackerProgressBar);
 
-					LoadToolstripControls(manager);
-					LoadListControls(manager);
-					LoadDocumentControls(manager);
-					LoadCompositions(manager);
-					LoadTemplates(manager);
-
-	#undef ADD_TEMPLATE_CONTROL
-	#undef ADD_VIRTUAL_CONTROL
-	#undef ADD_VIRTUAL_CONTROL_F
-	#endif
+						LoadToolstripControls(manager);
+						LoadListControls(manager);
+						LoadDocumentControls(manager);
+						LoadCompositions(manager);
+						LoadTemplates(manager);
+					}
+#undef ADD_TEMPLATE_CONTROL
+#undef ADD_VIRTUAL_CONTROL
+#undef ADD_VIRTUAL_CONTROL_F
+#endif
 				}
 
-				void Unload()override
+				void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 				{
 				}
 			};

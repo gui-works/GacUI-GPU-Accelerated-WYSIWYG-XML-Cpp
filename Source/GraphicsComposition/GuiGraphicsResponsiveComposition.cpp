@@ -1,5 +1,5 @@
 #include "GuiGraphicsResponsiveComposition.h"
-#include "../Controls/GuiBasicControls.h"
+#include "../Application/Controls/GuiBasicControls.h"
 
 namespace vl
 {
@@ -75,10 +75,6 @@ GuiResponsiveCompositionBase
 				CurrentLevelChanged.SetAssociatedComposition(this);
 			}
 
-			GuiResponsiveCompositionBase::~GuiResponsiveCompositionBase()
-			{
-			}
-
 			ResponsiveDirection GuiResponsiveCompositionBase::GetDirection()
 			{
 				return direction;
@@ -122,10 +118,6 @@ GuiResponsiveSharedCollection
 			{
 			}
 
-			GuiResponsiveSharedCollection::~GuiResponsiveSharedCollection()
-			{
-			}
-
 /***********************************************************************
 GuiResponsiveViewCollection
 ***********************************************************************/
@@ -160,10 +152,6 @@ GuiResponsiveViewCollection
 
 			GuiResponsiveViewCollection::GuiResponsiveViewCollection(GuiResponsiveViewComposition* _view)
 				:view(_view)
-			{
-			}
-
-			GuiResponsiveViewCollection::~GuiResponsiveViewCollection()
 			{
 			}
 
@@ -224,10 +212,6 @@ GuiResponsiveSharedComposition
 				SetMinSizeLimitation(LimitToElementAndChildren);
 			}
 
-			GuiResponsiveSharedComposition::~GuiResponsiveSharedComposition()
-			{
-			}
-
 			controls::GuiControl* GuiResponsiveSharedComposition::GetShared()
 			{
 				return shared;
@@ -257,6 +241,7 @@ GuiResponsiveViewComposition
 				else
 				{
 					levelCount = 0;
+					// TODO: (enumerable) foreach
 					for (vint i = 0; i < views.Count(); i++)
 					{
 						auto view = views[i];
@@ -283,6 +268,7 @@ GuiResponsiveViewComposition
 			{
 				vint old = currentLevel;
 				currentLevel = 0;
+				// TODO: (enumerable) foreach:reversed
 				for (vint i = views.Count() - 1; i >= 0; i--)
 				{
 					auto view = views[i];
@@ -334,7 +320,7 @@ GuiResponsiveViewComposition
 			{
 				destructing = true;
 
-				FOREACH(GuiResponsiveCompositionBase*, view, views)
+				for (auto view : views)
 				{
 					if (view != currentView)
 					{
@@ -342,7 +328,7 @@ GuiResponsiveViewComposition
 					}
 				}
 
-				FOREACH(GuiControl*, shared, From(sharedControls).Except(usedSharedControls))
+				for (auto shared : From(sharedControls).Except(usedSharedControls))
 				{
 					SafeDeleteControl(shared);
 				}
@@ -436,14 +422,6 @@ GuiResponsiveFixedComposition
 			void GuiResponsiveFixedComposition::OnResponsiveChildLevelUpdated()
 			{
 				InvokeOnCompositionStateChanged();
-			}
-
-			GuiResponsiveFixedComposition::GuiResponsiveFixedComposition()
-			{
-			}
-
-			GuiResponsiveFixedComposition::~GuiResponsiveFixedComposition()
-			{
 			}
 
 			vint GuiResponsiveFixedComposition::GetLevelCount()
@@ -562,11 +540,11 @@ GuiResponsiveStackComposition
 					GuiResponsiveCompositionBase* selected = nullptr;
 					vint size = 0;
 
-					FOREACH(GuiResponsiveCompositionBase*, child, availables)
+					for (auto child : availables)
 					{
 						if (!ignored.Contains(child))
 						{
-							Size childSize = child->GetPreferredBounds().GetSize();
+							Size childSize = child->GetCachedBounds().GetSize();
 							vint childSizeToCompare =
 								direction == ResponsiveDirection::Horizontal ? childSize.x :
 								direction == ResponsiveDirection::Vertical ? childSize.y :
@@ -597,14 +575,6 @@ GuiResponsiveStackComposition
 				if (!CalculateCurrentLevel()) return false;
 				InvokeOnCompositionStateChanged();
 				return true;
-			}
-
-			GuiResponsiveStackComposition::GuiResponsiveStackComposition()
-			{
-			}
-
-			GuiResponsiveStackComposition::~GuiResponsiveStackComposition()
-			{
 			}
 
 			vint GuiResponsiveStackComposition::GetLevelCount()
@@ -700,14 +670,6 @@ GuiResponsiveGroupComposition
 				GuiResponsiveCompositionBase::OnResponsiveChildLevelUpdated();
 			}
 
-			GuiResponsiveGroupComposition::GuiResponsiveGroupComposition()
-			{
-			}
-
-			GuiResponsiveGroupComposition::~GuiResponsiveGroupComposition()
-			{
-			}
-
 			vint GuiResponsiveGroupComposition::GetLevelCount()
 			{
 				return levelCount;
@@ -722,7 +684,7 @@ GuiResponsiveGroupComposition
 			{
 				DEFINE_AVAILABLE;
 				vint level = currentLevel;
-				FOREACH(GuiResponsiveCompositionBase*, child, availables)
+				for (auto child : availables)
 				{
 					if (child->GetCurrentLevel() >= level)
 					{
@@ -742,7 +704,7 @@ GuiResponsiveGroupComposition
 			{
 				DEFINE_AVAILABLE;
 				vint level = currentLevel;
-				FOREACH(GuiResponsiveCompositionBase*, child, availables)
+				for (auto child : availables)
 				{
 					while (child->GetCurrentLevel() <= level)
 					{
@@ -764,100 +726,112 @@ GuiResponsiveGroupComposition
 GuiResponsiveContainerComposition
 ***********************************************************************/
 
-#define RESPONSIVE_INVALID_SIZE Size(-1, -1)
-
-			void GuiResponsiveContainerComposition::AdjustLevel()
+			std::strong_ordering GuiResponsiveContainerComposition::Layout_CompareSize(Size first, Size second)
 			{
-				if (!responsiveTarget) return;
-				const Size containerSize = GetBounds().GetSize();
-				const Size responsiveOriginalSize = responsiveTarget->GetPreferredBounds().GetSize();
-				const bool testX = (vint)responsiveTarget->GetDirection() & (vint)ResponsiveDirection::Horizontal;
-				const bool testY = (vint)responsiveTarget->GetDirection() & (vint)ResponsiveDirection::Vertical;
+				auto ordX = testX ? first.x <=> second.x : std::strong_ordering::equivalent;
+				auto ordY = testY ? first.y <=> second.y : std::strong_ordering::equivalent;
 
-#define RESPONSIVE_IF_CONTAINER(OP, SIZE) ((testX && (containerSize).x OP SIZE.x) || (testY && (containerSize).y OP SIZE.y))
-
-				if (upperLevelSize != RESPONSIVE_INVALID_SIZE && RESPONSIVE_IF_CONTAINER(>=, upperLevelSize))
+				if (ordX == std::strong_ordering::less || ordY == std::strong_ordering::less)
 				{
-					upperLevelSize = RESPONSIVE_INVALID_SIZE;
+					return std::strong_ordering::less;
 				}
-
-				if (upperLevelSize == RESPONSIVE_INVALID_SIZE && RESPONSIVE_IF_CONTAINER(>=, responsiveOriginalSize))
+				if (ordX == std::strong_ordering::greater || ordY == std::strong_ordering::greater)
 				{
-					while (true)
-					{
-						if (responsiveTarget->GetCurrentLevel() == responsiveTarget->GetLevelCount() - 1)
-						{
-							break;
-						}
-						else if (responsiveTarget->LevelUp())
-						{
-							responsiveTarget->ForceCalculateSizeImmediately();
-							auto currentSize = responsiveTarget->GetPreferredBounds().GetSize();
-							if (RESPONSIVE_IF_CONTAINER(<, currentSize))
-							{
-								upperLevelSize = currentSize;
-								responsiveTarget->LevelDown();
-								break;
-							}
-						}
-						else
-						{
-							break;
-						}
-					}
+					return std::strong_ordering::greater;
 				}
-				else
-				{
-					while (true)
-					{
-						responsiveTarget->ForceCalculateSizeImmediately();
-						auto currentSize = responsiveTarget->GetPreferredBounds().GetSize();
-						if (RESPONSIVE_IF_CONTAINER(>=, currentSize))
-						{
-							break;
-						}
-
-						if (responsiveTarget->GetCurrentLevel() == 0)
-						{
-							break;
-						}
-						else if(responsiveTarget->LevelDown())
-						{
-							upperLevelSize = currentSize;
-						}
-						else
-						{
-							break;
-						}
-					}
-				}
-
-#undef RESPONSIVE_IF_CONTAINER
+				return std::strong_ordering::equivalent;
 			}
 
-			void GuiResponsiveContainerComposition::OnBoundsChanged(GuiGraphicsComposition* sender, GuiEventArgs& arguments)
+			void GuiResponsiveContainerComposition::Layout_AdjustLevelUp(Size containerSize)
 			{
-				auto control = GetRelatedControl();
-				if (control)
+				while (true)
 				{
-					control->InvokeOrDelayIfRendering([=]()
+					if (responsiveTarget->GetCurrentLevel() == responsiveTarget->GetLevelCount() - 1) break;
+					if (Layout_CompareSize(minSizeLowerBound, minSizeUpperBound) == std::strong_ordering::less)
 					{
-						AdjustLevel();
-					});
+						if (Layout_CompareSize(containerSize, minSizeUpperBound) == std::strong_ordering::less) break;
+					}
+					else
+					{
+						if (Layout_CompareSize(containerSize, minSizeUpperBound) != std::strong_ordering::greater) break;
+					}
+
+					if (!responsiveTarget->LevelUp()) break;
+					responsiveTarget->Layout_UpdateMinSize();
+					minSizeUpperBound = responsiveTarget->GetCachedMinSize();
+					if (Layout_CompareSize(containerSize, minSizeUpperBound) == std::strong_ordering::less)
+					{
+						responsiveTarget->LevelDown();
+						responsiveTarget->Layout_UpdateMinSize();
+						break;
+					}
+					minSizeLowerBound = minSizeUpperBound;
 				}
-				else
+			}
+
+			void GuiResponsiveContainerComposition::Layout_AdjustLevelDown(Size containerSize)
+			{
+				while (true)
 				{
-					AdjustLevel();
+					if (responsiveTarget->GetCurrentLevel() == 0) break;
+					if (Layout_CompareSize(containerSize, minSizeLowerBound) != std::strong_ordering::less) break;
+
+					if (!responsiveTarget->LevelDown()) break;
+					responsiveTarget->Layout_UpdateMinSize();
+					minSizeUpperBound = minSizeLowerBound;
+					minSizeLowerBound = responsiveTarget->GetCachedMinSize();
 				}
+			}
+
+			Rect GuiResponsiveContainerComposition::Layout_CalculateBounds(Size parentSize)
+			{
+				auto bounds = GuiBoundsComposition::Layout_CalculateBounds(parentSize);
+
+				if (responsiveTarget)
+				{
+					bool needAdjust = false;
+					auto containerSize = bounds.GetSize();
+					auto ordering = std::strong_ordering::equivalent;
+
+					if (containerSize != cachedBounds.GetSize())
+					{
+						ordering = Layout_CompareSize(containerSize, cachedBounds.GetSize());
+						needAdjust = true;
+					}
+
+					if (responsiveTarget)
+					{
+						if (responsiveTarget->GetCachedMinSize() != minSizeLowerBound)
+						{
+							minSizeLowerBound = responsiveTarget->GetCachedMinSize();
+							if (minSizeUpperBound.x < minSizeLowerBound.x) minSizeUpperBound.x = minSizeLowerBound.x;
+							if (minSizeUpperBound.y < minSizeLowerBound.y) minSizeUpperBound.y = minSizeLowerBound.y;
+						}
+
+						if (Layout_CompareSize(containerSize, minSizeLowerBound) == std::strong_ordering::less)
+						{
+							ordering = std::strong_ordering::less;
+							needAdjust = true;
+						}
+					}
+
+					if (needAdjust)
+					{
+						if (ordering == std::strong_ordering::less)
+						{
+							Layout_AdjustLevelDown(containerSize);
+						}
+						else if (ordering == std::strong_ordering::greater)
+						{
+							Layout_AdjustLevelUp(containerSize);
+						}
+					}
+				}
+
+				return bounds;
 			}
 
 			GuiResponsiveContainerComposition::GuiResponsiveContainerComposition()
-				:upperLevelSize(RESPONSIVE_INVALID_SIZE)
-			{
-				BoundsChanged.AttachMethod(this, &GuiResponsiveContainerComposition::OnBoundsChanged);
-			}
-
-			GuiResponsiveContainerComposition::~GuiResponsiveContainerComposition()
 			{
 			}
 
@@ -876,7 +850,6 @@ GuiResponsiveContainerComposition
 					}
 
 					responsiveTarget = value;
-					upperLevelSize = RESPONSIVE_INVALID_SIZE;
 
 					if (responsiveTarget)
 					{
@@ -884,13 +857,22 @@ GuiResponsiveContainerComposition
 						while (responsiveTarget->LevelUp());
 						AddChild(responsiveTarget);
 
-						GuiEventArgs arguments(this);
-						OnBoundsChanged(this, arguments);
+						responsiveTarget->Layout_UpdateMinSize();
+						minSizeUpperBound = responsiveTarget->GetCachedMinSize();
+						minSizeLowerBound = responsiveTarget->GetCachedMinSize();
+						testX = (vint)responsiveTarget->GetDirection() & (vint)ResponsiveDirection::Horizontal;
+						testY = (vint)responsiveTarget->GetDirection() & (vint)ResponsiveDirection::Vertical;
+						Layout_AdjustLevelDown(cachedBounds.GetSize());
+					}
+					else
+					{
+						minSizeUpperBound = {};
+						minSizeLowerBound = {};
+						testX = false;
+						testY = false;
 					}
 				}
 			}
-
-#undef RESPONSIVE_INVALID_SIZE
 		}
 	}
 }

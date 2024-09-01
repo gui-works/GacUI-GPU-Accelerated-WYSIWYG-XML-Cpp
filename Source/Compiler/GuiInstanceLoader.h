@@ -13,8 +13,8 @@ static_assert(false, "Don't use GacUICompiler.(h|cpp) if VCZH_DEBUG_NO_REFLECTIO
 #ifndef VCZH_PRESENTATION_REFLECTION_GUIINSTANCELOADER
 #define VCZH_PRESENTATION_REFLECTION_GUIINSTANCELOADER
 
-#include "../../Import/VlppWorkflowCompiler.h"
-#include "../Controls/GuiApplication.h"
+#include <VlppWorkflowCompiler.h>
+#include "../Application/Controls/GuiApplication.h"
 #include "../Controls/Templates/GuiThemeStyleFactory.h"
 #include "GuiInstanceRepresentation.h"
 
@@ -37,11 +37,11 @@ Instance Loader
 		public:
 			enum Support
 			{
-				NotSupport,
-				SupportAssign,
-				SupportArray,
-				SupportCollection,
-				SupportSet,
+				NotSupport,			// cannot assign
+				SupportAssign,		// assign value directly
+				SupportArray,		// assign a collection to that property directly
+				SupportCollection,	// calling Add to add all items to that property
+				SupportSet,			// allow <att.PROP-set/>
 			};
 
 			enum PropertyUsage
@@ -52,13 +52,13 @@ Instance Loader
 
 			enum PropertyBindability
 			{
-				Bindable,
+				Bindable,			// a property is bindable
 				NotBindable,
 			};
 
 			enum PropertyMergability
 			{
-				MergeWithParent,
+				MergeWithParent,	// when type check of the property failed, search in base types
 				NotMerge,
 			};
 
@@ -136,10 +136,10 @@ Instance Loader
 			virtual GlobalStringKey							GetTypeName() = 0;
 			virtual void									ClearReflectionCache();
 
-			virtual void									GetRequiredPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames);
-			virtual void									GetPropertyNames(const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames);
-			virtual void									GetPairedProperties(const PropertyInfo& propertyInfo, collections::List<GlobalStringKey>& propertyNames);
-			virtual Ptr<GuiInstancePropertyInfo>			GetPropertyType(const PropertyInfo& propertyInfo);
+			virtual void									GetRequiredPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames);
+			virtual void									GetPropertyNames(GuiResourcePrecompileContext& precompileContext, const TypeInfo& typeInfo, collections::List<GlobalStringKey>& propertyNames);
+			virtual void									GetPairedProperties(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo, collections::List<GlobalStringKey>& propertyNames);
+			virtual Ptr<GuiInstancePropertyInfo>			GetPropertyType(GuiResourcePrecompileContext& precompileContext, const PropertyInfo& propertyInfo);
 
 			virtual bool									CanCreate(const TypeInfo& typeInfo);
 			virtual Ptr<workflow::WfBaseConstructorCall>	CreateRootInstance(GuiResourcePrecompileContext& precompileContext, types::ResolvingResult& resolvingResult, const TypeInfo& typeInfo, ArgumentMap& arguments, GuiResourceError::List& errors);

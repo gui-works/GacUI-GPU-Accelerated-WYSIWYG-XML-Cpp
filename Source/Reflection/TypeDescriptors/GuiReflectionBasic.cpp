@@ -6,10 +6,11 @@ namespace vl
 	{
 		namespace description
 		{
-			using namespace parsing::xml;
+			using namespace glr::xml;
 			using namespace presentation;
+			using namespace helper_types;
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 /***********************************************************************
 Type Declaration
@@ -20,9 +21,20 @@ Type Declaration
 #define GUI_TEMPLATE_PROPERTY_REFLECTION(CLASS, TYPE, NAME)\
 	CLASS_MEMBER_PROPERTY_GUIEVENT_FAST(NAME)
 
+			BEGIN_STRUCT_MEMBER(SiteValue)
+				STRUCT_MEMBER(row)
+				STRUCT_MEMBER(column)
+				STRUCT_MEMBER(rowSpan)
+				STRUCT_MEMBER(columnSpan)
+			END_STRUCT_MEMBER(SiteValue)
+
+			BEGIN_CLASS_MEMBER(LocalizedStrings)
+				CLASS_MEMBER_STATIC_METHOD(FirstOrEmpty, {L"formats"})
+			END_CLASS_MEMBER(LocalizedStrings)
+
 			BEGIN_STRUCT_MEMBER(Color)
-				valueType = new SerializableValueType<Color>();
-				serializableType = new SerializableType<Color>();
+				valueType = Ptr(new SerializableValueType<Color>);
+				serializableType = Ptr(new SerializableType<Color>);
 				STRUCT_MEMBER(r)
 				STRUCT_MEMBER(g)
 				STRUCT_MEMBER(b)
@@ -122,16 +134,16 @@ Type Declaration
 				STRUCT_MEMBER(verticalAntialias)
 			END_STRUCT_MEMBER(FontProperties)
 
-#define GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM(NAME, CODE) ENUM_CLASS_ITEM(_##NAME)
+#define GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM(NAME, CODE) ENUM_CLASS_ITEM(KEY_##NAME)
 			BEGIN_ENUM_ITEM(VKEY)
-				ENUM_CLASS_ITEM(_UNKNOWN)
+				ENUM_CLASS_ITEM(KEY_UNKNOWN)
 				GUI_DEFINE_KEYBOARD_CODE(GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM)
 			END_ENUM_ITEM(VKEY)
 #undef GUI_DEFINE_KEYBOARD_CODE_ENUM_ITEM
 
 			BEGIN_STRUCT_MEMBER_FLAG(GlobalStringKey, TypeDescriptorFlags::Primitive)
-				valueType = new SerializableValueType<GlobalStringKey>();
-				serializableType = new SerializableType<GlobalStringKey>();
+				valueType = Ptr(new SerializableValueType<GlobalStringKey>);
+				serializableType = Ptr(new SerializableType<GlobalStringKey>);
 			END_STRUCT_MEMBER(GlobalStringKey)
 
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeImageFrame)
@@ -181,6 +193,22 @@ Type Declaration
 				ENUM_NAMESPACE_ITEM(SizeWE)
 			END_ENUM_ITEM(INativeCursor::SystemCursorType)
 
+			BEGIN_ENUM_ITEM(BoolOption)
+				ENUM_CLASS_ITEM(AlwaysTrue)
+				ENUM_CLASS_ITEM(AlwaysFalse)
+				ENUM_CLASS_ITEM(Customizable)
+			END_ENUM_ITEM(BoolOption)
+
+			BEGIN_STRUCT_MEMBER(NativeWindowFrameConfig)
+				STRUCT_MEMBER(MaximizedBoxOption)
+				STRUCT_MEMBER(MinimizedBoxOption)
+				STRUCT_MEMBER(BorderOption)
+				STRUCT_MEMBER(SizeBoxOption)
+				STRUCT_MEMBER(IconVisibleOption)
+				STRUCT_MEMBER(TitleBarOption)
+				STRUCT_MEMBER(CustomFrameEnabled)
+			END_STRUCT_MEMBER(NativeWindowFrameConfig)
+
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeWindow)
 				CLASS_MEMBER_PROPERTY_FAST(Bounds)
 				CLASS_MEMBER_PROPERTY_FAST(ClientSize)
@@ -189,7 +217,7 @@ Type Declaration
 				CLASS_MEMBER_PROPERTY_FAST(WindowCursor)
 				CLASS_MEMBER_PROPERTY_FAST(CaretPoint)
 				CLASS_MEMBER_PROPERTY_FAST(Parent)
-				CLASS_MEMBER_PROPERTY_FAST(AlwaysPassFocusToParent)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(WindowMode)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(CustomFramePadding)
 				CLASS_MEMBER_PROPERTY_FAST(Icon)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(SizeState)
@@ -214,10 +242,9 @@ Type Declaration
 				CLASS_MEMBER_METHOD(Enable, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(Disable, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(IsEnabled, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(SetFocus, NO_PARAMETER)
-				CLASS_MEMBER_METHOD(IsFocused, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(SetActivate, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(IsActivated, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(IsRenderingAsActivated, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(ShowInTaskBar, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(HideInTaskBar, NO_PARAMETER)
 				CLASS_MEMBER_METHOD(IsAppearedInTaskBar, NO_PARAMETER)
@@ -236,6 +263,14 @@ Type Declaration
 				ENUM_NAMESPACE_ITEM(Restored)
 				ENUM_NAMESPACE_ITEM(Maximized)
 			END_ENUM_ITEM(INativeWindow::WindowSizeState)
+
+			BEGIN_ENUM_ITEM(INativeWindow::WindowMode)
+				ENUM_ITEM_NAMESPACE(INativeWindow)
+				ENUM_NAMESPACE_ITEM(Normal)
+				ENUM_NAMESPACE_ITEM(Tooltip)
+				ENUM_NAMESPACE_ITEM(Popup)
+				ENUM_NAMESPACE_ITEM(Menu)
+			END_ENUM_ITEM(INativeWindow::WindowMode)
 
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeDelay)
 				CLASS_MEMBER_PROPERTY_READONLY_FAST(Status)
@@ -271,6 +306,7 @@ Type Declaration
 				CLASS_MEMBER_PROPERTY_FAST(DefaultFont)
 
 				CLASS_MEMBER_METHOD(GetSystemCursor, {L"type"})
+				CLASS_MEMBER_METHOD(EnumerateFonts, {L"fonts"})
 			END_INTERFACE_MEMBER(INativeResourceService)
 
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeAsyncService)
@@ -310,11 +346,20 @@ Type Declaration
 				CLASS_MEMBER_METHOD_OVERLOAD(GetScreen, {L"window"}, INativeScreen*(INativeScreenService::*)(INativeWindow*))
 			END_INTERFACE_MEMBER(INativeScreenService)
 
+			BEGIN_ENUM_ITEM(NativeGlobalShortcutKeyResult)
+				ENUM_ITEM_NAMESPACE(NativeGlobalShortcutKeyResult)
+				ENUM_NAMESPACE_ITEM(NotSupported)
+				ENUM_NAMESPACE_ITEM(Occupied)
+				ENUM_NAMESPACE_ITEM(ValidIdBegins)
+			END_ENUM_ITEM(NativeGlobalShortcutKeyResult)
+
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeInputService)
 				CLASS_MEMBER_METHOD(IsKeyPressing, { L"code" })
 				CLASS_MEMBER_METHOD(IsKeyToggled, { L"code" })
 				CLASS_MEMBER_METHOD(GetKeyName, { L"code" })
 				CLASS_MEMBER_METHOD(GetKey, { L"name" })
+				CLASS_MEMBER_METHOD(RegisterGlobalShortcutKey, { L"ctrl" _ L"shift" _ L"alt" _ L"key" })
+				CLASS_MEMBER_METHOD(UnregisterGlobalShortcutKey, { L"id" })
 			END_INTERFACE_MEMBER(INativeInputService)
 
 			BEGIN_ENUM_ITEM(INativeDialogService::MessageBoxButtonsInput)
@@ -381,6 +426,7 @@ Type Declaration
 
 			BEGIN_ENUM_ITEM_MERGABLE(INativeDialogService::FileDialogOptions)
 				ENUM_ITEM_NAMESPACE(INativeDialogService)
+				ENUM_NAMESPACE_ITEM(None)
 				ENUM_NAMESPACE_ITEM(FileDialogAllowMultipleSelection)
 				ENUM_NAMESPACE_ITEM(FileDialogFileMustExist)
 				ENUM_NAMESPACE_ITEM(FileDialogShowReadOnlyCheckBox)
@@ -392,6 +438,27 @@ Type Declaration
 				ENUM_NAMESPACE_ITEM(FileDialogAddToRecent)
 			END_ENUM_ITEM(INativeDialogService::FileDialogOptions)
 
+			BEGIN_ENUM_ITEM(INativeWindowListener::HitTestResult)
+				ENUM_ITEM_NAMESPACE(INativeWindowListener)
+				ENUM_NAMESPACE_ITEM(BorderNoSizing)
+				ENUM_NAMESPACE_ITEM(BorderLeft)
+				ENUM_NAMESPACE_ITEM(BorderRight)
+				ENUM_NAMESPACE_ITEM(BorderTop)
+				ENUM_NAMESPACE_ITEM(BorderBottom)
+				ENUM_NAMESPACE_ITEM(BorderLeftTop)
+				ENUM_NAMESPACE_ITEM(BorderRightTop)
+				ENUM_NAMESPACE_ITEM(BorderLeftBottom)
+				ENUM_NAMESPACE_ITEM(BorderRightBottom)
+				ENUM_NAMESPACE_ITEM(Title)
+				ENUM_NAMESPACE_ITEM(ButtonMinimum)
+				ENUM_NAMESPACE_ITEM(ButtonMaximum)
+				ENUM_NAMESPACE_ITEM(ButtonClose)
+				ENUM_NAMESPACE_ITEM(Client)
+				ENUM_NAMESPACE_ITEM(Icon)
+				ENUM_NAMESPACE_ITEM(NoDecision)
+			END_ENUM_ITEM(INativeWindowListener::HitTestResult)
+
+			// no CallbackService, WindowService, DialogService
 			BEGIN_INTERFACE_MEMBER_NOPROXY(INativeController)
 				CLASS_MEMBER_STATIC_EXTERNALMETHOD(GetCurrentController, NO_PARAMETER, INativeController*(*)(), vl::presentation::GetCurrentController)
 
@@ -424,8 +491,8 @@ Type Declaration
 			END_CLASS_MEMBER(GuiTextData)
 				
 			BEGIN_STRUCT_MEMBER(DocumentFontSize)
-				valueType = new SerializableValueType<DocumentFontSize>();
-				serializableType = new SerializableType<DocumentFontSize>();
+				valueType = Ptr(new SerializableValueType<DocumentFontSize>);
+				serializableType = Ptr(new SerializableType<DocumentFontSize>);
 				STRUCT_MEMBER(size)
 				STRUCT_MEMBER(relative)
 			END_STRUCT_MEMBER(DocumentFontSize)
@@ -626,32 +693,119 @@ Type Declaration
 				ENUM_CLASS_ITEM(InstanceClass)
 			END_ENUM_ITEM(GuiResourceUsage)
 
-				BEGIN_INTERFACE_MEMBER_NOPROXY(IGuiResourceManager)
-					CLASS_MEMBER_STATIC_EXTERNALMETHOD(GetResourceManager, NO_PARAMETER, IGuiResourceManager*(*)(), vl::presentation::GetResourceManager)
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IGuiResourceManager)
+				CLASS_MEMBER_STATIC_EXTERNALMETHOD(GetResourceManager, NO_PARAMETER, IGuiResourceManager*(*)(), vl::presentation::GetResourceManager)
 				CLASS_MEMBER_METHOD(SetResource, { L"name" _ L"resource" _ L"usage" })
 				CLASS_MEMBER_METHOD(GetResource, { L"name" })
 				CLASS_MEMBER_METHOD(GetResourceFromClassName, { L"name" })
 			END_INTERFACE_MEMBER(IGuiResourceManager)
 
-			BEGIN_ENUM_ITEM(INativeWindowListener::HitTestResult)
-				ENUM_ITEM_NAMESPACE(INativeWindowListener)
-				ENUM_NAMESPACE_ITEM(BorderNoSizing)
-				ENUM_NAMESPACE_ITEM(BorderLeft)
-				ENUM_NAMESPACE_ITEM(BorderRight)
-				ENUM_NAMESPACE_ITEM(BorderTop)
-				ENUM_NAMESPACE_ITEM(BorderBottom)
-				ENUM_NAMESPACE_ITEM(BorderLeftTop)
-				ENUM_NAMESPACE_ITEM(BorderRightTop)
-				ENUM_NAMESPACE_ITEM(BorderLeftBottom)
-				ENUM_NAMESPACE_ITEM(BorderRightBottom)
-				ENUM_NAMESPACE_ITEM(Title)
-				ENUM_NAMESPACE_ITEM(ButtonMinimum)
-				ENUM_NAMESPACE_ITEM(ButtonMaximum)
-				ENUM_NAMESPACE_ITEM(ButtonClose)
-				ENUM_NAMESPACE_ITEM(Client)
-				ENUM_NAMESPACE_ITEM(Icon)
-				ENUM_NAMESPACE_ITEM(NoDecision)
-			END_ENUM_ITEM(INativeWindowListener::HitTestResult)
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IMessageBoxDialogAction)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Button)
+				CLASS_MEMBER_METHOD(PerformAction, NO_PARAMETER)
+			END_INTERFACE_MEMBER(IMessageBoxDialogViewModel)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IMessageBoxDialogViewModel)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Text)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Title)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Icon)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Buttons)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(DefaultButton)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Result)
+			END_INTERFACE_MEMBER(IMessageBoxDialogViewModel)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IDialogConfirmation)
+				CLASS_MEMBER_PROPERTY_FAST(Confirmed)
+			END_INTERFACE_MEMBER(IDialogConfirmation)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IColorDialogViewModel)
+				CLASS_MEMBER_BASE(IDialogConfirmation)
+				CLASS_MEMBER_PROPERTY_FAST(Color)
+			END_INTERFACE_MEMBER(IColorDialogViewModel)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(ICommonFontDialogViewModel)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(FontMustExist)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(FontList)
+			END_INTERFACE_MEMBER(ICommonFontDialogViewModel)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(ISimpleFontDialogViewModel)
+				CLASS_MEMBER_BASE(ICommonFontDialogViewModel)
+				CLASS_MEMBER_BASE(IDialogConfirmation)
+				CLASS_MEMBER_PROPERTY_FAST(FontFamily)
+				CLASS_MEMBER_PROPERTY_FAST(FontSize)
+			END_INTERFACE_MEMBER(ISimpleFontDialogViewModel)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IFullFontDialogViewModel)
+				CLASS_MEMBER_BASE(ICommonFontDialogViewModel)
+				CLASS_MEMBER_BASE(IColorDialogViewModel)
+				CLASS_MEMBER_PROPERTY_FAST(Font)
+				CLASS_MEMBER_METHOD(SelectColor, {L"owner"})
+			END_INTERFACE_MEMBER(IFullFontDialogViewModel)
+
+			BEGIN_ENUM_ITEM(FileDialogFolderType)
+				ENUM_CLASS_ITEM(Root)
+				ENUM_CLASS_ITEM(Placeholder)
+				ENUM_CLASS_ITEM(Folder)
+			END_ENUM_ITEM(FileDialogFolderType)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IFileDialogFolder)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Parent)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Type)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(FullPath)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Name)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Index)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Folders)
+				CLASS_MEMBER_METHOD(TryGetFolder, {L"name"})
+			END_INTERFACE_MEMBER(IFileDialogFolder)
+
+			BEGIN_ENUM_ITEM(FileDialogFileType)
+				ENUM_CLASS_ITEM(Placeholder)
+				ENUM_CLASS_ITEM(Folder)
+				ENUM_CLASS_ITEM(File)
+			END_ENUM_ITEM(FileDialogFileType)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IFileDialogFile)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Type)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(AssociatedFolder)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Name)
+			END_INTERFACE_MEMBER(IFileDialogFile)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IFileDialogFilter)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Name)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Filter)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(DefaultExtension)
+				CLASS_MEMBER_METHOD(FilterFile, {L"file"})
+			END_INTERFACE_MEMBER(IFileDialogFilter)
+
+			BEGIN_INTERFACE_MEMBER_NOPROXY(IFileDialogViewModel)
+				CLASS_MEMBER_EVENT(SelectedFilterChanged)
+				CLASS_MEMBER_EVENT(SelectedFolderChanged)
+				CLASS_MEMBER_EVENT(IsLoadingFilesChanged)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Title)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(EnabledMultipleSelection)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(DefaultExtension)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Filters)
+				CLASS_MEMBER_PROPERTY_EVENT_FAST(SelectedFilter, SelectedFilterChanged)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(RootFolder)
+				CLASS_MEMBER_PROPERTY_EVENT_FAST(SelectedFolder, SelectedFolderChanged)
+				CLASS_MEMBER_PROPERTY_EVENT_READONLY_FAST(IsLoadingFiles, IsLoadingFilesChanged)
+				CLASS_MEMBER_PROPERTY_READONLY_FAST(Files)
+				CLASS_MEMBER_METHOD(RefreshFiles, NO_PARAMETER)
+				CLASS_MEMBER_METHOD(GetDisplayString, { L"files" })
+				CLASS_MEMBER_METHOD(ParseDisplayString, { L"displayString" })
+				CLASS_MEMBER_METHOD(TryConfirm, { L"owner" _ L"selection"})
+				CLASS_MEMBER_METHOD(InitLocalizedText,
+					{	L"textLoadingFolders"
+					_	L"textLoadingFiles"
+					_	L"dialogErrorEmptySelection"
+					_	L"dialogErrorFileNotExist"
+					_	L"dialogErrorFileExpected"
+					_	L"dialogErrorFolderNotExist"
+					_	L"dialogErrorMultipleSelectionNotEnabled"
+					_	L"dialogAskCreateFile"
+					_	L"dialogAskOverrideFile"
+					})
+			END_INTERFACE_MEMBER(IFileDialogViewModel)
 
 #undef GUI_TEMPLATE_PROPERTY_REFLECTION
 #undef _
@@ -677,11 +831,11 @@ Type Loader
 
 			bool LoadGuiBasicTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager=GetGlobalTypeManager();
 				if(manager)
 				{
-					Ptr<ITypeLoader> loader=new GuiBasicTypeLoader;
+					auto loader=Ptr(new GuiBasicTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

@@ -92,7 +92,7 @@ GuiTemplatePropertyDeserializer
 						L"\" cannot be empty."));
 				}
 
-				FOREACH(WString, controlTemplateName, typeNames)
+				for (auto controlTemplateName : typeNames)
 				{
 					auto controlTemplateTd = description::GetTypeDescriptor(controlTemplateName);
 					if (!controlTemplateTd)
@@ -136,20 +136,21 @@ GuiTemplatePropertyDeserializer
 				GuiResourceError::List& errors
 				)
 			{
-				auto funcCreateTemplate = MakePtr<WfFunctionDeclaration>();
+				auto funcCreateTemplate = Ptr(new WfFunctionDeclaration);
+				funcCreateTemplate->functionKind = WfFunctionKind::Normal;
 				funcCreateTemplate->anonymity = WfFunctionAnonymity::Anonymous;
 				funcCreateTemplate->returnType = GetTypeFromTypeInfo(returnTemplateType);
 
-				auto argViewModel = MakePtr<WfFunctionArgument>();
+				auto argViewModel = Ptr(new WfFunctionArgument);
 				argViewModel->type = GetTypeFromTypeInfo(TypeInfoRetriver<Value>::CreateTypeInfo().Obj());
 				argViewModel->name.value = L"<viewModel>";
 				funcCreateTemplate->arguments.Add(argViewModel);
 
-				auto block = MakePtr<WfBlockStatement>();
+				auto block = Ptr(new WfBlockStatement);
 				funcCreateTemplate->statement = block;
 
 				ITypeDescriptor* stopControlTemplateTd = nullptr;
-				FOREACH(ITypeDescriptor*, controlTemplateTd, controlTemplateTds)
+				for (auto controlTemplateTd : controlTemplateTds)
 				{
 					if (!controlTemplateTd->CanConvertTo(expectedTemplateType->GetTypeDescriptor()))
 					{
@@ -205,13 +206,13 @@ GuiTemplatePropertyDeserializer
 						stopControlTemplateTd = controlTemplateTd;
 					}
 
-					auto subBlock = MakePtr<WfBlockStatement>();
+					auto subBlock = Ptr(new WfBlockStatement);
 					block->statements.Add(subBlock);
 
 					Ptr<ITypeInfo> controlTemplateType;
 					{
-						auto elementType = MakePtr<TypeDescriptorTypeInfo>(controlTemplateTd, TypeInfoHint::Normal);
-						auto pointerType = MakePtr<RawPtrTypeInfo>(elementType);
+						auto elementType = Ptr(new TypeDescriptorTypeInfo(controlTemplateTd, TypeInfoHint::Normal));
+						auto pointerType = Ptr(new RawPtrTypeInfo(elementType));
 
 						controlTemplateType = pointerType;
 					}
@@ -219,19 +220,19 @@ GuiTemplatePropertyDeserializer
 					Ptr<WfBlockStatement> returnStatBlock;
 					if (viewModelType)
 					{
-						auto refViewModel = MakePtr<WfReferenceExpression>();
+						auto refViewModel = Ptr(new WfReferenceExpression);
 						refViewModel->name.value = L"<viewModel>";
 
-						auto condition = MakePtr<WfTypeTestingExpression>();
+						auto condition = Ptr(new WfTypeTestingExpression);
 						condition->test = WfTypeTesting::IsType;
 						condition->expression = refViewModel;
 						condition->type = GetTypeFromTypeInfo(viewModelType);
 
-						auto ifStat = MakePtr<WfIfStatement>();
+						auto ifStat = Ptr(new WfIfStatement);
 						subBlock->statements.Add(ifStat);
 						ifStat->expression = condition;
 
-						returnStatBlock = MakePtr<WfBlockStatement>();
+						returnStatBlock = Ptr(new WfBlockStatement);
 						ifStat->trueBranch = returnStatBlock;
 					}
 					else
@@ -240,21 +241,21 @@ GuiTemplatePropertyDeserializer
 					}
 
 					{
-						auto createControlTemplate = MakePtr<WfNewClassExpression>();
+						auto createControlTemplate = Ptr(new WfNewClassExpression);
 						createControlTemplate->type = GetTypeFromTypeInfo(controlTemplateType.Obj());
 						if (viewModelType)
 						{
-							auto refViewModel = MakePtr<WfReferenceExpression>();
+							auto refViewModel = Ptr(new WfReferenceExpression);
 							refViewModel->name.value = L"<viewModel>";
 
-							auto cast = MakePtr<WfTypeCastingExpression>();
+							auto cast = Ptr(new WfTypeCastingExpression);
 							cast->strategy = WfTypeCastingStrategy::Strong;
 							cast->expression = refViewModel;
 							cast->type = GetTypeFromTypeInfo(viewModelType);
 							createControlTemplate->arguments.Add(cast);
 						}
 
-						auto returnStat = MakePtr<WfReturnStatement>();
+						auto returnStat = Ptr(new WfReturnStatement);
 						returnStat->expression = createControlTemplate;
 						returnStatBlock->statements.Add(returnStat);
 					}
@@ -262,16 +263,16 @@ GuiTemplatePropertyDeserializer
 
 				if (!stopControlTemplateTd)
 				{
-					auto value = MakePtr<WfStringExpression>();
+					auto value = Ptr(new WfStringExpression);
 					value->value.value = L"Cannot find a matched control template to create.";
 
-					auto raiseStat = MakePtr<WfRaiseExceptionStatement>();
+					auto raiseStat = Ptr(new WfRaiseExceptionStatement);
 					raiseStat->expression = value;
 
 					block->statements.Add(raiseStat);
 				}
 
-				auto expr = MakePtr<WfFunctionExpression>();
+				auto expr = Ptr(new WfFunctionExpression);
 				expr->function = funcCreateTemplate;
 				return expr;
 			}
@@ -285,12 +286,12 @@ GuiTemplatePropertyDeserializer
 			{
 				auto templateType = TypeInfoRetriver<GuiGridVisualizerTemplate*>::CreateTypeInfo();
 				Ptr<WfExpression> previousFactory;
-				FOREACH_INDEXER(ITypeDescriptor*, controlTemplateTd, index, controlTemplateTds)
+				for (auto [controlTemplateTd, index] : indexed(controlTemplateTds))
 				{
 					List<ITypeDescriptor*> tds;
 					tds.Add(controlTemplateTd);
 					auto refFactory = CreateTemplateFactory(resolvingResult, tds, templateType.Obj(), templateType.Obj(), tagPosition, errors);
-					auto createStyle = MakePtr<WfNewClassExpression>();
+					auto createStyle = Ptr(new WfNewClassExpression);
 					createStyle->type = GetTypeFromTypeInfo(TypeInfoRetriver<Ptr<list::DataVisualizerFactory>>::CreateTypeInfo().Obj());
 					createStyle->arguments.Add(refFactory);
 
@@ -300,7 +301,7 @@ GuiTemplatePropertyDeserializer
 					}
 					else
 					{
-						auto nullExpr = MakePtr<WfLiteralExpression>();
+						auto nullExpr = Ptr(new WfLiteralExpression);
 						nullExpr->value = WfLiteralValue::Null;
 						createStyle->arguments.Add(nullExpr);
 					}
@@ -318,7 +319,7 @@ GuiTemplatePropertyDeserializer
 			{
 				auto templateType = TypeInfoRetriver<GuiGridEditorTemplate*>::CreateTypeInfo();
 				auto refFactory = CreateTemplateFactory(resolvingResult, controlTemplateTds, templateType.Obj(), templateType.Obj(), tagPosition, errors);
-				auto createStyle = MakePtr<WfNewClassExpression>();
+				auto createStyle = Ptr(new WfNewClassExpression);
 				createStyle->type = GetTypeFromTypeInfo(TypeInfoRetriver<Ptr<list::DataEditorFactory>>::CreateTypeInfo().Obj());
 				createStyle->arguments.Add(refFactory);
 				return createStyle;
@@ -493,7 +494,7 @@ GuiItemPropertyDeserializer
 				};
 
 				vint indexItemName = resolvingResult.envVars.Keys().IndexOf(GlobalStringKey::Get(L"ItemName"));
-				WString itemName(L"item", false);
+				WString itemName = WString::Unmanaged(L"item");
 				if (indexItemName != -1)
 				{
 					const auto& values = resolvingResult.envVars.GetByIndex(indexItemName);
@@ -504,10 +505,10 @@ GuiItemPropertyDeserializer
 				{
 					if (refExpr->name.value != itemName)
 					{
-						auto refItem = MakePtr<WfReferenceExpression>();
+						auto refItem = Ptr(new WfReferenceExpression);
 						refItem->name.value = itemName;
 
-						auto member = MakePtr<WfMemberExpression>();
+						auto member = Ptr(new WfMemberExpression);
 						member->parent = refItem;
 						member->name.value = refExpr->name.value;
 
@@ -517,14 +518,15 @@ GuiItemPropertyDeserializer
 
 				bool isWritableItemProperty = IsWritableItemPropertyType(typeInfo);
 
-				auto funcDecl = MakePtr<WfFunctionDeclaration>();
+				auto funcDecl = Ptr(new WfFunctionDeclaration);
 				ITypeInfo* acceptValueType = nullptr;
+				funcDecl->functionKind = WfFunctionKind::Normal;
 				funcDecl->anonymity = WfFunctionAnonymity::Anonymous;
 				{
 					auto genericType = typeInfo->GetElementType();
 					funcDecl->returnType = GetTypeFromTypeInfo(genericType->GetGenericArgument(0));
 					{
-						auto argument = MakePtr<WfFunctionArgument>();
+						auto argument = Ptr(new WfFunctionArgument);
 						argument->name.value = L"<item>";
 						argument->type = GetTypeFromTypeInfo(genericType->GetGenericArgument(1));
 						funcDecl->arguments.Add(argument);
@@ -533,13 +535,13 @@ GuiItemPropertyDeserializer
 					if (isWritableItemProperty)
 					{
 						{
-							auto argument = MakePtr<WfFunctionArgument>();
+							auto argument = Ptr(new WfFunctionArgument);
 							argument->name.value = L"<value>";
 							argument->type = GetTypeFromTypeInfo((acceptValueType = genericType->GetGenericArgument(2)));
 							funcDecl->arguments.Add(argument);
 						}
 						{
-							auto argument = MakePtr<WfFunctionArgument>();
+							auto argument = Ptr(new WfFunctionArgument);
 							argument->name.value = L"<update>";
 							argument->type = GetTypeFromTypeInfo(genericType->GetGenericArgument(3));
 							funcDecl->arguments.Add(argument);
@@ -547,58 +549,58 @@ GuiItemPropertyDeserializer
 					}
 				}
 
-				auto funcBlock = MakePtr<WfBlockStatement>();
+				auto funcBlock = Ptr(new WfBlockStatement);
 				funcDecl->statement = funcBlock;
 
 				{
-					auto refItem = MakePtr<WfReferenceExpression>();
+					auto refItem = Ptr(new WfReferenceExpression);
 					refItem->name.value = L"<item>";
 
-					auto refCast = MakePtr<WfTypeCastingExpression>();
+					auto refCast = Ptr(new WfTypeCastingExpression);
 					refCast->strategy = WfTypeCastingStrategy::Strong;
 					refCast->type = itemType;
 					refCast->expression = refItem;
 
-					auto varDecl = MakePtr<WfVariableDeclaration>();
+					auto varDecl = Ptr(new WfVariableDeclaration);
 					varDecl->name.value = itemName;
 					varDecl->expression = refCast;
 
-					auto varStat = MakePtr<WfVariableStatement>();
+					auto varStat = Ptr(new WfVariableStatement);
 					varStat->variable = varDecl;
 					funcBlock->statements.Add(varStat);
 				}
 
 				Ptr<WfReturnStatement> returnStat;
 				{
-					returnStat = MakePtr<WfReturnStatement>();
+					returnStat = Ptr(new WfReturnStatement);
 					returnStat->expression = propertyExpression;
 				}
 
 				if (isWritableItemProperty)
 				{
-					auto ifStat = MakePtr<WfIfStatement>();
+					auto ifStat = Ptr(new WfIfStatement);
 					funcBlock->statements.Add(ifStat);
 					{
-						auto refUpdate = MakePtr<WfReferenceExpression>();
+						auto refUpdate = Ptr(new WfReferenceExpression);
 						refUpdate->name.value = L"<update>";
 
 						ifStat->expression = refUpdate;
 					}
 					{
-						auto block = MakePtr<WfBlockStatement>();
+						auto block = Ptr(new WfBlockStatement);
 						ifStat->trueBranch = block;
 
 						{
-							auto refValue = MakePtr<WfReferenceExpression>();
+							auto refValue = Ptr(new WfReferenceExpression);
 							refValue->name.value = L"<value>";
 
-							auto assignExpr = MakePtr<WfBinaryExpression>();
+							auto assignExpr = Ptr(new WfBinaryExpression);
 							assignExpr->op = WfBinaryOperator::Assign;
 							assignExpr->first = CopyExpression(propertyExpression, true);
 
 							if (acceptValueType->GetTypeDescriptor()->GetTypeDescriptorFlags() == TypeDescriptorFlags::Object)
 							{
-								auto castExpr = MakePtr<WfExpectedTypeCastExpression>();
+								auto castExpr = Ptr(new WfExpectedTypeCastExpression);
 								castExpr->strategy = WfTypeCastingStrategy::Strong;
 								castExpr->expression = refValue;
 								assignExpr->second = castExpr;
@@ -608,12 +610,12 @@ GuiItemPropertyDeserializer
 								assignExpr->second = refValue;
 							}
 
-							auto stat = MakePtr<WfExpressionStatement>();
+							auto stat = Ptr(new WfExpressionStatement);
 							stat->expression = assignExpr;
 							block->statements.Add(stat);
 						}
 						{
-							auto returnStat = MakePtr<WfReturnStatement>();
+							auto returnStat = Ptr(new WfReturnStatement);
 							block->statements.Add(returnStat);
 
 							auto returnType = typeInfo->GetElementType()->GetGenericArgument(0);
@@ -621,7 +623,7 @@ GuiItemPropertyDeserializer
 						}
 					}
 					{
-						auto block = MakePtr<WfBlockStatement>();
+						auto block = Ptr(new WfBlockStatement);
 						ifStat->falseBranch = block;
 
 						block->statements.Add(returnStat);
@@ -632,7 +634,7 @@ GuiItemPropertyDeserializer
 					funcBlock->statements.Add(returnStat);
 				}
 
-				auto funcExpr = MakePtr<WfFunctionExpression>();
+				auto funcExpr = Ptr(new WfFunctionExpression);
 				funcExpr->function = funcDecl;
 				return funcExpr;
 			}
@@ -709,30 +711,30 @@ GuiDataProcessorDeserializer
 					}
 				};
 
-				auto newExpr = MakePtr<WfNewInterfaceExpression>();
+				auto newExpr = Ptr(new WfNewInterfaceExpression);
 				newExpr->type = GetTypeFromTypeInfo(typeInfo);
 				{
-					auto decl = MakePtr<WfFunctionDeclaration>();
+					auto decl = Ptr(new WfFunctionDeclaration);
 					newExpr->declarations.Add(decl);
-					decl->classMember = MakePtr<WfClassMember>();
-					decl->classMember->kind = WfClassMemberKind::Override;
+					decl->functionKind = WfFunctionKind::Override;
 					decl->name.value = L"SetCallback";
+					decl->anonymity = WfFunctionAnonymity::Named;
 					decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<void>::CreateTypeInfo().Obj());
 					{
-						auto argument = MakePtr<WfFunctionArgument>();
+						auto argument = Ptr(new WfFunctionArgument);
 						argument->type = GetTypeFromTypeInfo(TypeInfoRetriver<IDataProcessorCallback*>::CreateTypeInfo().Obj());
 						argument->name.value = L"value";
 						decl->arguments.Add(argument);
 					}
 
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 					decl->statement = block;
 				}
 				{
-					auto decl = MakePtr<WfFunctionDeclaration>();
+					auto decl = Ptr(new WfFunctionDeclaration);
 					newExpr->declarations.Add(decl);
-					decl->classMember = MakePtr<WfClassMember>();
-					decl->classMember->kind = WfClassMemberKind::Override;
+					decl->functionKind = WfFunctionKind::Override;
+					decl->anonymity = WfFunctionAnonymity::Named;
 
 					List<WString> argumentNames;
 					if (typeInfo->GetTypeDescriptor() == description::GetTypeDescriptor<IDataFilter>())
@@ -744,43 +746,54 @@ GuiDataProcessorDeserializer
 					else
 					{
 						decl->name.value = L"Compare";
-						decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<vint>::CreateTypeInfo().Obj());
+						switch (precompileContext.targetCpuArchitecture)
+						{
+						case GuiResourceCpuArchitecture::x86:
+							decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<vint32_t>::CreateTypeInfo().Obj());
+							break;
+						case GuiResourceCpuArchitecture::x64:
+							decl->returnType = GetTypeFromTypeInfo(TypeInfoRetriver<vint64_t>::CreateTypeInfo().Obj());
+							break;
+						default:
+							CHECK_FAIL(L"The target CPU architecture is unspecified.");
+						}
 						argumentNames.Add(L"<row1>");
 						argumentNames.Add(L"<row2>");
 					}
 
-					FOREACH(WString, name, argumentNames)
+					for (auto name : argumentNames)
 					{
-						auto argument = MakePtr<WfFunctionArgument>();
+						auto argument = Ptr(new WfFunctionArgument);
 						argument->type = GetTypeFromTypeInfo(TypeInfoRetriver<Value>::CreateTypeInfo().Obj());
 						argument->name.value = name;
 						decl->arguments.Add(argument);
 					}
 
-					auto block = MakePtr<WfBlockStatement>();
+					auto block = Ptr(new WfBlockStatement);
 					decl->statement = block;
 
-					auto inferExpr = MakePtr<WfInferExpression>();
+					auto inferExpr = Ptr(new WfInferExpression);
 					inferExpr->expression = propertyExpression;
 					{
-						auto funcType = MakePtr<WfFunctionType>();
+						auto funcType = Ptr(new WfFunctionType);
 						inferExpr->type = funcType;
 
 						funcType->result = CopyType(decl->returnType);
+						// TODO: (enumerable) Linq:Select
 						for (vint i = 0; i < decl->arguments.Count(); i++)
 						{
 							funcType->arguments.Add(CopyType(itemType));
 						}
 					}
 
-					auto callExpr = MakePtr<WfCallExpression>();
+					auto callExpr = Ptr(new WfCallExpression);
 					callExpr->function = inferExpr;
-					FOREACH_INDEXER(WString, name, index, argumentNames)
+					for (auto [name, index] : indexed(argumentNames))
 					{
-						auto refExpr = MakePtr<WfReferenceExpression>();
+						auto refExpr = Ptr(new WfReferenceExpression);
 						refExpr->name.value = name;
 
-						auto castExpr = MakePtr<WfTypeCastingExpression>();
+						auto castExpr = Ptr(new WfTypeCastingExpression);
 						castExpr->strategy = WfTypeCastingStrategy::Strong;
 						castExpr->type = (index == 0 ? itemType : CopyType(itemType));
 						castExpr->expression = refExpr;
@@ -788,7 +801,7 @@ GuiDataProcessorDeserializer
 						callExpr->arguments.Add(castExpr);
 					}
 
-					auto stat = MakePtr<WfReturnStatement>();
+					auto stat = Ptr(new WfReturnStatement);
 					stat->expression = callExpr;
 					block->statements.Add(stat);
 				}
@@ -809,15 +822,18 @@ GuiPredefinedInstanceDeserializersPlugin
 				GUI_PLUGIN_DEPEND(GacUI_Instance);
 			}
 
-			void Load()override
+			void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
-				IGuiInstanceLoaderManager* manager = GetInstanceLoaderManager();
-				manager->AddInstanceDeserializer(new GuiTemplatePropertyDeserializer);
-				manager->AddInstanceDeserializer(new GuiItemPropertyDeserializer);
-				manager->AddInstanceDeserializer(new GuiDataProcessorDeserializer);
+				if (controllerUnrelatedPlugins)
+				{
+					IGuiInstanceLoaderManager* manager = GetInstanceLoaderManager();
+					manager->AddInstanceDeserializer(Ptr(new GuiTemplatePropertyDeserializer));
+					manager->AddInstanceDeserializer(Ptr(new GuiItemPropertyDeserializer));
+					manager->AddInstanceDeserializer(Ptr(new GuiDataProcessorDeserializer));
+				}
 			}
 
-			void Unload()override
+			void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 			{
 			}
 		};

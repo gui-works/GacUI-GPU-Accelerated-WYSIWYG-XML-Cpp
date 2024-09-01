@@ -36,7 +36,7 @@ DefaultTextListItemTemplate
 					textElement->SetAlignments(Alignment::Left, Alignment::Center);
 
 					GuiBoundsComposition* textComposition = new GuiBoundsComposition;
-					textComposition->SetOwnedElement(textElement);
+					textComposition->SetOwnedElement(Ptr(textElement));
 					textComposition->SetMinSizeLimitation(GuiGraphicsComposition::LimitToElement);
 
 					if (auto bulletStyleController = CreateBulletStyle())
@@ -86,6 +86,10 @@ DefaultTextListItemTemplate
 					CheckedChanged.Execute(compositions::GuiEventArgs(this));
 				}
 
+				void DefaultTextListItemTemplate::OnRefresh()
+				{
+				}
+
 				void DefaultTextListItemTemplate::OnFontChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 				{
 					textElement->SetFont(GetFont());
@@ -113,15 +117,17 @@ DefaultTextListItemTemplate
 
 				void DefaultTextListItemTemplate::OnBulletSelectedChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments)
 				{
+#define ERROR_MESSAGE_PREFIX L"vl::presentation::controls::list::DefaultTextListItemTemplate::OnBulletSelectedChanged(GuiGraphicsComposition*, GuiEventArgs&)#"
 					if (!supressEdit)
 					{
-						if (auto textItemView = dynamic_cast<ITextItemView*>(listControl->GetItemProvider()->RequestView(ITextItemView::Identifier)))
+						if (auto textItemView = dynamic_cast<ITextItemView*>(listControl->GetItemProvider()->RequestView(WString::Unmanaged(ITextItemView::Identifier))))
 						{
-							BeginEditListItem();
+							listControl->GetItemProvider()->PushEditing();
 							textItemView->SetChecked(GetIndex(), bulletButton->GetSelected());
-							EndEditListItem();
+							CHECK_ERROR(listControl->GetItemProvider()->PopEditing(), ERROR_MESSAGE_PREFIX L"BeginEditListItem and EndEditListItem calls are not paired.");
 						}
 					}
+#undef ERROR_MESSAGE_PREFIX
 				}
 
 				DefaultTextListItemTemplate::DefaultTextListItemTemplate()
@@ -140,7 +146,7 @@ DefaultCheckTextListItemTemplate
 				{
 					if (auto textList = dynamic_cast<GuiVirtualTextList*>(listControl))
 					{
-						auto style = textList->GetControlTemplateObject(true)->GetCheckBulletTemplate();
+						auto style = textList->TypedControlTemplateObject(true)->GetCheckBulletTemplate();
 						if (style) return style;
 					}
 					return theme::GetCurrentTheme()->CreateStyle(theme::ThemeName::CheckTextListItem);
@@ -154,7 +160,7 @@ DefaultRadioTextListItemTemplate
 				{
 					if (auto textList = dynamic_cast<GuiVirtualTextList*>(listControl))
 					{
-						auto style = textList->GetControlTemplateObject(true)->GetRadioBulletTemplate();
+						auto style = textList->TypedControlTemplateObject(true)->GetRadioBulletTemplate();
 						if (style) return style;
 					}
 					return theme::GetCurrentTheme()->CreateStyle(theme::ThemeName::RadioTextListItem);
@@ -163,6 +169,22 @@ DefaultRadioTextListItemTemplate
 /***********************************************************************
 TextItem
 ***********************************************************************/
+
+				void TextItem::NotifyUpdate(bool raiseCheckEvent)
+				{
+					if (owner)
+					{
+						vint index = owner->IndexOf(this);
+						owner->InvokeOnItemModified(index, 1, 1, false);
+
+						if (raiseCheckEvent)
+						{
+							GuiItemEventArgs arguments;
+							arguments.itemIndex = index;
+							owner->listControl->ItemChecked.Execute(arguments);
+						}
+					}
+				}
 
 				TextItem::TextItem()
 					:owner(0)
@@ -181,16 +203,6 @@ TextItem
 				{
 				}
 
-				bool TextItem::operator==(const TextItem& value)const
-				{
-					return text==value.text;
-				}
-
-				bool TextItem::operator!=(const TextItem& value)const
-				{
-					return text!=value.text;
-				}
-
 				const WString& TextItem::GetText()
 				{
 					return text;
@@ -201,11 +213,7 @@ TextItem
 					if (text != value)
 					{
 						text = value;
-						if (owner)
-						{
-							vint index = owner->IndexOf(this);
-							owner->InvokeOnItemModified(index, 1, 1);
-						}
+						NotifyUpdate(false);
 					}
 				}
 
@@ -219,15 +227,7 @@ TextItem
 					if (checked != value)
 					{
 						checked = value;
-						if (owner)
-						{
-							vint index = owner->IndexOf(this);
-							owner->InvokeOnItemModified(index, 1, 1);
-
-							GuiItemEventArgs arguments;
-							arguments.itemIndex = index;
-							owner->listControl->ItemChecked.Execute(arguments);
-						}
+						NotifyUpdate(true);
 					}
 				}
 
@@ -301,15 +301,22 @@ GuiTextList
 			{
 			}
 
-			void GuiVirtualTextList::OnStyleInstalled(vint itemIndex, ItemStyle* style)
+			void GuiVirtualTextList::OnStyleInstalled(vint itemIndex, ItemStyle* style, bool refreshPropertiesOnly)
 			{
-				GuiSelectableListControl::OnStyleInstalled(itemIndex, style);
+				GuiSelectableListControl::OnStyleInstalled(itemIndex, style, refreshPropertiesOnly);
 				if (auto textItemStyle = dynamic_cast<templates::GuiTextListItemTemplate*>(style))
 				{
-					textItemStyle->SetTextColor(GetControlTemplateObject(true)->GetTextColor());
-					if (auto textItemView = dynamic_cast<list::ITextItemView*>(itemProvider->RequestView(list::ITextItemView::Identifier)))
+					textItemStyle->SetTextColor(TypedControlTemplateObject(true)->GetTextColor());
+					if (auto textItemView = dynamic_cast<list::ITextItemView*>(itemProvider->RequestView(WString::Unmanaged(list::ITextItemView::Identifier))))
 					{
 						textItemStyle->SetChecked(textItemView->GetChecked(itemIndex));
+					}
+				}
+				if (refreshPropertiesOnly)
+				{
+					if (auto predefinedItemStyle = dynamic_cast<list::DefaultTextListItemTemplate*>(style))
+					{
+						predefinedItemStyle->RefreshItem();
 					}
 				}
 			}
@@ -319,7 +326,7 @@ GuiTextList
 				view = TextListView::Unknown;
 			}
 
-			GuiVirtualTextList::GuiVirtualTextList(theme::ThemeName themeName, GuiListControl::IItemProvider* _itemProvider)
+			GuiVirtualTextList::GuiVirtualTextList(theme::ThemeName themeName, list::IItemProvider* _itemProvider)
 				:GuiSelectableListControl(themeName, _itemProvider)
 			{
 				ItemTemplateChanged.AttachMethod(this, &GuiVirtualTextList::OnItemTemplateChanged);
@@ -344,19 +351,19 @@ GuiTextList
 				case TextListView::Text:
 					SetStyleAndArranger(
 						[](const Value&) { return new list::DefaultTextListItemTemplate; },
-						new list::FixedHeightItemArranger
+						Ptr(new list::FixedHeightItemArranger)
 					);
 					break;
 				case TextListView::Check:
 					SetStyleAndArranger(
 						[](const Value&) { return new list::DefaultCheckTextListItemTemplate; },
-						new list::FixedHeightItemArranger
+						Ptr(new list::FixedHeightItemArranger)
 					);
 					break;
 				case TextListView::Radio:
 					SetStyleAndArranger(
 						[](const Value&) { return new list::DefaultRadioTextListItemTemplate; },
-						new list::FixedHeightItemArranger
+						Ptr(new list::FixedHeightItemArranger)
 					);
 					break;
 				default:;

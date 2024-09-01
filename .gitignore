@@ -4,7 +4,7 @@
 #Vczh Libraries
 .Output/
 Test/Output/
-Test/Linux/Coverage/
+Test/Linux/**/Coverage/
 Tools/*.exe
 Tools/*.dll
 Test/GacUISrc/*/*.UI.error.txt
@@ -16,6 +16,7 @@ Test/GacUISrc/*/Reflection.txt
 Test/GacUISrc/TestXml/TestXml.xml
 
 # User-specific files
+*/**/.vs/
 *.suo
 *.user
 *.sln.docstates
@@ -23,13 +24,13 @@ Test/GacUISrc/TestXml/TestXml.xml
 
 # Build results
 
-[Dd]ebugNoReflection/
-[Dd]ebug/
-[Rr]elease/
-x64/
-build/
-[Bb]in/
-[Oo]bj/
+*/**/[Dd]ebugNoReflection/
+*/**/[Dd]ebug/
+*/**/[Rr]elease/
+*/**/x64/
+*/**/build/
+*/**/[Bb]in/
+*/**/[Oo]bj/
 
 # Enable "build/" folder in the NuGet Packages folder since NuGet packages use it for MSBuild targets
 !packages/*/build/

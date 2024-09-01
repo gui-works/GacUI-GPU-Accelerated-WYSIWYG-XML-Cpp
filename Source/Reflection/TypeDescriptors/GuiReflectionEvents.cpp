@@ -8,7 +8,7 @@ namespace vl
 		{
 			using namespace presentation::compositions;
 
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 
 /***********************************************************************
 Type Declaration
@@ -77,6 +77,8 @@ Type Declaration
 				ENUM_CLASS_ITEM(RenderTargetChanged)
 				ENUM_CLASS_ITEM(ParentLineChanged)
 				ENUM_CLASS_ITEM(ServiceAdded)
+				ENUM_CLASS_ITEM(UpdateRequested)
+				ENUM_CLASS_ITEM(UpdateFullfilled)
 			END_ENUM_ITEM(ControlSignal)
 
 			BEGIN_CLASS_MEMBER(GuiControlSignalEventArgs)
@@ -137,11 +139,11 @@ Type Loader
 
 			bool LoadGuiEventTypes()
 			{
-#ifndef VCZH_DEBUG_NO_REFLECTION
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
 				ITypeManager* manager=GetGlobalTypeManager();
 				if(manager)
 				{
-					Ptr<ITypeLoader> loader=new GuiEventTypeLoader;
+					auto loader=Ptr(new GuiEventTypeLoader);
 					return manager->AddTypeLoader(loader);
 				}
 #endif

@@ -6,8 +6,7 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace parsing::tabling;
-		using namespace parsing::xml;
+		using namespace glr::xml;
 		using namespace regex;
 
 /***********************************************************************
@@ -40,7 +39,7 @@ document_operation_visitors::DeserializeNodeVisitor
 
 				void PrintText(const WString& text)
 				{
-					Ptr<DocumentTextRun> run = new DocumentTextRun;
+					auto run = Ptr(new DocumentTextRun);
 					run->text = text;
 					container->runs.Add(run);
 				}
@@ -53,10 +52,6 @@ document_operation_visitors::DeserializeNodeVisitor
 				void Visit(XmlCData* node)override
 				{
 					PrintText(node->content.value);
-				}
-
-				void Visit(XmlAttribute* node)override
-				{
 				}
 
 				void Visit(XmlComment* node)override
@@ -83,7 +78,7 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"img")
 					{
-						Ptr<DocumentImageRun> run = new DocumentImageRun;
+						auto run = Ptr(new DocumentImageRun);
 						run->baseline = -1;
 
 						if (Ptr<XmlAttribute> source = XmlGetAttribute(node, L"source"))
@@ -104,7 +99,7 @@ document_operation_visitors::DeserializeNodeVisitor
 								}
 							}
 
-							FOREACH(Ptr<XmlAttribute>, att, node->attributes)
+							for (auto att : node->attributes)
 							{
 								if (att->name.value == L"width")
 								{
@@ -137,7 +132,7 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"object")
 					{
-						Ptr<DocumentEmbeddedObjectRun> run = new DocumentEmbeddedObjectRun;
+						auto run = Ptr(new DocumentEmbeddedObjectRun);
 						run->baseline = -1;
 
 						if (auto name = XmlGetAttribute(node, L"name"))
@@ -152,11 +147,11 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"font")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						Ptr<DocumentStyleProperties> sp = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						auto sp = Ptr(new DocumentStyleProperties);
 						run->style = sp;
 
-						FOREACH(Ptr<XmlAttribute>, att, node->attributes)
+						for (auto att : node->attributes)
 						{
 							if (att->name.value == L"face")
 							{
@@ -184,40 +179,40 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"b" || node->name.value == L"b-")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->bold = node->name.value == L"b";
 						container->runs.Add(run);
 						createdContainer = run;
 					}
 					else if (node->name.value == L"i" || node->name.value == L"i-")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->italic = node->name.value == L"i";
 						container->runs.Add(run);
 						createdContainer = run;
 					}
 					else if (node->name.value == L"u" || node->name.value == L"u-")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->underline = node->name.value == L"u";
 						container->runs.Add(run);
 						createdContainer = run;
 					}
 					else if (node->name.value == L"s" || node->name.value == L"s-")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->strikeline = node->name.value == L"s";
 						container->runs.Add(run);
 						createdContainer = run;
 					}
 					else if (node->name.value == L"ha")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->antialias = true;
 						run->style->verticalAntialias = false;
 						container->runs.Add(run);
@@ -225,8 +220,8 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"va")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->antialias = true;
 						run->style->verticalAntialias = true;
 						container->runs.Add(run);
@@ -234,8 +229,8 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"na")
 					{
-						Ptr<DocumentStylePropertiesRun> run = new DocumentStylePropertiesRun();
-						run->style = new DocumentStyleProperties;
+						auto run = Ptr(new DocumentStylePropertiesRun);
+						run->style = Ptr(new DocumentStyleProperties);
 						run->style->antialias = false;
 						run->style->verticalAntialias = false;
 						container->runs.Add(run);
@@ -247,7 +242,7 @@ document_operation_visitors::DeserializeNodeVisitor
 						{
 							WString styleName = att->value.value;
 
-							Ptr<DocumentStyleApplicationRun> run = new DocumentStyleApplicationRun;
+							auto run = Ptr(new DocumentStyleApplicationRun);
 							run->styleName = styleName;
 							container->runs.Add(run);
 							createdContainer = run;
@@ -259,7 +254,7 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"a")
 					{
-						Ptr<DocumentHyperlinkRun> run = new DocumentHyperlinkRun;
+						auto run = Ptr(new DocumentHyperlinkRun);
 						run->normalStyleName = L"#NormalLink";
 						run->activeStyleName = L"#ActiveLink";
 						if (Ptr<XmlAttribute> att = XmlGetAttribute(node, L"normal"))
@@ -280,7 +275,7 @@ document_operation_visitors::DeserializeNodeVisitor
 					}
 					else if (node->name.value == L"p")
 					{
-						FOREACH(Ptr<XmlNode>, sub, node->subNodes)
+						for (auto sub : node->subNodes)
 						{
 							sub->Accept(this);
 						}
@@ -291,7 +286,7 @@ document_operation_visitors::DeserializeNodeVisitor
 						{
 							errors.Add(GuiResourceError({ {resource},node->codeRange.start }, L"Unknown element in <p>: \"" + node->name.value + L"\"."));
 						}
-						FOREACH(Ptr<XmlNode>, sub, node->subNodes)
+						for (auto sub : node->subNodes)
 						{
 							sub->Accept(this);
 						}
@@ -301,7 +296,7 @@ document_operation_visitors::DeserializeNodeVisitor
 					{
 						Ptr<DocumentContainerRun> oldContainer = container;
 						container = createdContainer;
-						FOREACH(Ptr<XmlNode>, subNode, subNodeContainer->subNodes)
+						for (auto subNode : subNodeContainer->subNodes)
 						{
 							subNode->Accept(this);
 						}
@@ -320,17 +315,17 @@ document_operation_visitors::DeserializeNodeVisitor
 
 			Ptr<DocumentStyle> ParseDocumentStyle(Ptr<GuiResourceItem> resource, Ptr<XmlElement> styleElement, GuiResourceError::List& errors)
 			{
-				Ptr<DocumentStyle> style=new DocumentStyle;
+				auto style = Ptr(new DocumentStyle);
 
 				if(Ptr<XmlAttribute> parent=XmlGetAttribute(styleElement, L"parent"))
 				{
 					style->parentStyleName=parent->value.value;
 				}
 
-				Ptr<DocumentStyleProperties> sp=new DocumentStyleProperties;
+				auto sp = Ptr(new DocumentStyleProperties);
 				style->styles=sp;
 
-				FOREACH(Ptr<XmlElement>, att, XmlGetElements(styleElement))
+				for (auto att : XmlGetElements(styleElement))
 				{
 					if(att->name.value==L"face")
 					{
@@ -398,16 +393,16 @@ document_operation_visitors::DeserializeNodeVisitor
 DocumentModel
 ***********************************************************************/
 
-		Ptr<DocumentModel> DocumentModel::LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<parsing::xml::XmlDocument> xml, Ptr<GuiResourcePathResolver> resolver, GuiResourceError::List& errors)
+		Ptr<DocumentModel> DocumentModel::LoadFromXml(Ptr<GuiResourceItem> resource, Ptr<glr::xml::XmlDocument> xml, Ptr<GuiResourcePathResolver> resolver, GuiResourceError::List& errors)
 		{
-			Ptr<DocumentModel> model = new DocumentModel;
+			auto model = Ptr(new DocumentModel);
 			if (xml->rootElement->name.value == L"Doc")
 			{
-				FOREACH(Ptr<XmlElement>, partElement, XmlGetElements(xml->rootElement))
+				for (auto partElement : XmlGetElements(xml->rootElement))
 				{
 					if (partElement->name.value == L"Styles")
 					{
-						FOREACH(Ptr<XmlElement>, styleElement, XmlGetElements(partElement))
+						for (auto styleElement : XmlGetElements(partElement))
 						{
 							if (styleElement->name.value == L"Style")
 							{
@@ -420,8 +415,8 @@ DocumentModel
 										model->styles.Add(styleName, style);
 										if (styleName.Length() > 9 && styleName.Right(9) == L"-Override")
 										{
-											auto overridedStyle = MakePtr<DocumentStyle>();
-											overridedStyle->styles = new DocumentStyleProperties;
+											auto overridedStyle = Ptr(new DocumentStyle);
+											overridedStyle->styles = Ptr(new DocumentStyleProperties);
 											MergeStyle(overridedStyle->styles, style->styles);
 
 											styleName = styleName.Left(styleName.Length() - 9);
@@ -452,11 +447,11 @@ DocumentModel
 					}
 					else if (partElement->name.value == L"Content")
 					{
-						FOREACH_INDEXER(Ptr<XmlElement>, p, i, XmlGetElements(partElement))
+						for (auto [p, i] : indexed(XmlGetElements(partElement)))
 						{
 							if (p->name.value == L"p")
 							{
-								Ptr<DocumentParagraphRun> paragraph = new DocumentParagraphRun;
+								auto paragraph = Ptr(new DocumentParagraphRun);
 								if (Ptr<XmlAttribute> att = XmlGetAttribute(p, L"align"))
 								{
 									if (att->value.value == L"Left")

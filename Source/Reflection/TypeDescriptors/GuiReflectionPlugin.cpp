@@ -21,6 +21,8 @@ namespace vl
 
 #undef GUIREFLECTIONTEMPLATES_IMPL_VL_TYPE_INFO
 
+#ifdef VCZH_DESCRIPTABLEOBJECT_WITH_METADATA
+
 			extern bool LoadGuiBasicTypes();
 			extern bool LoadGuiElementTypes();
 			extern bool LoadGuiCompositionTypes();
@@ -30,7 +32,7 @@ namespace vl
 
 			using namespace presentation::controls;
 
-			class GuiReflectionPlugin : public Object, public IGuiPlugin
+			class GuiReflectionPlugin : public Object, public presentation::IGuiPlugin
 			{
 			public:
 
@@ -38,26 +40,30 @@ namespace vl
 				{
 				}
 
-				void Load()override
+				void Load(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 				{
-					LoadPredefinedTypes();
-					LoadParsingTypes();
-					XmlLoadTypes();
-					JsonLoadTypes();
-					WfLoadLibraryTypes();
-					LoadGuiBasicTypes();
-					LoadGuiElementTypes();
-					LoadGuiCompositionTypes();
-					LoadGuiEventTypes();
-					LoadGuiTemplateTypes();
-					LoadGuiControlTypes();
+					if (controllerUnrelatedPlugins)
+					{
+						LoadPredefinedTypes();
+						LoadParsing2Types();
+						XmlAstLoadTypes();
+						JsonAstLoadTypes();
+						WfLoadLibraryTypes();
+						LoadGuiBasicTypes();
+						LoadGuiElementTypes();
+						LoadGuiCompositionTypes();
+						LoadGuiEventTypes();
+						LoadGuiTemplateTypes();
+						LoadGuiControlTypes();
+					}
 				}
 
-				void Unload()override
+				void Unload(bool controllerUnrelatedPlugins, bool controllerRelatedPlugins)override
 				{
 				}
 			};
 			GUI_REGISTER_PLUGIN(GuiReflectionPlugin)
+#endif
 		}
 	}
 }

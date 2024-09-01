@@ -49,6 +49,7 @@ Tab Control
 				bool											QueryInsert(vint index, GuiTabPage* const& value)override;
 				void											AfterInsert(vint index, GuiTabPage* const& value)override;
 				void											BeforeRemove(vint index, GuiTabPage* const& value)override;
+				void											AfterRemove(vint index, vint count)override;
 			public:
 				GuiTabPageList(GuiTab* _tab);
 				~GuiTabPageList();
@@ -115,13 +116,13 @@ Scroll View
 				Ptr<IEventHandler>						vScrollHandler;
 				Ptr<IEventHandler>						hWheelHandler;
 				Ptr<IEventHandler>						vWheelHandler;
-				Ptr<IEventHandler>						containerBoundsChangedHandler;
+				Ptr<IEventHandler>						containerCachedBoundsChangedHandler;
 				bool									horizontalAlwaysVisible = true;
 				bool									verticalAlwaysVisible = true;
 
 				void									UpdateDisplayFont()override;
 
-				void									OnContainerBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
+				void									OnContainerCachedBoundsChanged(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void									OnHorizontalScroll(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void									OnVerticalScroll(compositions::GuiGraphicsComposition* sender, compositions::GuiEventArgs& arguments);
 				void									OnHorizontalWheel(compositions::GuiGraphicsComposition* sender, compositions::GuiMouseEventArgs& arguments);

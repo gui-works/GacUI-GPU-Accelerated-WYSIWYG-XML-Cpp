@@ -6,7 +6,7 @@ namespace vl
 	namespace presentation
 	{
 		using namespace collections;
-		using namespace parsing::xml;
+		using namespace glr::xml;
 		using namespace stream;
 
 		namespace document_clipboard_visitors
@@ -20,7 +20,7 @@ namespace vl
 
 				virtual void VisitContainer(DocumentContainerRun* run)
 				{
-					FOREACH(Ptr<DocumentRun>, childRun, run->runs)
+					for (auto childRun : run->runs)
 					{
 						childRun->Accept(this);
 					}
@@ -68,6 +68,7 @@ namespace vl
 
 				void VisitContainer(DocumentContainerRun* run)override
 				{
+					// TODO: (enumerable) foreach:indexed(alterable(reversed))
 					for (vint i = run->runs.Count() - 1; i >= 0; i--)
 					{
 						auto childRun = run->runs[i];
@@ -92,7 +93,7 @@ namespace vl
 				void Visit(DocumentImageRun* run)override
 				{
 					run->source = L"res://Image_" + itow(imageRuns.Count());
-					imageRuns.Add(run);
+					imageRuns.Add(Ptr(run));
 				}
 			};
 		}
@@ -101,20 +102,20 @@ namespace vl
 		void ModifyDocumentForClipboard(Ptr<DocumentModel> model)
 		{
 			ModifyDocumentForClipboardVisitor visitor;
-			FOREACH(Ptr<DocumentParagraphRun>, paragraph, model->paragraphs)
+			for (auto paragraph : model->paragraphs)
 			{
 				paragraph->Accept(&visitor);
 			}
 		}
 
-		Ptr<DocumentModel> LoadDocumentFromClipboardStream(stream::IStream& stream)
+		Ptr<DocumentModel> LoadDocumentFromClipboardStream(stream::IStream& clipboardStream)
 		{
-			auto tempResource = MakePtr<GuiResource>();
-			auto tempResourceItem = MakePtr<GuiResourceItem>();
+			auto tempResource = Ptr(new GuiResource);
+			auto tempResourceItem = Ptr(new GuiResourceItem);
 			tempResource->AddItem(L"Document", tempResourceItem);
-			auto tempResolver = MakePtr<GuiResourcePathResolver>(tempResource, L"");
+			auto tempResolver = Ptr(new GuiResourcePathResolver(tempResource, L""));
 
-			internal::ContextFreeReader reader(stream);
+			internal::ContextFreeReader reader(clipboardStream);
 			{
 				WString title;
 				vint32_t version = 0;
@@ -142,8 +143,8 @@ namespace vl
 					reader << (IStream&)memoryStream;
 					if (auto image = GetCurrentController()->ImageService()->CreateImageFromStream(memoryStream))
 					{
-						auto imageItem = MakePtr<GuiResourceItem>();
-						imageItem->SetContent(L"Image", MakePtr<GuiImageData>(image, 0));
+						auto imageItem = Ptr(new GuiResourceItem);
+						imageItem->SetContent(L"Image", Ptr(new GuiImageData(image, 0)));
 						tempResource->AddItem(L"Image_" + itow(i), imageItem);
 					}
 				}
@@ -153,15 +154,15 @@ namespace vl
 			return document;
 		}
 
-		void SaveDocumentToClipboardStream(Ptr<DocumentModel> model, stream::IStream& stream)
+		void SaveDocumentToClipboardStream(Ptr<DocumentModel> model, stream::IStream& clipboardStream)
 		{
 			CollectImageRunsVisitor visitor;
-			FOREACH(Ptr<DocumentParagraphRun>, paragraph, model->paragraphs)
+			for (auto paragraph : model->paragraphs)
 			{
 				paragraph->Accept(&visitor);
 			}
 
-			internal::ContextFreeWriter writer(stream);
+			internal::ContextFreeWriter writer(clipboardStream);
 			{
 				WString title = L"WCF_Document";
 				vint32_t version = 1;
@@ -179,7 +180,7 @@ namespace vl
 				vint32_t count = (vint32_t)visitor.imageRuns.Count();
 				writer << count;
 
-				FOREACH(Ptr<DocumentImageRun>, imageRun, visitor.imageRuns)
+				for (auto imageRun : visitor.imageRuns)
 				{
 					MemoryStream memoryStream;
 					if (imageRun->image)
@@ -193,7 +194,7 @@ namespace vl
 						imageRun->image->SaveToStream(memoryStream, format);
 					}
 					
-					writer << (IStream&)memoryStream;
+					writer << (stream::IStream&)memoryStream;
 				}
 			}
 		}
